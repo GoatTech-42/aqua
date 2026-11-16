@@ -27,10 +27,15 @@ With no key, an unreachable backend, or an empty pool, every panel says so
 data. Columns the backend does not expose yet (context size, pricing, quota) show
 "—". There is no mock data anywhere in these pages.
 
+## Sign-in
+
+GitHub OAuth console login is implemented (see `docs/AUTH.md`): the backend
+serves these pages same-origin, the console reads `/auth/me` to show the signed-in
+identity with a sign-out action, and API keys still work without any login. When
+no OAuth session exists the console says "API key mode" instead of an identity.
+
 ## Not done yet
 
-- Console sign-in (GitHub OAuth) — see `docs/AUTH.md`. Until then the pages are
-  static and every API call still needs a bearer key.
 - Streaming replies in the playground (backend supports SSE; the composer uses a
   single non-streaming POST for now).
 - Live quota/usage display (backend does not expose it).
