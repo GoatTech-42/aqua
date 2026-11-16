@@ -166,7 +166,7 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
 
         <div id="aqua-rows"></div>
       </div>
-      <div class="foot"><span id="aqua-foot">Pricing and quota are not exposed by the backend yet.</span><span><a href="#" onclick="AQUA.askKey();return false">Set API key</a> · <a href="#" onclick="AQUA.askBase();return false">Set base URL</a></span></div>
+      <div class="foot"><span id="aqua-foot">Pricing and quota are not exposed by the backend yet.</span><span><a href="#" onclick="AQUA.askKey();return false">Set API key</a> · <a href="#" onclick="AQUA.askBase();return false">Set base URL</a> · <a href="/login/github" data-aqua-signin>Sign in</a></span></div>
     </div>
   </div>
 </div>
@@ -197,6 +197,10 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
 <script>
 (function () {
   var base = AQUA.baseUrl();
+  var serverOrigin = base.replace(/\/v1$/, '');
+  document.querySelectorAll('[data-aqua-signin]').forEach(function (a) {
+    a.setAttribute('href', serverOrigin + '/login/github');
+  });
   document.getElementById('aqua-base').textContent = base;
   var rows = document.getElementById('aqua-rows');
   function stateRow(title, sub) {
