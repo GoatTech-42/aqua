@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aqua — Playground</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:light;
+  --bg:#f3f4f6; --sheet:#fff; --line:#e4e5e7; --rule:#eeeeef; --control:#d3d6da;
+  --ink:#111; --muted:#5f6368; --faint:#83878c;
+  --accent:#0e7490; --accent-ink:#fff; --accent-soft:#e9f4f7;
+  --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+::selection{background:var(--accent);color:var(--accent-ink)}
+svg{display:block}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+.app{display:grid;grid-template-rows:54px 1fr;height:100vh}
+.topbar{display:flex;align-items:center;gap:10px;padding:0 18px;background:var(--sheet);border-bottom:1px solid var(--line)}
+.topbar .wm{font-weight:600;font-size:15.5px;letter-spacing:-0.01em}
+.topbar .crumb{font-size:13px;color:var(--faint)}
+.modelpick{margin-left:20px;display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid var(--control);border-radius:8px;font-size:13px;font-weight:500;background:#fff;white-space:nowrap}
+.modelpick .auto{color:var(--accent);font-weight:600}
+.topbar .right{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--muted)}
+.keychip{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--control);border-radius:7px;padding:5px 9px;background:#fff}
+
+.panes{display:grid;grid-template-columns:252px 1fr 300px;min-height:0}
+
+/* models rail */
+.rail{background:var(--sheet);border-right:1px solid var(--line);padding:16px 12px;overflow:hidden}
+.rail h3{font-size:13px;font-weight:600;padding:0 8px;letter-spacing:-0.005em}
+.rail .search{display:flex;align-items:center;gap:7px;height:32px;margin:12px 4px 6px;padding:0 10px;border:1px solid var(--control);border-radius:8px;color:var(--faint);font-size:12.5px;background:#fff}
+.grouplab{font-size:10.5px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--faint);padding:16px 8px 6px}
+.mrow{display:block;padding:8px;border-radius:8px;text-decoration:none;color:inherit}
+.mrow:hover{background:#f6f7f8}
+.mrow .id{font-family:var(--mono);font-size:12px;font-weight:600}
+.mrow .via{font-size:11.5px;color:var(--faint);margin-top:2px;display:flex;justify-content:space-between}
+.mrow.on{background:var(--accent-soft)}
+.mrow.on:hover{background:var(--accent-soft)}
+.mrow.on .id{color:var(--accent)}
+
+/* conversation */
+.conv{display:flex;flex-direction:column;min-height:0;background:var(--bg)}
+.stream{flex:1;padding:28px 36px;overflow:hidden}
+.msg{max-width:680px;margin:0 auto 28px}
+.who{font-size:12px;font-weight:500;color:var(--faint);margin-bottom:7px}
+.route-line{font-family:var(--mono);font-size:11.5px;color:var(--accent);margin-bottom:8px}
+.body{font-size:14.5px;line-height:1.6;color:#1c1c1c}
+.body p + p{margin-top:8px}
+.code{background:#0d0d0d;color:#d8d8d8;border-radius:10px;padding:16px 18px;font-family:var(--mono);font-size:12px;line-height:1.65;margin-top:12px;overflow-x:auto;scrollbar-width:none}
+.code::-webkit-scrollbar{display:none}
+.code .k{color:#45d6e8}
+.caret{display:inline-block;width:8px;height:15px;background:var(--accent);vertical-align:-2px;margin-left:2px}
+.composer{padding:14px 36px 22px}
+.cbox{max-width:680px;margin:0 auto;background:#fff;border:1px solid var(--control);border-radius:14px;padding:11px 13px;display:flex;align-items:flex-end;gap:10px}
+.cbox .ph{flex:1;color:var(--faint);font-size:14px;padding-bottom:2px}
+.send{width:32px;height:32px;border-radius:50%;background:#16181a;display:flex;align-items:center;justify-content:center;flex:none}
+.cbox .att{color:var(--faint);flex:none;padding-bottom:6px}
+
+/* route rail */
+.route{background:var(--sheet);border-left:1px solid var(--line);padding:18px 18px 12px;display:flex;flex-direction:column}
+.route h3{font-size:13px;font-weight:600;margin-bottom:12px;letter-spacing:-0.005em}
+.kv{display:flex;justify-content:space-between;align-items:baseline;padding:8px 0;border-top:1px solid var(--rule);font-size:13px}
+.kv .k{color:var(--faint)}
+.kv .v{font-weight:500;text-align:right}
+.kv .v.mono{font-family:var(--mono);font-size:12px;font-weight:600}
+.quota{margin-top:18px}
+.quota .qlab{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.qbar{height:7px;border-radius:999px;background:#ececee;overflow:hidden}
+.qbar .f{height:100%;width:54%;background:var(--accent);border-radius:999px}
+.qcap{font-size:11.5px;color:var(--faint);margin-top:7px}
+.failover{margin-top:18px;background:#fafafb;border:1px solid var(--rule);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.failover .mono{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--ink)}
+.mocknote{margin-top:auto;padding-top:16px;font-size:11px;color:var(--faint)}
+
+.phonechip{display:none}
+
+@media (max-width:760px){
+  .app{grid-template-rows:52px auto 1fr}
+  .panes{grid-template-columns:1fr}
+  .rail,.route{display:none}
+  .keychip{display:none}
+  .crumb{display:none}
+  .picksub{display:none}
+  .modelpick{margin-left:auto}
+  .route-line{font-size:10.5px}
+  .phonechip{display:flex;gap:8px;align-items:center;padding:9px 18px;background:var(--sheet);border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--accent);overflow:hidden;white-space:nowrap}
+  .stream{padding:20px 18px;overflow:visible}
+  .code{font-size:10px;padding:14px;white-space:pre;overflow-x:auto}
+  .composer{padding:10px 18px 18px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0e7490" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>
+    <span class="wm">aqua</span><span class="crumb">/ Playground</span>
+    <div class="modelpick"><span class="auto">auto</span><span class="picksub" style="color:var(--faint)">·</span><span class="picksub">router default</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="right"><span class="keychip" id="aqua-keychip" style="cursor:pointer">set api key</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+    </div>
+  </div>
+  <div class="phonechip" id="aqua-chip" style="display:none"></div>
+  <div class="panes">
+    <aside class="rail">
+      <h3>Models</h3>
+      <div class="search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Filter</span></div>
+      <div class="grouplab">Models</div>
+      <div id="aqua-rail"><a class="mrow" href="#"><div class="id">No models loaded</div><div class="via"><span>set api key</span></div></a></div>
+    </aside>
+
+    <div class="conv">
+      <div class="stream">
+        <div id="aqua-stream"><div class="msg"><div class="body"><p>Pick a model on the left, set your API key, and ask something.</p></div></div></div>
+      </div>
+      <div class="composer">
+        <div class="cbox">
+          <svg class="att" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+          <input id="aqua-input" placeholder="Ask anything…" style="flex:1;background:none;border:0;outline:0;color:inherit;font:inherit">
+          <span class="send" id="aqua-send" style="cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
+        </div>
+      </div>
+    </div>
+
+    <aside class="route">
+      <h3>Details</h3>
+      <div class="kv"><span class="k">Model</span><span class="v mono" id="aqua-kv-model">—</span></div>
+      <div class="kv"><span class="k">Latency</span><span class="v num" id="aqua-kv-latency">—</span></div>
+      <div class="kv"><span class="k">Tokens</span><span class="v num" id="aqua-kv-tokens">—</span></div>
+      <div class="kv"><span class="k">Cost</span><span class="v num">—</span></div>
+      <div class="quota"><div class="qlab"><span>Daily quota</span><span class="num">not shown yet</span></div><div class="qcap">The backend enforces a per-key daily limit; live usage numbers land here once the backend exposes them.</div></div>
+      </div>
+      <div class="failover">On the <span class="mono">auto</span> route, a full upstream window fails over to the next model in the pool. Same request, same code.</div>
+      
+    </aside>
+  </div>
+</div>
+
+<script>
+(function () {
+  var base = localStorage.getItem('aqua_api_base') || (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua.goattech.us/v1');
+  function getKey() { return localStorage.getItem('aqua_key') || ''; }
+  function setBase(v) { localStorage.setItem('aqua_api_base', v); base = v; }
+  window.AQUA = { baseUrl: function () { return base; }, key: getKey, setBase: setBase };
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'authorization': 'Bearer ' + getKey(), 'content-type': 'application/json' }, opts.headers || {});
+    return fetch(base + path, opts);
+  }
+  window.AQUA.api = api;
+  window.AQUA.askKey = function () {
+    var k = window.prompt('Aqua API key (stored only in this browser):', getKey());
+    if (k !== null) { localStorage.setItem('aqua_key', k.trim()); location.reload(); }
+  };
+  window.AQUA.askBase = function () {
+    var b = window.prompt('Aqua base URL:', base);
+    if (b !== null) { setBase(b.trim().replace(/\/+$/, '')); location.reload(); }
+  };
+})();
+</script>
+
+<script>
+(function () {
+  var model = 'auto';
+  var history = [];
+  var stream = document.getElementById('aqua-stream');
+  var chip = document.getElementById('aqua-chip');
+  function chipSet(t) { chip.style.display = t ? '' : 'none'; chip.textContent = t; }
+  function addMsg(who, text, route) {
+    var d = document.createElement('div');
+    d.className = 'msg';
+    d.innerHTML = (who ? '<div class="who">you</div>' : (route ? '<div class="route-line"></div>' : '')) + '<div class="body"><p></p></div>';
+    d.querySelector('p').textContent = text;
+    if (!who && route) { d.querySelector('.route-line').textContent = route; }
+    stream.appendChild(d);
+    return d;
+  }
+  var keychip = document.getElementById('aqua-keychip');
+  function paintKey() { keychip.textContent = AQUA.key() ? ('aqua key …' + AQUA.key().slice(-4)) : 'set api key'; }
+  keychip.addEventListener('click', AQUA.askKey);
+  paintKey();
+
+  function loadModels() {
+    if (!AQUA.key()) { return; }
+    AQUA.api('/models').then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); }).then(function (j) {
+      var rail = document.getElementById('aqua-rail');
+      var models = j.data || [];
+      if (!models.length) { rail.innerHTML = '<a class="mrow" href="#"><div class="id">Pool is empty</div></a>'; return; }
+      rail.innerHTML = '';
+      models.forEach(function (m) {
+        var a = document.createElement('a');
+        a.className = 'mrow' + (m.id === model ? ' on' : '');
+        a.href = '#';
+        var id = document.createElement('div'); id.className = 'id'; id.textContent = m.id;
+        a.appendChild(id);
+        a.addEventListener('click', function (ev) {
+          ev.preventDefault();
+          model = m.id;
+          rail.querySelectorAll('.mrow').forEach(function (x) { x.classList.remove('on'); });
+          a.classList.add('on');
+        });
+        rail.appendChild(a);
+      });
+    }).catch(function () {});
+  }
+  loadModels();
+
+  var input = document.getElementById('aqua-input');
+  function send() {
+    var text = input.value.trim();
+    if (!text) { return; }
+    if (!AQUA.key()) { AQUA.askKey(); if (!AQUA.key()) { return; } }
+    input.value = '';
+    addMsg('you', text);
+    history.push({ role: 'user', content: text });
+    var pending = addMsg(null, '…', 'routing…');
+    var t0 = performance.now();
+    AQUA.api('/chat/completions', { method: 'POST', body: JSON.stringify({ model: model, messages: history }) })
+      .then(function (r) {
+        return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
+      }).then(function (res) {
+        var dt = ((performance.now() - t0) / 1000).toFixed(2) + 's';
+        if (!res.ok) {
+          var msg = (res.body && res.body.error && res.body.error.message) || ('HTTP ' + res.status);
+          pending.querySelector('p').textContent = msg;
+          pending.querySelector('.route-line').textContent = res.status === 401 ? 'invalid API key' : 'error';
+          history.pop();
+          return;
+        }
+        var choice = res.body.choices && res.body.choices[0];
+        var reply = (choice && choice.message && choice.message.content) || '(empty reply)';
+        var used = res.body.model || model;
+        var usage = res.body.usage;
+        var route = used + ' · ' + dt + (usage ? (' · ' + usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '');
+        pending.querySelector('p').textContent = reply;
+        pending.querySelector('.route-line').textContent = route;
+        history.push({ role: 'assistant', content: reply });
+        document.getElementById('aqua-kv-model').textContent = used;
+        document.getElementById('aqua-kv-latency').textContent = dt;
+        document.getElementById('aqua-kv-tokens').textContent = usage ? (usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '—';
+        chipSet(route);
+      }).catch(function (e) {
+        pending.querySelector('p').textContent = 'Could not reach the deployment at ' + AQUA.baseUrl() + ' (' + e.message + ').';
+        pending.querySelector('.route-line').textContent = 'offline';
+        history.pop();
+      });
+  }
+  document.getElementById('aqua-send').addEventListener('click', send);
+  input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { send(); } });
+})();
+</script>
+</body>
+</html>
