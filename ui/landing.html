@@ -126,15 +126,15 @@ footer .note{margin-top:40px;font-size:12px;color:var(--faint)}
 <div class="wrap">
   <nav>
     <span class="mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></span>
-    <div class="links"><a href="#">Models</a><a href="#">Docs</a><a href="#">Status</a></div>
-    <div class="cta"><a class="btn btn-ghost" data-aqua-signin href="/login/github">Sign in</a><a class="btn btn-primary" href="#">Get an API key</a></div>
+    <div class="links"><a href="/console.html">Models</a></div>
+    <div class="cta"><a class="btn btn-ghost" data-aqua-signin href="/login/github">Sign in</a></div>
   </nav>
 
   <div class="hero">
     <div>
       <h1>Free models. One endpoint.</h1>
-      <p class="sub">Aqua routes across the free tiers the admin has enabled and sends each request to a model that is within its limits. OpenAI-compatible, so switching is one line of code.</p>
-      <div class="actions"><a class="btn btn-primary" href="#">Get an API key</a><a class="plain" href="#">See the models</a></div>
+      <p class="sub">Aqua sends each request across the free tiers the admin has enabled and fails over on its own when one errors or rate-limits you. OpenAI-compatible, so switching is one line of code.</p>
+      <div class="actions"><a class="btn btn-primary" data-aqua-signin href="/login/github">Sign in</a><a class="plain" href="/console.html">See the models</a></div>
     </div>
     <div class="reqcard" data-ui>
       <div class="rh"><span class="method">POST</span><span>/v1/chat/completions</span></div>
@@ -152,7 +152,7 @@ footer .note{margin-top:40px;font-size:12px;color:var(--faint)}
 
   <section>
     <h2>Many free tiers in, one answer out.</h2>
-    <p class="lede">You hold one key. Aqua checks which enabled free tiers still have quota, picks a model that fits your request, and fails over on its own when one rate-limits you.</p>
+    <p class="lede">You hold one key. Aqua tries the enabled free-tier pool in order and fails over on its own when one errors or rate-limits you. Same request, same code.</p>
     <div class="conflu">
       <svg class="wide" viewBox="0 0 1060 320" role="img" aria-label="Diagram: many models flow into Aqua, which outputs one endpoint">
         <path class="stream" d="M170 32 C 400 32, 470 142, 610 147"/>
@@ -200,8 +200,8 @@ footer .note{margin-top:40px;font-size:12px;color:var(--faint)}
   </section>
 
   <section>
-    <h2>Live status is on the dashboard, not in a blog post.</h2>
-    <p class="lede">The admin console lists whether each provider is live. Quota visibility lands next.</p>
+    <h2>The pool is visible, not in a blog post.</h2>
+    <p class="lede">The console lists every model the pool can serve. Quota visibility lands next.</p>
     <div class="frag" data-ui>
       <div class="fh"><span>Right now</span><span class="sd" id="aqua-sd">offline</span></div>
       <table>
@@ -213,7 +213,7 @@ footer .note{margin-top:40px;font-size:12px;color:var(--faint)}
 
   <footer>
     <div class="big">aqua</div>
-    <div class="cols"><a href="#">Models</a><a href="#">Docs</a><a href="#">Status</a><a href="#">GitHub</a><a data-aqua-signin href="/login/github">Sign in</a></div>
+    <div class="cols"><a href="/console.html">Models</a><a data-aqua-signin href="/login/github">Sign in</a></div>
     <div class="note">Aqua is invite-only. Model names are public; the providers behind them are not disclosed.</div>
   </footer>
 </div>
@@ -265,7 +265,7 @@ footer .note{margin-top:40px;font-size:12px;color:var(--faint)}
     tbody.removeChild(row);
     models.forEach(function (m) {
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td><div class="mono"></div></td><td class="r num">—</td><td class="r num">—</td><td class="r"><span class="pill pill-live">live</span></td>';
+      tr.innerHTML = '<td><div class="mono"></div></td><td class="r num">—</td><td class="r num">—</td><td class="r"><span class="pill pill-live">listed</span></td>';
       tr.querySelector('.mono').textContent = m.id;
       tbody.appendChild(tr);
     });
