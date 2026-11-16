@@ -179,9 +179,11 @@ pub fn session_cookie(headers: &HashMap<String, String>) -> Option<String> {
     for part in header.split(';') {
         let part = part.trim();
         if let Some(v) = part.strip_prefix(COOKIE_NAME) {
-            let v = v.strip_prefix('=')?.trim();
-            if !v.is_empty() && v.len() <= 64 && v.chars().all(|c| c.is_ascii_hexdigit()) {
-                return Some(v.to_string());
+            if let Some(v) = v.strip_prefix('=') {
+                let v = v.trim();
+                if !v.is_empty() && v.len() <= 64 && v.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return Some(v.to_string());
+                }
             }
         }
     }
