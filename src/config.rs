@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::auth::OAuthConfig;
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Status {
     Off,      // never called
@@ -61,6 +63,7 @@ pub struct Config {
     pub daily_limit: u32,
     pub allowed_origin: String,
     pub providers: Vec<Provider>,
+    pub oauth: OAuthConfig,
 }
 
 struct RegistryEntry {
@@ -151,11 +154,33 @@ pub fn from_env() -> Config {
     let mut keys = HashMap::new();
     parse_keys(env("AQUA_OWNER_KEYS"), Role::Owner, &mut keys);
     parse_keys(env("AQUA_FRIEND_KEYS"), Role::Friend, &mut keys);
+    let users = |k: &str| {
+        env(k)
+            .unwrap_or_default()
+            .split(',')
+            .map(|s| s.trim().to_ascii_lowercase())
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+    };
     Config {
         keys,
         admin_key: env("AQUA_ADMIN_KEY").unwrap_or_default(),
         daily_limit: env("AQUA_DAILY_LIMIT").and_then(|v| v.parse().ok()).unwrap_or(200),
         allowed_origin: env("AQUA_ALLOWED_ORIGIN").unwrap_or_default(),
+        oauth: OAuthConfig {
+            client_id: env("AQUA_GITHUB_CLIENT_ID").unwrap_or_default(),
+            client_secret: env("AQUA_GITHUB_CLIENT_SECRET").unwrap_or_default(),
+            public_url: env("AQUA_PUBLIC_URL")
+                .unwrap_or_else(|| "http://localhost:8080".to_string())
+                .trim_end_matches('/')
+                .to_string(),
+            console_url: env("AQUA_CONSOLE_URL")
+                .unwrap_or_default()
+                .trim_end_matches('/')
+                .to_string(),
+            owner_users: users("AQUA_GITHUB_OWNERS"),
+            friend_users: users("AQUA_GITHUB_FRIENDS"),
+        },
         providers: REGISTRY
             .iter()
             .map(|p| {
