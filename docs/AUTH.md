@@ -17,20 +17,37 @@ those clients, so the API keeps plain bearer keys.
   per token).
 - AQUA_DAILY_LIMIT applies per key.
 
-## Web console (landing / console / playground): GitHub OAuth — recommended next step
+## Web console (landing / console / playground): GitHub OAuth — implemented
 
 Luke already signs into other services (e.g. Cloudflare) with GitHub, and the
 account system question ("how will I log in") lands here.
 
-- Add `GET /login/github` + `GET /auth/github/callback` to the Rust backend using
-  the `oauth2` crate; session cookie via `tower-sessions` (signed, httpOnly).
-  Do not use `axum-login`: the crate is in a maintainer transition
-  (https://github.com/maxcountryman/axum-login/discussions/330) and the backend is
-  hand-rolled HTTP, not axum.
-- Allowlist GitHub usernames via env (`AQUA_ALLOWED_GITHUB_USERS`); Luke's account
-  maps to owner role.
-- Console login gates the static UI and any future console-only endpoints. The API
-  keeps bearer keys regardless — friends using scripts never touch OAuth.
+Implemented in `src/auth.rs` + routes in `src/server.rs`, hand-rolled on top of
+`ureq` (two HTTPS calls) rather than the `oauth2` crate: the backend is a
+deliberately minimal hand-rolled HTTP server, and the exchange is a single
+form POST plus one authenticated GET — not worth ~30 transitive crates.
+`axum-login`/`tower-sessions` were already ruled out (not axum; axum-login is in
+a maintainer transition).
+
+- `GET /login/github` — 302 to GitHub authorize with a single-use state (10 min
+  TTL). 503 when OAuth env is not configured (login fails closed).
+- `GET /auth/github/callback` — verifies state before any network call, exchanges
+  the code, reads the user login, checks the allowlist (`AQUA_GITHUB_OWNERS` /
+  `AQUA_GITHUB_FRIENDS`, case-insensitive), then sets the session cookie and 302s
+  to the console. Unknown GitHub accounts get 403.
+- Sessions: random 128-bit ids from the OS RNG, stored server-side in memory with
+  a 7-day expiry; cookie is `HttpOnly; SameSite=Lax`, `Secure` when the public URL
+  is https. No tokens or GitHub data are stored beyond the login + role.
+- `GET /auth/me` → `{login, role}` or 401. `POST /auth/logout` revokes and clears.
+- The backend also serves the three console pages same-origin (`/`,
+  `/console.html`, `/playground.html`), which is what makes the session cookie
+  usable without CORS/SameSite gymnastics. The pages themselves stay public;
+  every API call still needs a bearer key.
+- Config: `AQUA_GITHUB_CLIENT_ID` / `AQUA_GITHUB_CLIENT_SECRET` /
+  `AQUA_PUBLIC_URL` / `AQUA_CONSOLE_URL` / `AQUA_GITHUB_OWNERS` /
+  `AQUA_GITHUB_FRIENDS`. The GitHub OAuth app itself is created at deploy time;
+  its client secret goes in the vault, never in the repo.
+- The API keeps bearer keys regardless — friends using scripts never touch OAuth.
 
 ## Why not Cloudflare Access in front of the API
 
@@ -43,4 +60,6 @@ for the Pages console hostnames only; it is not the account system.
 ## Deliberately not done yet
 
 - No self-service signup, no key minting UI: friends get keys from Luke directly.
+  Console login currently proves identity only; key issuance stays manual.
 - No per-friend usage display until the backend exposes it.
+- Sessions are in-memory: a restart signs everyone out. Acceptable for beta.
