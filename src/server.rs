@@ -200,8 +200,12 @@ fn write_json(stream: &mut TcpStream, code: u16, body: &Value, cors: Option<&str
 
 fn cors_headers(cors: Option<&str>) -> String {
     match cors {
+        // credentials: the Pages console (aqua.goattech.us) calls the API host
+        // (api.aqua.goattech.us) with fetch credentials:'include' for /auth/me and
+        // /auth/logout. Same-site, so the host-only SameSite=Lax cookie still flows;
+        // the browser only requires this header on the response.
         Some(origin) => format!(
-            "access-control-allow-origin: {}\r\nvary: origin\r\n",
+            "access-control-allow-origin: {}\r\naccess-control-allow-credentials: true\r\nvary: origin\r\n",
             origin
         ),
         None => String::new(),
@@ -259,6 +263,19 @@ fn bearer(req: &Request) -> String {
         .unwrap_or("")
         .trim()
         .to_string()
+}
+
+// host[:port] portion of an Origin value ("scheme://host[:port][/...]"), or "" when
+// the value has no authority part - a malformed origin simply never matches.
+fn origin_host(origin: &str) -> &str {
+    match origin.split("://").nth(1) {
+        Some(rest) => rest.split('/').next().unwrap_or(""),
+        None => "",
+    }
+}
+
+fn origin_host_matches(origin: &str, host_header: &str) -> bool {
+    !host_header.is_empty() && origin_host(origin).eq_ignore_ascii_case(host_header)
 }
 
 fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
@@ -352,6 +369,27 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         }
     }
     if req.method == "POST" && req.path == "/auth/logout" {
+        // CSRF, defense in depth against both cross-site pages and hostile same-site
+        // siblings (any other *.goattech.us app): SameSite=Lax withholds the cookie
+        // from cross-site POSTs but NOT from same-site siblings, so browser requests
+        // must additionally carry either no Origin (non-browser client) or exactly the
+        // one allowed console origin. Fetch metadata is a third wall, not the only one.
+        if req.headers.get("sec-fetch-site").map(String::as_str) == Some("cross-site") {
+            return write_json(&mut stream, 403, &err_body("cross-site request rejected", "auth_error"), cors);
+        }
+        if let Some(origin) = req.headers.get("origin") {
+            // Allowed: exactly the configured console origin (the Pages host), or the
+            // request's own same origin - a console served by this backend itself
+            // (local dev, or the api host directly) sends Origin == its own host.
+            // Host is the fetch target, so a browser attacker cannot pick it freely;
+            // a non-browser client needs no CSRF protection. A hostile sibling
+            // subdomain's Origin matches neither and stays 403.
+            let allowed = (!cfg.allowed_origin.is_empty() && origin == &cfg.allowed_origin)
+                || origin_host_matches(origin, req.headers.get("host").map(String::as_str).unwrap_or(""));
+            if !allowed {
+                return write_json(&mut stream, 403, &err_body("origin not allowed", "auth_error"), cors);
+            }
+        }
         if let Some(id) = auth::session_cookie(&req.headers) {
             shared.auth.revoke(&id);
         }
@@ -677,4 +715,4 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     } else {
         write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors)
     }
-}
+                      }
