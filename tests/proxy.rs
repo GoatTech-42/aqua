@@ -541,3 +541,30 @@ fn duplicate_content_length_rejected() {
     let resp = raw(&srv.base, req.as_bytes());
     assert!(resp.starts_with("HTTP/1.1 400"), "got: {}", &resp[..resp.len().min(80)]);
 }
+
+#[test]
+fn admin_key_guessing_hits_the_same_throttle() {
+    let up = mock_upstream(|_| json_reply(chat_json("m", "hi")));
+    let srv = serve(config(vec![provider("p1", &up.url, Status::Friends)]));
+    let agent = client();
+    for i in 0..5 {
+        let r = agent.get(format!("{}/v1/admin/providers", srv.base)).header("authorization", "Bearer wrongadmin").call().unwrap();
+        assert_eq!(r.status(), 401, "attempt {}", i);
+    }
+    let r = agent.get(format!("{}/v1/admin/providers", srv.base)).header("authorization", "Bearer wrongadmin").call().unwrap();
+    assert_eq!(r.status(), 429, "admin guessing must be throttled like API keys");
+    // the real admin key still works
+    let ok = agent.get(format!("{}/v1/admin/providers", srv.base)).header("authorization", "Bearer adminsecret").call().unwrap();
+    assert_eq!(ok.status(), 200);
+}
+
+#[test]
+fn unroutable_auto_does_not_burn_quota() {
+    // no providers at all: auto has nothing to route to
+    let srv = serve(config(vec![]));
+    let agent = client();
+    for _ in 0..3 {
+        let r = chat(&agent, &srv.base, "friendkey", msg(false));
+        assert_eq!(r.status(), 503, "unroutable auto must 503, not 429");
+    }
+}
