@@ -299,4 +299,4 @@ pub fn from_env() -> Config {
             })
             .collect(),
     }
-        }
+}
