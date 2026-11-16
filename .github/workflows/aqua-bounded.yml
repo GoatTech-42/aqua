@@ -32,8 +32,8 @@ jobs:
           for i,(h,b64) in enumerate(diffs):
            b=gzip.decompress(base64.b64decode(b64));assert hashlib.sha256(b).hexdigest()==h
            q=pathlib.Path('ci-diff-'+str(i));q.write_bytes(b)
-           subprocess.run(['git','apply','--check',str(q.resolve())],cwd=out,check=True)
-           subprocess.run(['git','apply',str(q.resolve())],cwd=out,check=True)
+           subprocess.run(['git','apply','--directory=ci-source','--check',str(q.resolve())],check=True)
+           subprocess.run(['git','apply','--directory=ci-source',str(q.resolve())],check=True)
           a={str(x.relative_to(out)):hashlib.sha256(x.read_bytes()).hexdigest()for x in out.rglob('*')if x.is_file()}
           assert a==final,'successor manifest mismatch'
           pathlib.Path('source-receipt.json').write_text(json.dumps({'baseline':'8d803fe5a95e4137b373b244b56888e468caef76','diff_sha256':[h for h,b in diffs],'manifest':a},sort_keys=True))
