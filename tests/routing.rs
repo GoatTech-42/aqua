@@ -777,4 +777,4 @@ fn sanitize_drops_reserved_duplicate_and_provider_named_entries() {
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].public, "coder-a");
     assert_eq!(out[0].context, Some(128_000), "verified metadata attaches by public name");
-        }
+}
