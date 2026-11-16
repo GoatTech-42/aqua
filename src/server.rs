@@ -708,6 +708,20 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             return write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors);
         }
     }
+    // the context filter may have removed every non-hard candidate, leaving
+    // only deferred (hard-limited) bindings the dispatch recheck will skip;
+    // reserving quota for such a request would burn a daily slot with no
+    // possible upstream attempt, so it 429s here instead
+    {
+        let health = shared.health.lock().unwrap();
+        let now = Instant::now();
+        let usable = candidates.iter().any(|(p, _)| {
+            !matches!(health.get(p.id.as_str()), Some(cd) if cd.hard && cd.until > now)
+        });
+        if !usable {
+            return write_json(stream, 429, &err_body("rate limit exceeded", "rate_limit_error"), cors);
+        }
+    }
     // quota is reserved only after the request is known-valid and routable
     if !reserve(shared, token) {
         return write_json(stream, 429, &err_body("rate limit exceeded", "rate_limit_error"), cors);
