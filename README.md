@@ -47,12 +47,13 @@ Override only deliberately: `AQUA_STATUS_<ID>=off|personal|friends`. Status
     AQUA_FRIEND_KEYS="sam:<key>"
     AQUA_ADMIN_KEY=<key>                # unlocks GET /v1/admin/providers
     AQUA_DAILY_LIMIT=200                # per key per UTC day, atomic reservation
-    AQUA_ALLOWED_ORIGIN=https://aqua.goattech.us   # single explicit CORS origin
+    AQUA_ALLOWED_ORIGIN=https://aqua.goattech.us   # single explicit CORS origin (the Pages console)
     AQUA_BIND=127.0.0.1:8080             # listener; loopback by default, set 0.0.0.0:PORT explicitly at deploy
     # console login (GitHub OAuth; optional - API keys work without it)
     AQUA_GITHUB_CLIENT_ID=<oauth app client id>
     AQUA_GITHUB_CLIENT_SECRET=<oauth app secret>
-    AQUA_PUBLIC_URL=https://aqua.goattech.us     # this backend's own public URL
+    AQUA_PUBLIC_URL=https://api.aqua.goattech.us   # this backend's own public URL (OAuth callback host)
+    AQUA_CONSOLE_URL=https://aqua.goattech.us      # where the browser lands after login (Pages)
     AQUA_GITHUB_OWNERS=goattech-42               # GitHub logins, lowercase, comma-sep
     AQUA_GITHUB_FRIENDS=sam,alex
     OPENROUTER_API_KEY=... ZRO_API_KEY=... etc.
@@ -83,7 +84,20 @@ is throttled per token (5/min, then 429) with a bounded failure map.
 Logs: one line per request - timestamp, key name, provider id, stream flag.
 Prompts and responses are never logged.
 
+## Deployment shape
+
+Split hosting, per the owner's ask: static console on Cloudflare Pages at
+`https://aqua.goattech.us`, this Rust backend on his own server at
+`https://api.aqua.goattech.us` (Cloudflare-proxied record -> Cosmos -> container).
+Same registrable domain, so the host-only `SameSite=Lax` session cookie flows on
+credentialed cross-origin fetches; CORS answers exactly one origin with
+`access-control-allow-credentials: true`, and cookie-authenticated mutations
+additionally reject `Sec-Fetch-Site: cross-site`. The backend still serves the
+three pages itself for local dev and same-origin use; Pages is canonical in prod.
+The pages pick their API base by hostname (`aqua.goattech.us` -> the `api.` host,
+anything else -> same origin), with the localStorage override kept for testing.
+
 ## Dev
 
-    cargo test   # 40 tests incl. hostile-upstream redaction probes
+    cargo test   # 46 tests incl. hostile-upstream redaction probes
     cargo run    # serve
