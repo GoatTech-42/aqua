@@ -522,4 +522,4 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     } else {
         write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors)
     }
-                              }
+}
