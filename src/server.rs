@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{json, Value};
 
+use crate::auth::{self, Auth, OAuthConfig};
 use crate::config::{Config, Role, Status};
 use crate::redact::redact_payload;
 use crate::sse::SseRewriter;
@@ -31,6 +32,7 @@ struct Quota {
 struct Shared {
     config: Config,
     agent: ureq::Agent,
+    auth: Auth,
     quotas: Mutex<HashMap<String, Quota>>,
     auth_failures: Mutex<HashMap<String, (u32, Instant)>>,
 }
@@ -70,6 +72,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         .build()
         .into();
     let shared = Arc::new(Shared {
+        auth: Auth::new(config.oauth.clone()),
         config,
         agent,
         quotas: Mutex::new(HashMap::new()),
@@ -96,6 +99,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
 struct Request {
     method: String,
     path: String,
+    query: String,
     headers: HashMap<String, String>,
     body: Vec<u8>,
 }
@@ -125,7 +129,11 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, &'static str> {
     let first = lines.next().ok_or("bad request")?;
     let mut parts = first.split_whitespace();
     let method = parts.next().unwrap_or("").to_ascii_uppercase();
-    let path = parts.next().unwrap_or("").split('?').next().unwrap_or("").to_string();
+    let raw_target = parts.next().unwrap_or("");
+    let (path, query) = match raw_target.split_once('?') {
+        Some((p, q)) => (p.to_string(), q.to_string()),
+        None => (raw_target.to_string(), String::new()),
+    };
     let mut headers = HashMap::new();
     let mut len = 0usize;
     let mut seen_len = false;
@@ -156,15 +164,17 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, &'static str> {
         }
         body.extend_from_slice(&tmp[..n]);
     }
-    Ok(Request { method, path, headers, body })
+    Ok(Request { method, path, query, headers, body })
 }
 
 fn status_text(code: u16) -> &'static str {
     match code {
         200 => "OK",
         204 => "No Content",
+        302 => "Found",
         400 => "Bad Request",
         401 => "Unauthorized",
+        403 => "Forbidden",
         404 => "Not Found",
         413 => "Payload Too Large",
         429 => "Too Many Requests",
@@ -197,6 +207,46 @@ fn cors_headers(cors: Option<&str>) -> String {
         None => String::new(),
     }
 }
+
+fn write_html(stream: &mut TcpStream, body: &str, cors: Option<&str>) -> std::io::Result<()> {
+    write!(
+        stream,
+        "HTTP/1.1 200 OK\r\ncontent-type: text/html; charset=utf-8\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
+        body.len(),
+        cors_headers(cors),
+        body
+    )
+}
+
+fn write_redirect(stream: &mut TcpStream, location: &str, cookies: &[String]) -> std::io::Result<()> {
+    let mut extra = String::new();
+    for c in cookies {
+        extra.push_str(&format!("set-cookie: {}\r\n", c));
+    }
+    write!(
+        stream,
+        "HTTP/1.1 302 Found\r\nlocation: {}\r\ncontent-length: 0\r\nconnection: close\r\n{}\r\n",
+        location, extra
+    )
+}
+
+fn write_no_content(stream: &mut TcpStream, cookies: &[String], cors: Option<&str>) -> std::io::Result<()> {
+    let mut extra = String::new();
+    for c in cookies {
+        extra.push_str(&format!("set-cookie: {}\r\n", c));
+    }
+    write!(
+        stream,
+        "HTTP/1.1 204 No Content\r\ncontent-length: 0\r\nconnection: close\r\n{}{}\r\n",
+        cors_headers(cors),
+        extra
+    )
+}
+
+// the console pages are a public shell; every API call they make still needs a key
+const PAGE_LANDING: &str = include_str!("../ui/landing.html");
+const PAGE_CONSOLE: &str = include_str!("../ui/console.html");
+const PAGE_PLAYGROUND: &str = include_str!("../ui/playground.html");
 
 fn err_body(message: &str, ty: &str) -> Value {
     json!({ "error": { "message": message, "type": ty } })
@@ -248,6 +298,64 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
             extra
         )?;
         return Ok(());
+    }
+
+    // static console pages (public shell, key still required for every API call)
+    if req.method == "GET" {
+        match req.path.as_str() {
+            "/" | "/landing.html" => return write_html(&mut stream, PAGE_LANDING, cors),
+            "/console.html" => return write_html(&mut stream, PAGE_CONSOLE, cors),
+            "/playground.html" => return write_html(&mut stream, PAGE_PLAYGROUND, cors),
+            _ => {}
+        }
+    }
+
+    // console login: browser OAuth flow, separate from the bearer-key API below
+    if req.method == "GET" && req.path == "/login/github" {
+        if !shared.auth.cfg.enabled() {
+            return write_json(&mut stream, 503, &err_body("github login is not configured on this deployment", "auth_error"), cors);
+        }
+        let state = shared.auth.new_state();
+        return write_redirect(&mut stream, &auth::authorize_url(&shared.auth.cfg, &state), &[]);
+    }
+    if req.method == "GET" && req.path == "/auth/github/callback" {
+        if !shared.auth.cfg.enabled() {
+            return write_json(&mut stream, 503, &err_body("github login is not configured on this deployment", "auth_error"), cors);
+        }
+        let q = auth::parse_query(&req.query);
+        let state_ok = q.get("state").map(|s| shared.auth.take_state(s)).unwrap_or(false);
+        let code = q.get("code").cloned().unwrap_or_default();
+        if !state_ok || code.is_empty() {
+            return write_json(&mut stream, 400, &err_body("invalid or expired login state", "auth_error"), cors);
+        }
+        return match github_exchange(&shared.agent, &shared.auth.cfg, &code) {
+            Ok(login) => match shared.auth.cfg.role_for(&login) {
+                Some(role) => {
+                    let id = shared.auth.create_session(&login, role);
+                    write_redirect(&mut stream, &shared.auth.cfg.post_login_url(), &[shared.auth.set_cookie(&id)])
+                }
+                None => write_json(&mut stream, 403, &err_body("github account is not on the allowlist", "auth_error"), cors),
+            },
+            Err(e) => write_json(&mut stream, 502, &err_body(e, "upstream_error"), cors),
+        };
+    }
+    if req.method == "GET" && req.path == "/auth/me" {
+        match auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)) {
+            Some((login, role)) => {
+                let role = match role {
+                    Role::Owner => "owner",
+                    Role::Friend => "friend",
+                };
+                return write_json(&mut stream, 200, &json!({ "login": login, "role": role }), cors);
+            }
+            None => return write_json(&mut stream, 401, &err_body("not signed in", "auth_error"), cors),
+        }
+    }
+    if req.method == "POST" && req.path == "/auth/logout" {
+        if let Some(id) = auth::session_cookie(&req.headers) {
+            shared.auth.revoke(&id);
+        }
+        return write_no_content(&mut stream, &[shared.auth.clear_cookie()], cors);
     }
 
     let token = bearer(&req);
@@ -308,6 +416,46 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
 
 const AUTH_FAIL_LIMIT: u32 = 5; // per token per 60s window
 const AUTH_FAIL_MAP_CAP: usize = 10_000;
+
+// GitHub OAuth: exchange the callback code for the user's login. Errors are
+// generic on purpose; the upstream body never reaches the client.
+fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str) -> Result<String, &'static str> {
+    let body = format!(
+        "client_id={}&client_secret={}&code={}&redirect_uri={}",
+        auth::url_encode(&cfg.client_id),
+        auth::url_encode(&cfg.client_secret),
+        auth::url_encode(code),
+        auth::url_encode(&cfg.redirect_uri())
+    );
+    let mut resp = agent
+        .post("https://github.com/login/oauth/access_token")
+        .header("accept", "application/json")
+        .header("content-type", "application/x-www-form-urlencoded")
+        .send(body.into_bytes())
+        .map_err(|_| "github token exchange failed")?;
+    if resp.status().as_u16() != 200 {
+        return Err("github token exchange rejected");
+    }
+    let tok: Value = resp.body_mut().read_json().map_err(|_| "github token exchange failed")?;
+    let access = tok
+        .get("access_token")
+        .and_then(|v| v.as_str())
+        .ok_or("github token exchange rejected")?;
+    let mut uresp = agent
+        .get("https://api.github.com/user")
+        .header("authorization", &format!("Bearer {}", access))
+        .header("user-agent", "aqua")
+        .call()
+        .map_err(|_| "github user lookup failed")?;
+    if uresp.status().as_u16() != 200 {
+        return Err("github user lookup rejected");
+    }
+    let user: Value = uresp.body_mut().read_json().map_err(|_| "github user lookup failed")?;
+    user.get("login")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .ok_or("github user lookup failed")
+}
 
 fn record_auth_failure(shared: &Shared, token: &str) {
     let mut failures = shared.auth_failures.lock().unwrap();
@@ -522,4 +670,4 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     } else {
         write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors)
     }
-}
+                }
