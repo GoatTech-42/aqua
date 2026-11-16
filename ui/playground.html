@@ -9,10 +9,10 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 :root{
-  color-scheme:light;
-  --bg:#f3f4f6; --sheet:#fff; --line:#e4e5e7; --rule:#eeeeef; --control:#d3d6da;
-  --ink:#111; --muted:#5f6368; --faint:#83878c;
-  --accent:#0e7490; --accent-ink:#fff; --accent-soft:#e9f4f7;
+  color-scheme:dark;
+  --bg:#000; --sheet:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
+  --ink:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
+  --accent:#45d6e8; --accent-ink:#00272b; --accent-soft:#0a2e33;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
 }
@@ -26,20 +26,20 @@ svg{display:block}
 .topbar{display:flex;align-items:center;gap:10px;padding:0 18px;background:var(--sheet);border-bottom:1px solid var(--line)}
 .topbar .wm{font-weight:600;font-size:15.5px;letter-spacing:-0.01em}
 .topbar .crumb{font-size:13px;color:var(--faint)}
-.modelpick{margin-left:20px;display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid var(--control);border-radius:8px;font-size:13px;font-weight:500;background:#fff;white-space:nowrap}
+.modelpick{margin-left:20px;display:flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid var(--control);border-radius:8px;font-size:13px;font-weight:500;background:var(--sheet);white-space:nowrap}
 .modelpick .auto{color:var(--accent);font-weight:600}
 .topbar .right{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--muted)}
-.keychip{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--control);border-radius:7px;padding:5px 9px;background:#fff}
+.keychip{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--control);border-radius:7px;padding:5px 9px;background:var(--sheet)}
 
 .panes{display:grid;grid-template-columns:252px 1fr 300px;min-height:0}
 
 /* models rail */
 .rail{background:var(--sheet);border-right:1px solid var(--line);padding:16px 12px;overflow:hidden}
 .rail h3{font-size:13px;font-weight:600;padding:0 8px;letter-spacing:-0.005em}
-.rail .search{display:flex;align-items:center;gap:7px;height:32px;margin:12px 4px 6px;padding:0 10px;border:1px solid var(--control);border-radius:8px;color:var(--faint);font-size:12.5px;background:#fff}
+.rail .search{display:flex;align-items:center;gap:7px;height:32px;margin:12px 4px 6px;padding:0 10px;border:1px solid var(--control);border-radius:8px;color:var(--faint);font-size:12.5px;background:var(--sheet)}
 .grouplab{font-size:10.5px;font-weight:600;letter-spacing:0.09em;text-transform:uppercase;color:var(--faint);padding:16px 8px 6px}
 .mrow{display:block;padding:8px;border-radius:8px;text-decoration:none;color:inherit}
-.mrow:hover{background:#f6f7f8}
+.mrow:hover{background:#161616}
 .mrow .id{font-family:var(--mono);font-size:12px;font-weight:600}
 .mrow .via{font-size:11.5px;color:var(--faint);margin-top:2px;display:flex;justify-content:space-between}
 .mrow.on{background:var(--accent-soft)}
@@ -52,16 +52,16 @@ svg{display:block}
 .msg{max-width:680px;margin:0 auto 28px}
 .who{font-size:12px;font-weight:500;color:var(--faint);margin-bottom:7px}
 .route-line{font-family:var(--mono);font-size:11.5px;color:var(--accent);margin-bottom:8px}
-.body{font-size:14.5px;line-height:1.6;color:#1c1c1c}
+.body{font-size:14.5px;line-height:1.6;color:#e8e8e8}
 .body p + p{margin-top:8px}
 .code{background:#0d0d0d;color:#d8d8d8;border-radius:10px;padding:16px 18px;font-family:var(--mono);font-size:12px;line-height:1.65;margin-top:12px;overflow-x:auto;scrollbar-width:none}
 .code::-webkit-scrollbar{display:none}
 .code .k{color:#45d6e8}
 .caret{display:inline-block;width:8px;height:15px;background:var(--accent);vertical-align:-2px;margin-left:2px}
 .composer{padding:14px 36px 22px}
-.cbox{max-width:680px;margin:0 auto;background:#fff;border:1px solid var(--control);border-radius:14px;padding:11px 13px;display:flex;align-items:flex-end;gap:10px}
+.cbox{max-width:680px;margin:0 auto;background:var(--sheet);border:1px solid var(--control);border-radius:14px;padding:11px 13px;display:flex;align-items:flex-end;gap:10px}
 .cbox .ph{flex:1;color:var(--faint);font-size:14px;padding-bottom:2px}
-.send{width:32px;height:32px;border-radius:50%;background:#16181a;display:flex;align-items:center;justify-content:center;flex:none}
+.send{width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;flex:none}
 .cbox .att{color:var(--faint);flex:none;padding-bottom:6px}
 
 /* route rail */
@@ -73,10 +73,10 @@ svg{display:block}
 .kv .v.mono{font-family:var(--mono);font-size:12px;font-weight:600}
 .quota{margin-top:18px}
 .quota .qlab{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);margin-bottom:8px}
-.qbar{height:7px;border-radius:999px;background:#ececee;overflow:hidden}
+.qbar{height:7px;border-radius:999px;background:#1a1a1a;overflow:hidden}
 .qbar .f{height:100%;width:54%;background:var(--accent);border-radius:999px}
 .qcap{font-size:11.5px;color:var(--faint);margin-top:7px}
-.failover{margin-top:18px;background:#fafafb;border:1px solid var(--rule);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.5;color:var(--muted)}
+.failover{margin-top:18px;background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.5;color:var(--muted)}
 .failover .mono{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--ink)}
 .mocknote{margin-top:auto;padding-top:16px;font-size:11px;color:var(--faint)}
 
@@ -101,7 +101,7 @@ svg{display:block}
 <body>
 <div class="app">
   <div class="topbar">
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0e7490" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>
     <span class="wm">aqua</span><span class="crumb">/ Playground</span>
     <div class="modelpick"><span class="auto">auto</span><span class="picksub" style="color:var(--faint)">·</span><span class="picksub">router default</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
     <div class="right"><span class="keychip" id="aqua-keychip" style="cursor:pointer">set api key</span>
@@ -125,7 +125,7 @@ svg{display:block}
         <div class="cbox">
           <svg class="att" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           <input id="aqua-input" placeholder="Ask anything…" style="flex:1;background:none;border:0;outline:0;color:inherit;font:inherit">
-          <span class="send" id="aqua-send" style="cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
+          <span class="send" id="aqua-send" style="cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00272b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
         </div>
       </div>
     </div>
