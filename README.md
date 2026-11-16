@@ -48,6 +48,13 @@ Override only deliberately: `AQUA_STATUS_<ID>=off|personal|friends`. Status
     AQUA_ADMIN_KEY=<key>                # unlocks GET /v1/admin/providers
     AQUA_DAILY_LIMIT=200                # per key per UTC day, atomic reservation
     AQUA_ALLOWED_ORIGIN=https://aqua.goattech.us   # single explicit CORS origin
+    AQUA_BIND=127.0.0.1:8080             # listener; loopback by default, set 0.0.0.0:PORT explicitly at deploy
+    # console login (GitHub OAuth; optional - API keys work without it)
+    AQUA_GITHUB_CLIENT_ID=<oauth app client id>
+    AQUA_GITHUB_CLIENT_SECRET=<oauth app secret>
+    AQUA_PUBLIC_URL=https://aqua.goattech.us     # this backend's own public URL
+    AQUA_GITHUB_OWNERS=goattech-42               # GitHub logins, lowercase, comma-sep
+    AQUA_GITHUB_FRIENDS=sam,alex
     OPENROUTER_API_KEY=... ZRO_API_KEY=... etc.
 
 Empty or placeholder client keys are dropped at config build and never
