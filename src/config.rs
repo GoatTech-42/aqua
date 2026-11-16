@@ -135,6 +135,16 @@ const REGISTRY: &[RegistryEntry] = &[
         models_env: Some("AMD_RADEON_MODELS"),
     },
     RegistryEntry {
+        id: "cloudflare",
+        // Workers AI's OpenAI-compatible endpoint carries the account id in
+        // its path; the full base url comes from env so no account identifier
+        // lands in the repo (same pattern as gonka)
+        base_url: "",
+        base_url_env: Some("CLOUDFLARE_AI_BASE_URL"),
+        key_env: "CLOUDFLARE_API_TOKEN",
+        models_env: Some("CLOUDFLARE_MODELS"),
+    },
+    RegistryEntry {
         id: "gonka",
         base_url: "",
         base_url_env: Some("GONKA_BASE_URL"),
