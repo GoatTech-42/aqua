@@ -632,9 +632,11 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     //
     // Passive health reorders providers WITHIN one canonical model only: an
     // account with a known hard limit (the provider sent Retry-After) is
-    // excluded outright until it lapses, and soft-cooled accounts are tried
-    // after fresh ones, oldest cooldown first. Health never moves a later
-    // shortlist model ahead of an earlier one.
+    // deferred to the END of the candidate list - the dispatch-time recheck
+    // skips it while the limit is active and tries it only if the limit has
+    // lapsed by the time earlier candidates fail. Soft-cooled accounts are
+    // tried after fresh ones, oldest cooldown first. Health never moves a
+    // later shortlist model ahead of an earlier one.
     let known = |name: &str| {
         shared
             .config
@@ -647,6 +649,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         return write_json(stream, 400, &err_body("unknown model", "invalid_request"), cors);
     }
     let mut hard_excluded = false;
+    let mut immediate = 0usize;
     let mut candidates: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
     {
         let health = shared.health.lock().unwrap();
@@ -654,12 +657,14 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         let mut push_model = |name: &str| {
             let mut fresh: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
             let mut cooled: Vec<(_, Instant)> = Vec::new();
+            let mut deferred: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
             for p in shared.config.providers.iter().filter(eligible) {
                 for m in p.models.iter().filter(|m| m.public == name) {
                     match health.get(p.id.as_str()) {
                         Some(cd) if cd.until > now => {
                             if cd.hard {
                                 hard_excluded = true;
+                                deferred.push((p, m));
                             } else {
                                 cooled.push(((p, m), cd.until));
                             }
@@ -669,8 +674,10 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 }
             }
             cooled.sort_by_key(|(_, until)| *until);
+            immediate += fresh.len() + cooled.len();
             candidates.extend(fresh);
             candidates.extend(cooled.into_iter().map(|(c, _)| c));
+            candidates.extend(deferred);
         };
         if requested == ALIAS {
             for name in &shared.config.auto_shortlist {
@@ -680,9 +687,10 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             push_model(requested);
         }
     }
-    if candidates.is_empty() {
+    if immediate == 0 {
         // pinned here means every binding has a known hard limit (a merely
-        // unknown model 400d above); auto with nothing routable 503s
+        // unknown model 400d above); auto with nothing routable 503s. The
+        // all-hard-limited 429 fires before any quota is reserved.
         if hard_excluded {
             return write_json(stream, 429, &err_body("rate limit exceeded", "rate_limit_error"), cors);
         }
@@ -910,8 +918,14 @@ fn clear_cooldown(shared: &Shared, provider_id: &str) {
 // malformed untrusted header must never panic or silently become a limit.
 fn parse_retry_after(resp: &ureq::http::Response<ureq::Body>) -> Option<u64> {
     let raw = resp.headers().get("retry-after")?.to_str().ok()?.trim();
-    if let Ok(secs) = raw.parse::<u64>() {
-        return Some(secs.clamp(1, RETRY_AFTER_MAX_SECS));
+    // RFC 9110 delta-seconds are digits only: a leading '+' (which
+    // u64::from_str would accept) or any other junk is malformed and falls
+    // through to the soft default rather than installing a hard limit
+    if !raw.is_empty() && raw.bytes().all(|b| b.is_ascii_digit()) {
+        if let Ok(secs) = raw.parse::<u64>() {
+            return Some(secs.clamp(1, RETRY_AFTER_MAX_SECS));
+        }
+        return None; // digit string overflowing u64: no usable evidence
     }
     let target = parse_imf_fixdate(raw)?;
     let now = std::time::SystemTime::now()
