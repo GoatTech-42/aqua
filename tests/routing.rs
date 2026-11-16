@@ -364,6 +364,58 @@ fn past_http_date_retry_after_is_no_evidence() {
 }
 
 #[test]
+fn signed_retry_after_delta_is_malformed_soft_not_hard() {
+    // RFC 9110 delta-seconds are digits only: "+3600" must not become a
+    // one-hour hard limit; malformed values get the soft default instead.
+    let failing = Arc::new(AtomicBool::new(true));
+    let flag = failing.clone();
+    let p1 = mock_upstream(move |_| {
+        if flag.load(Ordering::SeqCst) { error_reply(429, vec![("retry-after", "+3600")]) } else { json_reply(chat_json("m", "recovered")) }
+    });
+    let srv = serve(config(
+        vec![provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)])],
+        vec!["coder-a"],
+    ));
+    let agent = client();
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
+    failing.store(false, Ordering::SeqCst);
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 200, "malformed Retry-After is a soft blip: sole provider is retried");
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 2);
+}
+
+#[test]
+fn lapsed_hard_limit_is_retried_within_the_same_request() {
+    // P1 hard-limited for 4s, then healthy. P2 answers slowly and fails. The
+    // deferred dispatch-time recheck must try P1 after its limit lapses
+    // instead of failing the request.
+    let calls = Arc::new(AtomicUsize::new(0));
+    let n = calls.clone();
+    let p1 = mock_upstream(move |_| {
+        if n.fetch_add(1, Ordering::SeqCst) == 0 { error_reply(429, vec![("retry-after", "4")]) } else { json_reply(chat_json("m", "recovered")) }
+    });
+    let p2 = mock_upstream(|_| {
+        thread::sleep(Duration::from_millis(2500));
+        error_reply(500, vec![])
+    });
+    let srv = serve(config(
+        vec![
+            provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)]),
+            provider("p2", &p2.url, Status::Friends, vec![("coder-a", "p2/a", None)]),
+        ],
+        vec!["coder-a"],
+    ));
+    let agent = client();
+    // first request: P1 installs its 4s hard limit, slow P2 fails -> 429
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 1);
+    // second request ~2.5s later: P1's limit is still active at candidacy so
+    // it is deferred behind P2; P2 fails after another 2.5s, the limit has
+    // lapsed by then, and the recheck tries P1 successfully
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 200, "post-lapse hard-limited account is retried in the same request");
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 2);
+}
+
+#[test]
 fn client_429_never_carries_a_fabricated_retry_after() {
     let p1 = mock_upstream(|_| error_reply(429, vec![("retry-after", "120")]));
     let srv = serve(config(
@@ -725,4 +777,4 @@ fn sanitize_drops_reserved_duplicate_and_provider_named_entries() {
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].public, "coder-a");
     assert_eq!(out[0].context, Some(128_000), "verified metadata attaches by public name");
-}
+        }
