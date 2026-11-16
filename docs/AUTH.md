@@ -39,9 +39,18 @@ a maintainer transition).
   a 7-day expiry; cookie is `HttpOnly; SameSite=Lax`, `Secure` when the public URL
   is https. No tokens or GitHub data are stored beyond the login + role.
 - `GET /auth/me` → `{login, role}` or 401. `POST /auth/logout` revokes and clears.
-- The backend also serves the three console pages same-origin (`/`,
-  `/console.html`, `/playground.html`), which is what makes the session cookie
-  usable without CORS/SameSite gymnastics. The pages themselves stay public;
+- The production deployment is split: Pages serves the console at
+  `aqua.goattech.us`, the backend answers at `api.aqua.goattech.us`. The session
+  cookie is host-only (no `Domain` attribute), `HttpOnly`, `SameSite=Lax`,
+  `Secure`: it never leaves the API host, and because both hosts share one
+  registrable domain it still rides credentialed cross-origin fetches
+  (`fetch(..., {credentials:'include'})`). CORS allows exactly the Pages origin
+  and sends `access-control-allow-credentials: true`.
+- CSRF: `SameSite=Lax` already strips the cookie from cross-site POSTs; the one
+  cookie-authenticated mutation (`POST /auth/logout`) additionally rejects
+  `Sec-Fetch-Site: cross-site` for browsers that send fetch metadata.
+- The backend also serves the three pages same-origin (`/`, `/console.html`,
+  `/playground.html`) for local development; the pages stay public shells and
   every API call still needs a bearer key.
 - Config: `AQUA_GITHUB_CLIENT_ID` / `AQUA_GITHUB_CLIENT_SECRET` /
   `AQUA_PUBLIC_URL` / `AQUA_CONSOLE_URL` / `AQUA_GITHUB_OWNERS` /
