@@ -540,4 +540,4 @@ fn duplicate_content_length_rejected() {
     let req = "POST /v1/chat/completions HTTP/1.1\r\nauthorization: Bearer friendkey\r\ncontent-length: 20\r\ncontent-length: 40\r\ncontent-type: application/json\r\n\r\n{\"messages\":[],\"x\":1}";
     let resp = raw(&srv.base, req.as_bytes());
     assert!(resp.starts_with("HTTP/1.1 400"), "got: {}", &resp[..resp.len().min(80)]);
-               }
+}
