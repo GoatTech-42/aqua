@@ -121,6 +121,7 @@ fn provider(id: &str, url: &str, status: Status) -> Provider {
         models: vec![aqua::ModelEntry {
             public: "publicmodel-7b".into(),
             upstream: format!("real-{}-model", id),
+            context: None,
         }],
         status,
     }
@@ -130,7 +131,7 @@ fn config(providers: Vec<Provider>) -> Config {
     let mut keys = HashMap::new();
     keys.insert("ownerkey".into(), KeyEntry { name: "luke".into(), role: aqua::Role::Owner });
     keys.insert("friendkey".into(), KeyEntry { name: "sam".into(), role: aqua::Role::Friend });
-    Config { keys, admin_key: "adminsecret".into(), daily_limit: 200, allowed_origin: String::new(), providers, oauth: Default::default() }
+    Config { keys, admin_key: "adminsecret".into(), daily_limit: 200, allowed_origin: String::new(), providers, oauth: Default::default(), auto_shortlist: vec!["publicmodel-7b".into()], upstream_budget: Duration::from_secs(300) }
 }
 
 struct Running { base: String, _h: aqua::Server }

@@ -5,5 +5,8 @@ mod server;
 mod sse;
 
 pub use auth::{Auth, OAuthConfig};
-pub use config::{parse_keys, Config, KeyEntry, ModelEntry, Provider, Role, Status};
+pub use config::{
+    parse_keys, parse_model_meta, parse_shortlist, sanitize_models, Config, KeyEntry, ModelEntry,
+    Provider, Role, Status, AUTO_ALIAS,
+};
 pub use server::{bind, bind_addr, Server};

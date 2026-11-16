@@ -9,11 +9,11 @@ use std::time::{Duration, Instant};
 use serde_json::{json, Value};
 
 use crate::auth::{self, Auth, OAuthConfig};
-use crate::config::{Config, Role, Status};
+use crate::config::{Config, Role, Status, AUTO_ALIAS};
 use crate::redact::redact_payload;
 use crate::sse::SseRewriter;
 
-const ALIAS: &str = "auto";
+const ALIAS: &str = AUTO_ALIAS;
 const MAX_BODY: usize = 1_000_000;
 const MAX_RESPONSE: usize = 4_000_000; // hard cap on bytes sent to a client, stream or not
 // request fields forwarded upstream; everything else is dropped, including
@@ -29,12 +29,25 @@ struct Quota {
     in_flight: u32,
 }
 
+// passive provider health, account scope: a 429 on one model of an account
+// means the account's quota is exhausted - hammering its other models burns
+// latency and can trip provider-side abuse limits. `hard` marks evidence of
+// a real limit (a Retry-After the provider sent): hard-cooled accounts are
+// never retried until the cooldown lapses, even as a last resort. Soft
+// cooldowns only deprioritize.
+#[derive(Clone, Copy)]
+struct Cooldown {
+    until: Instant,
+    hard: bool,
+}
+
 struct Shared {
     config: Config,
     agent: ureq::Agent,
     auth: Auth,
     quotas: Mutex<HashMap<String, Quota>>,
     auth_failures: Mutex<HashMap<String, (u32, Instant)>>,
+    health: Mutex<HashMap<String, Cooldown>>,
 }
 
 pub struct Server {
@@ -77,6 +90,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         agent,
         quotas: Mutex::new(HashMap::new()),
         auth_failures: Mutex::new(HashMap::new()),
+        health: Mutex::new(HashMap::new()),
     });
     let shutdown = Arc::new(AtomicBool::new(false));
     let flag = shutdown.clone();
@@ -280,6 +294,11 @@ fn origin_host_matches(origin: &str, host_header: &str) -> bool {
 
 fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     let cfg = &shared.config;
+    // bound downstream writes: a client that stops reading must not pin this
+    // worker (and its in-flight quota slot) forever. Per write operation, so
+    // healthy long streams are never cut; upstream IO carries its own
+    // aggregate budget. No claim of a whole-request wall clock.
+    let _ = stream.set_write_timeout(Some(shared.config.upstream_budget));
     let req = match read_request(&mut stream) {
         Ok(r) => r,
         Err("too large") | Err("headers too large") => {
@@ -435,7 +454,14 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
 
     match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/v1/models") => {
-            let mut data = vec![json!({ "id": ALIAS, "object": "model", "created": 0, "owned_by": "aqua" })];
+            // canonical models, deduplicated across provider bindings; the auto
+            // alias is advertised only when a shortlist is actually configured
+            let mut data = Vec::new();
+            let mut seen = std::collections::HashSet::new();
+            if !shared.config.auto_shortlist.is_empty() {
+                data.push(json!({ "id": ALIAS, "object": "model", "created": 0, "owned_by": "aqua" }));
+                seen.insert(ALIAS.to_string());
+            }
             for p in &shared.config.providers {
                 if p.status == Status::Off || p.api_key.is_empty() {
                     continue;
@@ -444,9 +470,14 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                     continue;
                 }
                 for m in &p.models {
-                    if m.public != ALIAS {
-                        data.push(json!({ "id": m.public, "object": "model", "created": 0, "owned_by": "aqua" }));
+                    if m.public == ALIAS || !seen.insert(m.public.clone()) {
+                        continue;
                     }
+                    let mut v = json!({ "id": m.public, "object": "model", "created": 0, "owned_by": "aqua" });
+                    if let Some(c) = m.context {
+                        v["context"] = json!(c);
+                    }
+                    data.push(v);
                 }
             }
             write_json(&mut stream, 200, &json!({ "object": "list", "data": data }), cors)
@@ -587,29 +618,109 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     }
     let want_stream = payload.get("stream") == Some(&Value::Bool(true));
     let requested = payload.get("model").and_then(Value::as_str).unwrap_or(ALIAS);
-    let candidates: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = shared
-        .config
-        .providers
-        .iter()
-        .filter(|p| {
-            p.status != Status::Off
-                && !p.api_key.is_empty()
-                && !p.base_url.is_empty()
-                && !p.models.is_empty()
-                && (p.status == Status::Friends || entry.role == Role::Owner)
-        })
-        .flat_map(|p| {
-            p.models
-                .iter()
-                .filter(move |m| requested == ALIAS || m.public == requested)
-                .map(move |m| (p, m))
-        })
-        .collect();
-    if candidates.is_empty() && requested != ALIAS {
+    let eligible = |p: &&crate::config::Provider| {
+        p.status != Status::Off
+            && !p.api_key.is_empty()
+            && !p.base_url.is_empty()
+            && !p.models.is_empty()
+            && (p.status == Status::Friends || entry.role == Role::Owner)
+    };
+    // model first, then provider: a pinned name gathers every eligible provider
+    // carrying that exact canonical model; "auto" walks the configured coding
+    // shortlist model by model. Cross-model fallback happens only inside auto -
+    // a pinned request can never drift to a different model.
+    //
+    // Passive health reorders providers WITHIN one canonical model only: an
+    // account with a known hard limit (the provider sent Retry-After) is
+    // deferred to the END of the candidate list - the dispatch-time recheck
+    // skips it while the limit is active and tries it only if the limit has
+    // lapsed by the time earlier candidates fail. Soft-cooled accounts are
+    // tried after fresh ones, oldest cooldown first. Health never moves a
+    // later shortlist model ahead of an earlier one.
+    let known = |name: &str| {
+        shared
+            .config
+            .providers
+            .iter()
+            .filter(eligible)
+            .any(|p| p.models.iter().any(|m| m.public == name))
+    };
+    if requested != ALIAS && !known(requested) {
         return write_json(stream, 400, &err_body("unknown model", "invalid_request"), cors);
     }
-    if candidates.is_empty() {
+    let mut hard_excluded = false;
+    let mut immediate = 0usize;
+    let mut candidates: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
+    {
+        let health = shared.health.lock().unwrap();
+        let now = Instant::now();
+        let mut push_model = |name: &str| {
+            let mut fresh: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
+            let mut cooled: Vec<(_, Instant)> = Vec::new();
+            let mut deferred: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
+            for p in shared.config.providers.iter().filter(eligible) {
+                for m in p.models.iter().filter(|m| m.public == name) {
+                    match health.get(p.id.as_str()) {
+                        Some(cd) if cd.until > now => {
+                            if cd.hard {
+                                hard_excluded = true;
+                                deferred.push((p, m));
+                            } else {
+                                cooled.push(((p, m), cd.until));
+                            }
+                        }
+                        _ => fresh.push((p, m)),
+                    }
+                }
+            }
+            cooled.sort_by_key(|(_, until)| *until);
+            immediate += fresh.len() + cooled.len();
+            candidates.extend(fresh);
+            candidates.extend(cooled.into_iter().map(|(c, _)| c));
+            candidates.extend(deferred);
+        };
+        if requested == ALIAS {
+            for name in &shared.config.auto_shortlist {
+                push_model(name);
+            }
+        } else {
+            push_model(requested);
+        }
+    }
+    if immediate == 0 {
+        // pinned here means every binding has a known hard limit (a merely
+        // unknown model 400d above); auto with nothing routable 503s. The
+        // all-hard-limited 429 fires before any quota is reserved.
+        if hard_excluded {
+            return write_json(stream, 429, &err_body("rate limit exceeded", "rate_limit_error"), cors);
+        }
         return write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors);
+    }
+    // the only sound local size check: a requested output budget larger than
+    // the model's verified context window can never succeed. Prompt-side token
+    // counts need a real tokenizer; nothing is estimated here.
+    if let Some(mt) = payload.get("max_tokens").and_then(Value::as_u64) {
+        candidates.retain(|(_, m)| m.context.map_or(true, |c| mt <= c as u64));
+        if candidates.is_empty() && requested != ALIAS {
+            return write_json(stream, 400, &err_body("max_tokens exceeds the model's context window", "invalid_request"), cors);
+        }
+        if candidates.is_empty() {
+            return write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors);
+        }
+    }
+    // the context filter may have removed every non-hard candidate, leaving
+    // only deferred (hard-limited) bindings the dispatch recheck will skip;
+    // reserving quota for such a request would burn a daily slot with no
+    // possible upstream attempt, so it 429s here instead
+    {
+        let health = shared.health.lock().unwrap();
+        let now = Instant::now();
+        let usable = candidates.iter().any(|(p, _)| {
+            !matches!(health.get(p.id.as_str()), Some(cd) if cd.hard && cd.until > now)
+        });
+        if !usable {
+            return write_json(stream, 429, &err_body("rate limit exceeded", "rate_limit_error"), cors);
+        }
     }
     // quota is reserved only after the request is known-valid and routable
     if !reserve(shared, token) {
@@ -618,8 +729,31 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     let guard = QuotaGuard { shared, token };
     let _ = &guard;
 
+    // one aggregate deadline shared by every fallback attempt of this request:
+    // a per-upstream timeout must not multiply across candidates
+    let deadline = Instant::now()
+        .checked_add(shared.config.upstream_budget)
+        .unwrap_or_else(|| Instant::now() + Duration::from_secs(300));
+
     let mut saw_rate_limit = false;
+    let mut tried: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for (p, m) in candidates {
+        // dispatch-time recheck: the snapshot above may be stale - a concurrent
+        // request can cool this account while we walk. A hard limit found here
+        // is always honored; soft only ever reorders, it never blocks dispatch.
+        if let Some(cd) = shared.health.lock().unwrap().get(p.id.as_str()).copied() {
+            if cd.hard && cd.until > Instant::now() {
+                hard_excluded = true;
+                continue;
+            }
+        }
+        // one attempt per provider account per request: after any failure the
+        // account is suspect, and a 429 on one of its models means the whole
+        // account's quota is gone - trying its other models would hammer an
+        // exhausted account
+        if !tried.insert(p.id.as_str()) {
+            continue;
+        }
         let mut up_body = serde_json::Map::new();
         for k in PARAM_WHITELIST {
             if let Some(v) = payload.get(*k) {
@@ -629,21 +763,39 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         up_body.insert("model".into(), json!(m.upstream));
         up_body.insert("stream".into(), json!(want_stream));
 
+        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+            break; // aggregate budget spent: no further fallback attempts
+        };
+        let attempt_agent: ureq::Agent = ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .timeout_global(Some(remaining))
+            .build()
+            .into();
         let url = format!("{}/chat/completions", p.base_url.trim_end_matches('/'));
-        let resp = shared
-            .agent
+        let resp = attempt_agent
             .post(&url)
             .header("authorization", &format!("Bearer {}", p.api_key))
             .header("content-type", "application/json")
             .send_json(&Value::Object(up_body));
         let mut resp = match resp {
             Ok(r) => r,
-            Err(_) => continue, // network failure: try the next provider
+            Err(_) => {
+                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                continue; // network failure: try the next provider
+            }
         };
         let status = resp.status().as_u16();
         if !(200..300).contains(&status) {
             if status == 429 {
                 saw_rate_limit = true;
+                // a Retry-After is evidence of a real limit: honor it (bounded)
+                // and do not retry this account until it lapses
+                match parse_retry_after(&resp) {
+                    Some(secs) => set_cooldown(shared, &p.id, secs, true),
+                    None => set_cooldown(shared, &p.id, COOLDOWN_429_DEFAULT_SECS, false),
+                }
+            } else {
+                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
             }
             // drain the upstream error body without ever forwarding it
             let _ = resp.body_mut().as_reader().take(64 * 1024).read_to_end(&mut Vec::new());
@@ -660,12 +812,17 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         if !want_stream {
             let mut buf = Vec::new();
             if resp.body_mut().as_reader().take(MAX_RESPONSE as u64).read_to_end(&mut buf).is_err() {
+                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                 continue;
             }
-            let Ok(json) = serde_json::from_slice::<Value>(&buf) else { continue };
+            let Ok(json) = serde_json::from_slice::<Value>(&buf) else {
+                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                continue;
+            };
+            clear_cooldown(shared, &p.id);
             println!(
                 "{}",
-                json!({ "ts": chrono_day(), "key": entry.name, "provider": p.id, "stream": false })
+                json!({ "ts": chrono_day(), "key": entry.name, "provider": p.id, "model": m.public, "stream": false })
             );
             return write_json(stream, 200, &redact_payload(&json, &m.public), cors);
         }
@@ -673,11 +830,13 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         // streaming requested: require a real SSE stream, else fail over cleanly
         if !content_type.starts_with("text/event-stream") {
             let _ = resp.body_mut().as_reader().take(64 * 1024).read_to_end(&mut Vec::new());
+            set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
             continue;
         }
+        clear_cooldown(shared, &p.id);
         println!(
             "{}",
-            json!({ "ts": chrono_day(), "key": entry.name, "provider": p.id, "stream": true })
+            json!({ "ts": chrono_day(), "key": entry.name, "provider": p.id, "model": m.public, "stream": true })
         );
         let head = format!(
             "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncache-control: no-cache\r\nconnection: close\r\n{}\r\n",
@@ -694,7 +853,14 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 Ok(0) => break,
                 Ok(n) => {
                     let mut out = Vec::new();
-                    rewriter.push(&chunk[..n], &mut out);
+                    if !rewriter.push(&chunk[..n], &mut out) {
+                        // upstream sent an unbounded undelimited blob; the 200
+                        // and stream headers are long committed, so never fail
+                        // over mid-response: end the stream honestly (the
+                        // client sees it terminate without [DONE])
+                        set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                        break;
+                    }
                     if sent + out.len() > MAX_RESPONSE {
                         break; // hard cap: stream just ends
                     }
@@ -704,15 +870,248 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                     let _ = stream.flush();
                     sent += out.len();
                 }
-                Err(_) => break,
+                Err(_) => {
+                    // upstream died mid-stream: cool it for future requests
+                    set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                    break;
+                }
             }
         }
         return Ok(());
     }
 
-    if saw_rate_limit {
+    if saw_rate_limit || hard_excluded {
         write_json(stream, 429, &err_body("rate limit exceeded", "rate_limit_error"), cors)
     } else {
         write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors)
+    }
+}
+
+const COOLDOWN_SOFT_SECS: u64 = 15;
+const COOLDOWN_429_DEFAULT_SECS: u64 = 60;
+const RETRY_AFTER_MAX_SECS: u64 = 3600; // bound on provider-supplied Retry-After
+
+// Monotonic under concurrency: an active cooldown is never shortened, soft
+// evidence never softens or replaces a hard limit, and hard evidence only ever
+// extends. A 429+Retry-After observed by one in-flight request must survive a
+// concurrent request's success or plain failure on the same account.
+fn set_cooldown(shared: &Shared, provider_id: &str, secs: u64, hard: bool) {
+    let mut health = shared.health.lock().unwrap();
+    let now = Instant::now();
+    let until = now + Duration::from_secs(secs);
+    match health.get_mut(provider_id) {
+        Some(cd) if cd.until > now => {
+            if hard {
+                cd.hard = true;
+                if until > cd.until {
+                    cd.until = until;
+                }
+            } else if !cd.hard && until > cd.until {
+                cd.until = until;
+            }
+        }
+        _ => {
+            health.insert(provider_id.to_string(), Cooldown { until, hard });
+        }
+    }
+}
+
+// A success proves reachability, never that a hard limit lifted: clear only
+// soft cooldowns.
+fn clear_cooldown(shared: &Shared, provider_id: &str) {
+    let mut health = shared.health.lock().unwrap();
+    if matches!(health.get(provider_id), Some(cd) if !cd.hard) {
+        health.remove(provider_id);
+    }
+}
+
+// Retry-After, clamped to (0, 1h]. Both RFC 9110 forms: delta seconds, and a
+// STRICT IMF-fixdate (fixed-width fields, a real calendar date whose weekday
+// actually matches). Obsolete formats, normalizable junk ("31 Feb"), loose
+// widths and out-of-range values are treated as absent (soft default): a
+// malformed untrusted header must never panic or silently become a limit.
+fn parse_retry_after(resp: &ureq::http::Response<ureq::Body>) -> Option<u64> {
+    let raw = resp.headers().get("retry-after")?.to_str().ok()?.trim();
+    // RFC 9110 delta-seconds are digits only: a leading '+' (which
+    // u64::from_str would accept) or any other junk is malformed and falls
+    // through to the soft default rather than installing a hard limit
+    if !raw.is_empty() && raw.bytes().all(|b| b.is_ascii_digit()) {
+        if let Ok(secs) = raw.parse::<u64>() {
+            return Some(secs.clamp(1, RETRY_AFTER_MAX_SECS));
+        }
+        return None; // digit string overflowing u64: no usable evidence
+    }
+    let target = parse_imf_fixdate(raw)?;
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()?
+        .as_secs();
+    let delta = target.checked_sub(now)?; // past date: no evidence of a future limit
+    Some(delta.clamp(1, RETRY_AFTER_MAX_SECS))
+}
+
+// exactly n ASCII digits, no signs, no overflow surface
+fn ndigits(s: &str, n: usize) -> Option<u64> {
+    if s.len() == n && s.bytes().all(|b| b.is_ascii_digit()) {
+        s.parse().ok()
+    } else {
+        None
+    }
+}
+
+fn days_in_month(y: i64, m: u64) -> u64 {
+    match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if (y % 4 == 0 && y % 100 != 0) || y % 400 == 0 {
+                29
+            } else {
+                28
+            }
+        }
+        _ => 0,
+    }
+}
+
+fn parse_imf_fixdate(raw: &str) -> Option<u64> {
+    // "<wkday>, DD Mon YYYY HH:MM:SS GMT" - the only date form we accept
+    let (wkday, rest) = raw.split_once(',')?;
+    let wkday = wkday.trim();
+    let mut parts = rest.trim().split_whitespace();
+    let day = ndigits(parts.next()?, 2)?;
+    let month = match parts.next()? {
+        "Jan" => 1, "Feb" => 2, "Mar" => 3, "Apr" => 4, "May" => 5, "Jun" => 6,
+        "Jul" => 7, "Aug" => 8, "Sep" => 9, "Oct" => 10, "Nov" => 11, "Dec" => 12,
+        _ => return None,
+    };
+    // fixed 4-digit year: extreme values can never reach the date arithmetic
+    let year = ndigits(parts.next()?, 4)? as i64;
+    let time = parts.next()?;
+    if parts.next()? != "GMT" || parts.next().is_some() {
+        return None;
+    }
+    let mut t = time.split(':');
+    let (h, m, s) = (ndigits(t.next()?, 2)?, ndigits(t.next()?, 2)?, ndigits(t.next()?, 2)?);
+    if t.next().is_some() || h > 23 || m > 59 || s > 60 {
+        return None;
+    }
+    // a real calendar date, never normalized (31 Feb is junk, not 3 Mar)
+    if day == 0 || day > days_in_month(year, month) {
+        return None;
+    }
+    let days = days_from_civil(year, month, day);
+    // the weekday must actually match the date
+    let computed = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][(days + 4).rem_euclid(7) as usize];
+    if wkday != computed {
+        return None;
+    }
+    (days * 86_400 + (h * 3600 + m * 60 + s) as i64).try_into().ok()
+}
+
+// days from civil epoch (Hinnant), inverse of chrono_day above
+fn days_from_civil(y: i64, m: u64, d: u64) -> i64 {
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = if y >= 0 { y } else { y - 399 } / 400;
+    let yoe = y - era * 400;
+    let mp = ((m + 9) % 12) as i64;
+    let doy = (153 * mp + 2) / 5 + d as i64 - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
+}
+
+#[cfg(test)]
+mod reviewer_regressions {
+    //! Independent watchdog regressions, RED on the rev2 diff, fixed in this
+    //! revision: health-map concurrency monotonicity (stale success must not
+    //! clear a live hard limit, stale soft failure must not replace it, a
+    //! shorter hard limit must not shrink it) and strict untrusted-date
+    //! parsing (malformed provider headers must be None, never a panic).
+    use super::*;
+
+    fn shared() -> Shared {
+        let config = Config {
+            keys: HashMap::new(),
+            admin_key: String::new(),
+            daily_limit: 200,
+            allowed_origin: String::new(),
+            providers: vec![],
+            oauth: Default::default(),
+            auto_shortlist: vec![],
+            upstream_budget: std::time::Duration::from_secs(300),
+        };
+        Shared {
+            auth: Auth::new(config.oauth.clone()),
+            config,
+            agent: ureq::Agent::new_with_defaults(),
+            quotas: Mutex::new(HashMap::new()),
+            auth_failures: Mutex::new(HashMap::new()),
+            health: Mutex::new(HashMap::new()),
+        }
+    }
+
+    #[test]
+    fn reviewer_success_must_not_clear_live_hard_limit() {
+        let s = shared();
+        set_cooldown(&s, "same-account", 120, true);
+        clear_cooldown(&s, "same-account");
+        assert!(
+            s.health.lock().unwrap().get("same-account").map(|c| c.hard && c.until > Instant::now()).unwrap_or(false),
+            "inflight stale success erased live Retry-After"
+        );
+    }
+
+    #[test]
+    fn reviewer_soft_failure_must_not_replace_live_hard_limit() {
+        let s = shared();
+        set_cooldown(&s, "same-account", 120, true);
+        let before = s.health.lock().unwrap()["same-account"].until;
+        set_cooldown(&s, "same-account", 15, false);
+        let h = s.health.lock().unwrap();
+        let c = h.get("same-account").unwrap();
+        assert!(c.hard && c.until >= before, "stale 500 weakened hard Retry-After");
+    }
+
+    #[test]
+    fn reviewer_shorter_hard_must_not_shorten_existing_limit() {
+        let s = shared();
+        set_cooldown(&s, "same-account", 120, true);
+        let before = s.health.lock().unwrap()["same-account"].until;
+        set_cooldown(&s, "same-account", 1, true);
+        assert!(
+            s.health.lock().unwrap()["same-account"].until >= before,
+            "shorter concurrent Retry-After truncated existing hard cooldown"
+        );
+    }
+
+    #[test]
+    fn reviewer_untrusted_date_must_not_panic() {
+        let result = std::panic::catch_unwind(|| {
+            parse_imf_fixdate("X, 01 Jan -9223372036854775808 00:00:00 GMT")
+        });
+        assert!(result.is_ok(), "provider header panicked arithmetic");
+        assert_eq!(result.unwrap(), None);
+    }
+
+    #[test]
+    fn reviewer_invalid_calendar_date_not_normalized() {
+        assert!(
+            parse_imf_fixdate("X, 31 Feb 2030 00:00:00 GMT").is_none(),
+            "junk date accepted as real hard cooldown"
+        );
+    }
+
+    // addition on top of the reviewer set: a weekday that does not match the
+    // date makes the header junk, and field-width/range abuse is rejected
+    #[test]
+    fn weekday_and_width_strictness() {
+        assert_eq!(parse_imf_fixdate("Tue, 15 Nov 2027 00:00:00 GMT"), None, "2027-11-15 is a Monday");
+        assert_eq!(parse_imf_fixdate("Mon, 5 Nov 2027 00:00:00 GMT"), None, "1-digit day");
+        assert_eq!(parse_imf_fixdate("Mon, 15 Nov 27 00:00:00 GMT"), None, "2-digit year");
+        assert_eq!(parse_imf_fixdate("Mon, 15 Nov 2027 24:00:00 GMT"), None, "hour 24");
+        assert_eq!(parse_imf_fixdate("Mon, 00 Nov 2027 00:00:00 GMT"), None, "day 0");
+        assert_eq!(parse_imf_fixdate("Mon, 29 Feb 2027 00:00:00 GMT"), None, "2027 not a leap year");
+        assert!(parse_imf_fixdate("Tue, 29 Feb 2028 00:00:00 GMT").is_some(), "2028 is a leap year");
+        assert!(parse_imf_fixdate("Mon, 15 Nov 2027 00:00:00 GMT").is_some(), "valid IMF-fixdate parses");
     }
 }
