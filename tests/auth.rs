@@ -86,6 +86,11 @@ fn cookie_roundtrip_and_rejects_garbage() {
     let mut headers = HashMap::new();
     headers.insert("cookie".to_string(), format!("other=1; aqua_session={}; x=y", id));
     assert_eq!(aqua::auth::session_cookie(&headers), Some(id));
+    // a same-prefix cookie name without '=' must not abort parsing of later parts
+    let mut headers2 = HashMap::new();
+    let id2 = a.create_session("sam", Role::Friend);
+    headers2.insert("cookie".to_string(), format!("aqua_sessionfoo=1; aqua_session={}", id2));
+    assert_eq!(aqua::auth::session_cookie(&headers2), Some(id2));
     headers.insert("cookie".to_string(), "aqua_session=<script>alert(1)</script>".to_string());
     assert_eq!(aqua::auth::session_cookie(&headers), None);
     headers.insert("cookie".to_string(), "aqua_session=".to_string());
