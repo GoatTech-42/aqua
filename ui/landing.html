@@ -220,7 +220,10 @@ footer .note{margin-top:40px;font-size:12px;color:var(--faint)}
 
 <script>
 (function () {
-  var base = localStorage.getItem('aqua_api_base') || (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua.goattech.us/v1');
+  // Split deployment: Pages serves the site at aqua.goattech.us, the API lives at
+  // api.aqua.goattech.us. Served same-origin (local dev, or the API host directly) the
+  // API is the origin itself.
+  var base = localStorage.getItem('aqua_api_base') || (location.hostname === 'aqua.goattech.us' ? 'https://api.aqua.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://api.aqua.goattech.us/v1'));
   function getKey() { return localStorage.getItem('aqua_key') || ''; }
   function setBase(v) { localStorage.setItem('aqua_api_base', v); base = v; }
   window.AQUA = { baseUrl: function () { return base; }, key: getKey, setBase: setBase };
