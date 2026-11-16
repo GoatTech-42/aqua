@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aqua — Models</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: dark;
+  --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
+  --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
+  --accent:#45d6e8; --accent-ink:#00272b;
+  --radius-card:10px; --radius-control:8px;
+  --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { background:var(--ground); }
+body { font-family:var(--font); color:var(--text); font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+::selection { background:var(--accent); color:var(--accent-ink); }
+svg { display:block; }
+.num { font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; }
+
+.app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+
+/* ---- sidebar ---- */
+.side { background:#000; border-right:1px solid var(--rule); padding:16px 12px; display:flex; flex-direction:column; gap:2px; }
+.brand { display:flex; align-items:center; gap:10px; padding:4px 10px 18px; }
+.brand .wm { font-weight:600; font-size:16.5px; letter-spacing:-0.01em; }
+.newchat { display:flex; align-items:center; gap:8px; height:34px; padding:0 12px; margin-bottom:8px;
+  border:1px solid var(--control); border-radius:var(--radius-control); color:var(--text); font-size:13px; font-weight:500; background:transparent; }
+.navlabel { font-size:10.5px; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--faint); padding:18px 12px 7px; }
+.nav a { display:flex; align-items:center; gap:10px; height:34px; padding:0 12px; border-radius:8px; color:var(--muted); text-decoration:none; font-size:13.5px; font-weight:450; }
+.nav a svg { color:#7a7a7a; }
+.nav a:hover { color:var(--text); }
+.nav a.on { background:#161616; color:#fff; font-weight:500; }
+.nav a.on svg { color:#fff; }
+.spacer { flex:1; }
+.userrow { display:flex; align-items:center; gap:10px; padding:12px 10px 4px; border-top:1px solid var(--rule); }
+.avatar { width:26px; height:26px; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; }
+.userrow .un { font-size:13px; font-weight:500; }
+.userrow .up { font-size:11.5px; color:var(--faint); }
+.userrow .cols { display:flex; flex-direction:column; line-height:1.3; }
+
+/* ---- canvas ---- */
+.canvas { padding:32px 36px 56px; max-width:1160px; }
+.titlerow { display:flex; align-items:flex-end; justify-content:space-between; }
+h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
+.stamp { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--faint); }
+.finding { margin-top:7px; font-size:13.5px; color:var(--muted); }
+.finding b { color:var(--text); font-weight:500; }
+
+.endpoint { margin-top:24px; padding:16px 18px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); display:flex; align-items:center; gap:18px; }
+.endpoint .lab { font-size:13.5px; font-weight:600; flex:none; letter-spacing:-0.005em; }
+.endpoint .labsub { font-size:12.5px; color:var(--faint); font-weight:400; margin-top:2px; }
+.urlbar { margin-left:auto; display:flex; align-items:stretch; height:38px; flex:none; }
+.urlbar .u { display:flex; align-items:center; gap:8px; padding:0 14px; background:#000; border:1px solid var(--control); border-right:none;
+  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:12.5px; color:#c8eff5; }
+.urlbar .cp { display:flex; align-items:center; gap:6px; padding:0 14px; background:#fff; color:#000;
+  border-radius:0 var(--radius-control) var(--radius-control) 0; font-size:12.5px; font-weight:500; }
+
+.tabsrow { display:flex; align-items:flex-end; justify-content:space-between; margin-top:28px; border-bottom:1px solid var(--rule); }
+.tabs { display:flex; gap:24px; }
+.tab { height:38px; display:flex; align-items:center; font-size:13.5px; color:var(--muted); text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.tab:hover { color:var(--text); }
+.tab.on { color:var(--text); font-weight:500; border-bottom-color:var(--accent); }
+.search { display:flex; align-items:center; gap:8px; height:34px; width:256px; margin-bottom:7px; padding:0 11px;
+  background:var(--surface); border:1px solid var(--control); border-radius:var(--radius-control); color:var(--faint); font-size:13px; }
+.search .kbd { margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint); border:1px solid var(--control); border-radius:4px; padding:1px 5px; }
+
+.table { margin-top:6px; }
+.thead, .row { display:grid; grid-template-columns:minmax(0,1fr) 80px 96px 96px 124px 118px; align-items:center; }
+.thead { height:40px; font-size:11px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--faint); }
+.thead .h.r { text-align:right; }
+.thead .h:first-child { padding-left:2px; }
+.row { min-height:58px; border-top:1px solid var(--rule); padding:8px 0; }
+.row:hover { background:#070707; }
+.row .c { padding-right:8px; }
+.row .c.num { text-align:right; padding-right:2px; font-size:13.5px; }
+.row .c.quota { color:var(--muted); }
+.c-status { display:flex; justify-content:flex-end; }
+.mname { font-family:var(--mono); font-size:12.5px; font-weight:600; }
+.msub { font-size:12px; color:var(--faint); margin-top:3px; }
+.pill { display:inline-flex; align-items:center; gap:6px; height:23px; padding:0 10px; border-radius:999px; font-size:11.5px; font-weight:500; white-space:nowrap; }
+.pill::before { content:""; width:5px; height:5px; border-radius:50%; background:currentColor; }
+.pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
+.pill-warn { background:#211a0c; border:1px solid #3a2e15; color:#e3b341; }
+.foot { margin-top:20px; font-size:12px; color:var(--faint); display:flex; justify-content:space-between; gap:12px; }
+.foot a { color:var(--muted); text-decoration:none; }
+.foot a:hover { color:var(--text); }
+
+.phonebar { display:none; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns:1fr; }
+  .side { display:none; }
+  .phonebar { display:flex; align-items:center; gap:12px; height:54px; padding:0 18px; border-bottom:1px solid var(--rule); background:#000; }
+  .phonebar .pb-wm { display:flex; align-items:center; gap:9px; font-weight:600; font-size:15.5px; }
+  .phonebar .pb-right { margin-left:auto; display:flex; align-items:center; gap:16px; color:var(--muted); }
+  .canvas { padding:20px 18px 36px; }
+  h1 { font-size:21px; }
+  .stamp span.st { display:none; }
+  .endpoint { flex-direction:column; align-items:flex-start; gap:12px; }
+  .urlbar { margin-left:0; width:100%; }
+  .urlbar .u { flex:1; overflow:hidden; white-space:nowrap; }
+  .tabsrow { margin-top:20px; }
+  .tabs { gap:18px; overflow:hidden; }
+  .search { display:none; }
+  .thead { display:none; }
+  .row { grid-template-columns:minmax(0,1fr) auto; row-gap:3px; padding:12px 0; }
+  .row:hover { background:transparent; }
+  .row .c.num { display:none; }
+  .c-status { grid-column:2; grid-row:1 / span 2; align-self:center; }
+  .row .qline { display:block; }
+}
+.row .qline { display:none; font-size:12px; color:var(--faint); grid-column:1; margin-top:2px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></div>
+    <div class="nav">
+      <div class="navlabel">Gateway</div>
+      <a href="/console.html" class="on"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>Models</span></a>
+      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>Playground</span></a>
+    </div>
+    <div class="spacer"></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none;margin-left:auto;font-size:12px;color:var(--faint);text-decoration:none">sign out</a></div>
+  </aside>
+  <div class="main">
+    <div class="phonebar"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="pb-right"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="canvas">
+      <div class="titlerow">
+        <h1>Models</h1>
+        <div class="stamp"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span class="st" id="aqua-sync">not connected</span></div>
+      </div>
+      <p class="finding" id="aqua-finding">Connect this console to your Aqua deployment to see the model pool.</p>
+      <div class="endpoint">
+        <div class="lab">One endpoint<div class="labsub">OpenAI-compatible. Swap the base URL, keep your code.</div></div>
+        <div class="urlbar"><span class="u" id="aqua-base"></span><span class="cp" id="aqua-copy" style="cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy</span></div>
+      </div>
+      <div class="tabsrow">
+        <div class="tabs">
+          <a class="tab on" href="/console.html">All models</a>
+        </div>
+      </div>
+      <div class="table">
+        <div class="thead">
+          <span class="h">Model</span><span class="h r">Context</span><span class="h r">Input /1M</span><span class="h r">Output /1M</span><span class="h r">Free quota</span><span class="h r">Status</span>
+        </div>
+
+        <div id="aqua-rows"></div>
+      </div>
+      <div class="foot"><span id="aqua-foot">Pricing and quota are not exposed by the backend yet.</span><span><a href="#" onclick="AQUA.askKey();return false">Set API key</a> · <a href="#" onclick="AQUA.askBase();return false">Set base URL</a> · <a href="/login/github" data-aqua-signin>Sign in</a></span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  // Split deployment: Pages serves the console at aqua.goattech.us, the API lives at
+  // api.aqua.goattech.us. Served same-origin (local dev, or the API host directly) the
+  // API is the origin itself.
+  var base = localStorage.getItem('aqua_api_base') || (location.hostname === 'aqua.goattech.us' ? 'https://api.aqua.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://api.aqua.goattech.us/v1'));
+  function getKey() { return localStorage.getItem('aqua_key') || ''; }
+  function setBase(v) { localStorage.setItem('aqua_api_base', v); base = v; }
+  window.AQUA = { baseUrl: function () { return base; }, key: getKey, setBase: setBase };
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'authorization': 'Bearer ' + getKey(), 'content-type': 'application/json' }, opts.headers || {});
+    return fetch(base + path, opts);
+  }
+  window.AQUA.api = api;
+  window.AQUA.askKey = function () {
+    var k = window.prompt('Aqua API key (stored only in this browser):', getKey());
+    if (k !== null) { localStorage.setItem('aqua_key', k.trim()); location.reload(); }
+  };
+  window.AQUA.askBase = function () {
+    var b = window.prompt('Aqua base URL:', base);
+    if (b !== null) { setBase(b.trim().replace(/\/+$/, '')); location.reload(); }
+  };
+})();
+</script>
+
+<script>
+(function () {
+  var base = AQUA.baseUrl();
+  var serverOrigin = base.replace(/\/v1$/, '');
+  document.querySelectorAll('[data-aqua-signin]').forEach(function (a) {
+    a.setAttribute('href', serverOrigin + '/login/github');
+  });
+  document.getElementById('aqua-base').textContent = base;
+  var rows = document.getElementById('aqua-rows');
+  function stateRow(title, sub) {
+    rows.textContent = '';
+    rows.appendChild(makeRow(title, sub, 'offline', false));
+  }
+  function makeRow(title, sub, pillText, live) {
+    var row = document.createElement('div'); row.className = 'row';
+    var cid = document.createElement('div'); cid.className = 'c-id';
+    var mname = document.createElement('div'); mname.className = 'mname'; mname.textContent = title;
+    var msub = document.createElement('div'); msub.className = 'msub'; msub.textContent = sub;
+    cid.appendChild(mname); cid.appendChild(msub); row.appendChild(cid);
+    for (var i = 0; i < 4; i++) {
+      var c = document.createElement('div'); c.className = i === 3 ? 'c num quota' : 'c num'; c.textContent = '—'; row.appendChild(c);
+    }
+    var st = document.createElement('div'); st.className = 'c c-status';
+    var pill = document.createElement('span'); pill.className = live ? 'pill pill-live' : 'pill'; pill.textContent = pillText;
+    st.appendChild(pill); row.appendChild(st);
+    return row;
+  }
+  // Session identity: consumed from the OAuth backend when signed in.
+  fetch(serverOrigin + '/auth/me', { credentials: 'include' }).then(function (r) {
+    if (!r.ok) { throw new Error('not signed in'); }
+    return r.json();
+  }).then(function (me) {
+    document.getElementById('aqua-user').textContent = me.login;
+    document.getElementById('aqua-usersub').textContent = me.role;
+    document.getElementById('aqua-avatar').textContent = (me.login || '?').charAt(0).toUpperCase();
+    var so = document.getElementById('aqua-signout');
+    so.style.display = '';
+    so.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.reload(); });
+    });
+  }).catch(function () {
+    document.getElementById('aqua-user').textContent = 'API key mode';
+    document.getElementById('aqua-usersub').textContent = 'not signed in';
+    document.getElementById('aqua-avatar').textContent = '-';
+  });
+  document.getElementById('aqua-copy').addEventListener('click', function () {
+    navigator.clipboard.writeText(base).then(function () {
+      document.getElementById('aqua-copy').lastChild.textContent = 'Copied';
+      setTimeout(function () { document.getElementById('aqua-copy').lastChild.textContent = 'Copy'; }, 1200);
+    });
+  });
+  if (!AQUA.key()) {
+    stateRow('No API key set', 'Use "Set API key" below to connect');
+    return;
+  }
+  AQUA.api('/models').then(function (r) {
+    if (!r.ok) { throw new Error('HTTP ' + r.status); }
+    return r.json();
+  }).then(function (j) {
+    var models = (j.data || []);
+    document.getElementById('aqua-sync').textContent = 'connected just now';
+    document.getElementById('aqua-finding').textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + ' visible to this key.';
+    if (!models.length) { stateRow('Pool is empty', 'The backend returned no models'); return; }
+    rows.textContent = '';
+    models.forEach(function (m) {
+      rows.appendChild(makeRow(m.id, '', 'listed', true));
+    });
+  }).catch(function (e) {
+    document.getElementById('aqua-sync').textContent = 'not connected';
+    document.getElementById('aqua-finding').textContent = 'Could not reach the deployment at ' + base + ' (' + e.message + '). Check the base URL and API key.';
+    stateRow('Backend not reachable', base);
+  });
+})();
+</script>
+</body>
+</html>

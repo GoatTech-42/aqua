@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aqua — free models, one endpoint</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#151515; --control:#333;
+  --ink:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
+  --accent:#45d6e8; --accent-ink:#00272b;
+  --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --disp:"Space Grotesk","Instrument Sans",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--ink);font-family:var(--font);font-size:16px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+::selection{background:var(--accent);color:var(--accent-ink)}
+a{color:inherit}
+svg{display:block}
+.num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+.wrap{max-width:1200px;margin:0 auto;padding:0 32px}
+
+/* ---------- nav ---------- */
+nav{height:72px;display:flex;align-items:center;gap:12px}
+nav .mark{display:flex;align-items:center;gap:10px}
+nav .wm{font-family:var(--disp);font-weight:600;font-size:19px;letter-spacing:-0.01em}
+nav .links{margin-left:44px;display:flex;gap:30px}
+nav .links a{text-decoration:none;font-size:14px;color:var(--muted);transition:color .15s}
+nav .links a:hover{color:var(--ink)}
+nav .cta{margin-left:auto;display:flex;align-items:center;gap:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 18px;border-radius:8px;font-size:14px;font-weight:500;text-decoration:none;letter-spacing:-0.005em;transition:background .15s,border-color .15s}
+.btn-primary{background:#fff;color:#000}
+.btn-primary:hover{background:#e4e4e4}
+.btn-ghost{border:1px solid var(--control);color:var(--ink)}
+.btn-ghost:hover{border-color:#4a4a4a}
+
+/* ---------- hero ---------- */
+.hero{padding:104px 0 128px;display:grid;grid-template-columns:1.02fr 1fr;gap:72px;align-items:center}
+h1{font-family:var(--disp);font-weight:600;font-size:clamp(46px,4.9vw,72px);line-height:1.01;letter-spacing:-0.032em;text-wrap:balance;max-width:12ch}
+.hero .sub{margin-top:26px;font-size:17.5px;line-height:1.55;color:var(--muted);max-width:44ch;letter-spacing:-0.005em}
+.hero .actions{margin-top:36px;display:flex;gap:16px;align-items:center}
+.hero .plain{font-size:14px;color:var(--muted);text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px;transition:color .15s}
+.hero .plain:hover{color:var(--ink)}
+
+.reqcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.reqcard .rh{display:flex;align-items:center;gap:10px;padding:14px 20px;border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--faint)}
+.reqcard .rh .method{color:var(--accent);font-weight:600}
+.reqcard pre{padding:20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;color:#d4d4d4;overflow-x:auto;scrollbar-width:none}
+.reqcard pre::-webkit-scrollbar{display:none}
+.reqcard .k{color:var(--accent)}
+.reqcard .route{display:flex;align-items:center;gap:9px;padding:14px 20px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:12px;color:var(--accent)}
+.reqcard .route::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+
+/* ---------- sections ---------- */
+section{padding:120px 0}
+section + section{border-top:1px solid var(--rule)}
+h2{font-family:var(--disp);font-weight:600;font-size:clamp(30px,2.8vw,40px);line-height:1.06;letter-spacing:-0.024em;max-width:24ch}
+.lede{margin-top:18px;color:var(--muted);font-size:16.5px;line-height:1.6;max-width:54ch}
+
+/* confluence diagram */
+.conflu{margin-top:64px}
+.conflu svg{width:100%;height:auto}
+.conflu .narrow{display:none}
+.conflu .nodelabel{font-family:var(--mono);font-size:11.5px;fill:var(--faint);letter-spacing:0.01em}
+.conflu .hub{font-family:var(--disp);fill:var(--ink);font-weight:600;font-size:16px;letter-spacing:-0.01em}
+.conflu .out{fill:var(--accent);font-family:var(--mono);font-size:12.5px}
+.conflu .stream{stroke:#262626;stroke-width:1.25;fill:none}
+.conflu .river{stroke:var(--accent);stroke-width:2.5;fill:none}
+
+/* quota table fragment */
+.frag{margin-top:56px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.frag .fh{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--rule);font-size:12.5px;color:var(--faint)}
+.frag .fh .sd{font-family:var(--mono);font-size:11px}
+.frag table{width:100%;border-collapse:collapse;font-size:14px}
+.frag th{font-weight:500;font-size:11px;letter-spacing:0.07em;text-transform:uppercase;color:var(--faint);text-align:left;padding:12px 20px}
+.frag th.r,.frag td.r{text-align:right}
+.frag td{padding:15px 20px;border-top:1px solid var(--rule)}
+.frag .mono{font-family:var(--mono);font-size:12.5px;font-weight:600}
+.frag .sub{font-size:12px;color:var(--faint);margin-top:3px}
+.pill{display:inline-flex;align-items:center;gap:6px;height:23px;padding:0 10px;border-radius:999px;font-size:11.5px;font-weight:500;white-space:nowrap}
+.pill::before{content:"";width:5px;height:5px;border-radius:50%;background:currentColor}
+.pill-live{background:#141414;border:1px solid #242424;color:#d4d4d4}
+.pill-warn{background:#211a0c;border:1px solid #3a2e15;color:#e3b341}
+
+/* ---------- footer ---------- */
+footer{padding:128px 0 48px;border-top:1px solid var(--rule)}
+footer .big{font-family:var(--disp);font-weight:700;font-size:clamp(96px,18vw,240px);line-height:0.86;letter-spacing:-0.045em;color:var(--ink);margin-left:-0.05em}
+footer .cols{margin-top:56px;display:flex;gap:30px;font-size:14px;color:var(--muted);flex-wrap:wrap}
+footer .cols a{text-decoration:none;transition:color .15s}
+footer .cols a:hover{color:var(--ink)}
+footer .note{margin-top:40px;font-size:12px;color:var(--faint)}
+
+@media (max-width:760px){
+  .wrap{padding:0 20px}
+  nav{height:64px}
+  nav .links{display:none}
+  nav .cta .btn-ghost{display:none}
+  .hero{padding:64px 0 80px;grid-template-columns:1fr;gap:48px}
+  h1{font-size:46px}
+  .hero .sub{font-size:16.5px}
+  section{padding:80px 0}
+  .reqcard pre{font-size:10px;padding:16px;white-space:pre;overflow-x:auto}
+  .conflu{margin-top:48px}
+  .reqcard .route{font-size:10.5px}
+  .frag tr:first-child{display:none}
+  .frag tr{display:grid;grid-template-columns:1fr auto;row-gap:3px;padding:13px 16px;border-top:1px solid var(--rule)}
+  .frag td{display:block;padding:0;border-top:none}
+  .frag tr td:nth-child(2){grid-column:1;color:var(--faint);font-size:12.5px;text-align:left}
+  .frag td:nth-child(3){display:none}
+  .frag td:nth-child(4){grid-column:2;grid-row:1/span 2;align-self:center;text-align:right}
+  .frag .mono{font-size:12px}
+  .frag .fh{padding:12px 16px}
+  .conflu .wide{display:none}
+  .conflu .narrow{display:block}
+  footer .big{font-size:clamp(88px,26vw,160px)}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <span class="mark"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></span>
+    <div class="links"><a href="/console.html">Models</a></div>
+    <div class="cta"><a class="btn btn-ghost" data-aqua-signin href="/login/github">Sign in</a></div>
+  </nav>
+
+  <div class="hero">
+    <div>
+      <h1>Free models. One endpoint.</h1>
+      <p class="sub">Aqua sends each request across the free tiers the admin has enabled and fails over on its own when one errors or rate-limits you. OpenAI-compatible, so switching is one line of code.</p>
+      <div class="actions"><a class="btn btn-primary" data-aqua-signin href="/login/github">Sign in</a><a class="plain" href="/console.html">See the models</a></div>
+    </div>
+    <div class="reqcard" data-ui>
+      <div class="rh"><span class="method">POST</span><span>/v1/chat/completions</span></div>
+<pre>curl <span class="k" id="aqua-base1">your-deployment/v1</span>/chat/completions \
+  -H "Authorization: Bearer aqua_key" \
+  -d '{
+    "model": "auto",
+    "messages": [
+      { "role": "user", "content": "..." }
+    ]
+  }'</pre>
+      <div class="route"><span>example · routed to model-b · 0.71s · $0.00</span></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>Many free tiers in, one answer out.</h2>
+    <p class="lede">You hold one key. Aqua tries the enabled free-tier pool in order and fails over on its own when one errors or rate-limits you. Same request, same code.</p>
+    <div class="conflu">
+      <svg class="wide" viewBox="0 0 1060 320" role="img" aria-label="Diagram: many models flow into Aqua, which outputs one endpoint">
+        <path class="stream" d="M170 32 C 400 32, 470 142, 610 147"/>
+        <path class="stream" d="M170 74 C 410 74, 480 145, 610 149"/>
+        <path class="stream" d="M170 116 C 430 116, 490 148, 610 151"/>
+        <path class="stream" d="M170 160 L 610 153"/>
+        <path class="stream" d="M170 204 C 430 204, 490 158, 610 155"/>
+        <path class="stream" d="M170 246 C 410 246, 480 161, 610 157"/>
+        <path class="stream" d="M170 288 C 400 288, 470 164, 610 159"/>
+        <path class="river" d="M624 153 L 880 153"/>
+        <text class="nodelabel" x="158" y="36" text-anchor="end">model-a</text>
+        <text class="nodelabel" x="158" y="78" text-anchor="end">model-b</text>
+        <text class="nodelabel" x="158" y="120" text-anchor="end">model-c</text>
+        <text class="nodelabel" x="158" y="163" text-anchor="end">model-d</text>
+        <text class="nodelabel" x="158" y="208" text-anchor="end">model-e</text>
+        <text class="nodelabel" x="158" y="250" text-anchor="end">model-f</text>
+        <text class="nodelabel" x="158" y="292" text-anchor="end">your own keys</text>
+        <circle cx="617" cy="153" r="7" fill="#45d6e8"/>
+        <circle cx="617" cy="153" r="13" fill="none" stroke="#45d6e8" stroke-opacity="0.3" stroke-width="1"/>
+        <text class="hub" x="604" y="190" text-anchor="middle">aqua</text>
+        <text class="out" x="706" y="135" id="aqua-base2">your-deployment/v1</text>
+        <text class="nodelabel" x="896" y="157">your app</text>
+      </svg>
+      <svg class="narrow" viewBox="0 0 400 300" role="img" aria-label="Diagram: many models flow into Aqua, which outputs one endpoint">
+        <path class="stream" d="M170 24 C 230 24, 200 150, 200 172"/>
+        <path class="stream" d="M170 48 C 235 48, 200 152, 200 173"/>
+        <path class="stream" d="M170 72 C 240 72, 200 154, 200 174"/>
+        <path class="stream" d="M170 96 C 240 96, 200 156, 200 175"/>
+        <path class="stream" d="M170 120 C 235 120, 200 158, 200 176"/>
+        <path class="stream" d="M170 144 C 230 144, 200 160, 200 177"/>
+        <text class="nodelabel" x="158" y="28" text-anchor="end" style="font-size:12.5px">model-a</text>
+        <text class="nodelabel" x="158" y="52" text-anchor="end" style="font-size:12.5px">model-b</text>
+        <text class="nodelabel" x="158" y="76" text-anchor="end" style="font-size:12.5px">model-c</text>
+        <text class="nodelabel" x="158" y="100" text-anchor="end" style="font-size:12.5px">model-d</text>
+        <text class="nodelabel" x="158" y="124" text-anchor="end" style="font-size:12.5px">model-e</text>
+        <text class="nodelabel" x="158" y="148" text-anchor="end" style="font-size:12.5px">your own keys</text>
+        <circle cx="200" cy="183" r="6" fill="#45d6e8"/>
+        <circle cx="200" cy="183" r="11" fill="none" stroke="#45d6e8" stroke-opacity="0.3" stroke-width="1"/>
+        <text class="hub" x="216" y="188" style="font-size:14px">aqua</text>
+        <path class="river" d="M200 196 L 200 236"/>
+        <text class="out" x="200" y="260" text-anchor="middle" style="font-size:12px" id="aqua-base3">your-deployment/v1</text>
+        <text class="nodelabel" x="200" y="282" text-anchor="middle" style="font-size:12px">your app</text>
+      </svg>
+    </div>
+  </section>
+
+  <section>
+    <h2>The pool is visible, not in a blog post.</h2>
+    <p class="lede">The console lists every model the pool can serve. Quota visibility lands next.</p>
+    <div class="frag" data-ui>
+      <div class="fh"><span>Right now</span><span class="sd" id="aqua-sd">offline</span></div>
+      <table>
+        <tr><th>Model</th><th class="r">Free quota</th><th class="r">Latency</th><th class="r">Status</th></tr>
+        <tr id="aqua-status-row"><td colspan="4"><div class="mono">Live status needs an API key.</div><div class="sub">Set one in the console to see the pool.</div></td><td class="r num">—</td><td class="r num">—</td><td class="r"><span class="pill">offline</span></td></tr>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    <div class="big">aqua</div>
+    <div class="cols"><a href="/console.html">Models</a><a data-aqua-signin href="/login/github">Sign in</a></div>
+    <div class="note">Aqua is invite-only. Example routes shown; the providers behind them are not disclosed.</div>
+  </footer>
+</div>
+
+<script>
+(function () {
+  // Split deployment: Pages serves the site at aqua.goattech.us, the API lives at
+  // api.aqua.goattech.us. Served same-origin (local dev, or the API host directly) the
+  // API is the origin itself.
+  var base = localStorage.getItem('aqua_api_base') || (location.hostname === 'aqua.goattech.us' ? 'https://api.aqua.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://api.aqua.goattech.us/v1'));
+  function getKey() { return localStorage.getItem('aqua_key') || ''; }
+  function setBase(v) { localStorage.setItem('aqua_api_base', v); base = v; }
+  window.AQUA = { baseUrl: function () { return base; }, key: getKey, setBase: setBase };
+  function api(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({ 'authorization': 'Bearer ' + getKey(), 'content-type': 'application/json' }, opts.headers || {});
+    return fetch(base + path, opts);
+  }
+  window.AQUA.api = api;
+  window.AQUA.askKey = function () {
+    var k = window.prompt('Aqua API key (stored only in this browser):', getKey());
+    if (k !== null) { localStorage.setItem('aqua_key', k.trim()); location.reload(); }
+  };
+  window.AQUA.askBase = function () {
+    var b = window.prompt('Aqua base URL:', base);
+    if (b !== null) { setBase(b.trim().replace(/\/+$/, '')); location.reload(); }
+  };
+})();
+</script>
+
+<script>
+(function () {
+  var base = AQUA.baseUrl();
+  var serverOrigin = base.replace(/\/v1$/, '');
+  document.querySelectorAll('[data-aqua-signin]').forEach(function (a) {
+    a.setAttribute('href', serverOrigin + '/login/github');
+  });
+  ['aqua-base1', 'aqua-base2', 'aqua-base3'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) { el.textContent = base.replace(/^https?:\/\//, ''); }
+  });
+  if (!AQUA.key()) { return; }
+  AQUA.api('/models').then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); }).then(function (j) {
+    var models = j.data || [];
+    document.getElementById('aqua-sd').textContent = 'live';
+    var row = document.getElementById('aqua-status-row');
+    if (!models.length) {
+      row.innerHTML = '<td colspan="4"><div class="mono">Pool is empty.</div><div class="sub">The backend returned no models.</div></td><td class="r num">—</td><td class="r num">—</td><td class="r"><span class="pill">offline</span></td>';
+      return;
+    }
+    var tbody = row.parentNode;
+    tbody.removeChild(row);
+    models.forEach(function (m) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td><div class="mono"></div></td><td class="r num">—</td><td class="r num">—</td><td class="r"><span class="pill pill-live">listed</span></td>';
+      tr.querySelector('.mono').textContent = m.id;
+      tbody.appendChild(tr);
+    });
+  }).catch(function () {});
+})();
+</script>
+</body>
+</html>
