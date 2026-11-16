@@ -683,6 +683,41 @@ fn max_tokens_above_context_is_a_sound_400_without_burning_quota() {
 }
 
 #[test]
+fn context_filter_leaving_only_hard_limited_bindings_429s_without_burning_quota() {
+    // p1 fresh but tiny context; p2 big context. First request soft-fails p1
+    // then hard-limits p2. A later request whose max_tokens filters p1 out
+    // leaves only the deferred hard-limited binding: it must 429 before
+    // reserving quota, not burn a daily slot it can never use.
+    let p1_calls = Arc::new(AtomicUsize::new(0));
+    let n1 = p1_calls.clone();
+    let p1 = mock_upstream(move |_| {
+        if n1.fetch_add(1, Ordering::SeqCst) == 0 { error_reply(429, vec![]) } else { json_reply(chat_json("m", "small ctx ok")) }
+    });
+    let p2 = mock_upstream(|_| error_reply(429, vec![("retry-after", "120")]));
+    let mut cfg = config(
+        vec![
+            provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", Some(100))]),
+            provider("p2", &p2.url, Status::Friends, vec![("coder-a", "p2/a", Some(8000))]),
+        ],
+        vec!["coder-a"],
+    );
+    cfg.daily_limit = 2;
+    let srv = serve(cfg);
+    let agent = client();
+    // r1: p1 soft-fails, p2 429s with Retry-After -> hard limit installed
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
+    assert_eq!(p2.hits.load(Ordering::SeqCst), 1);
+    // r2: max_tokens filters p1 (ctx 100) out; only hard-limited p2 remains.
+    // 429 before any quota reservation.
+    let too_big = serde_json::json!({"model": "coder-a", "max_tokens": 150, "messages": [{"role": "user", "content": "hi"}]});
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", too_big).status(), 429);
+    assert_eq!(p2.hits.load(Ordering::SeqCst), 1, "hard-limited account is never attempted");
+    // the leaked-reservation check: r1 burned one of two daily slots; had r2
+    // burned the other, r3 could not route
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 200, "r2 burned no quota: the second daily slot still routes");
+}
+
+#[test]
 fn auto_skips_models_whose_context_cannot_hold_the_budget() {
     let p1 = mock_upstream(|_| json_reply(chat_json("m", "small ctx")));
     let p2 = mock_upstream(|_| json_reply(chat_json("m", "big ctx")));
@@ -777,4 +812,4 @@ fn sanitize_drops_reserved_duplicate_and_provider_named_entries() {
     assert_eq!(out.len(), 1);
     assert_eq!(out[0].public, "coder-a");
     assert_eq!(out[0].context, Some(128_000), "verified metadata attaches by public name");
-}
+    }
