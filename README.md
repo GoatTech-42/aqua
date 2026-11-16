@@ -76,7 +76,8 @@ bodies never reach the client. Hard 4 MB cap on bytes to the client.
 Request framing: HTTP/1.1 with an explicit Content-Length only. Chunked bodies
 are rejected with 400 (never guessed); duplicate Content-Length is rejected;
 headers over 64 KB are rejected even when terminated. Quota is reserved only
-after a request parses and routes - malformed 400s never burn quota. Failed auth
+after a request parses and routes - malformed 400s and unroutable 503s never burn
+quota. Daily quota counters live in memory and reset on restart (beta). Failed auth
 is throttled per token (5/min, then 429) with a bounded failure map.
 
 Logs: one line per request - timestamp, key name, provider id, stream flag.
@@ -84,5 +85,5 @@ Prompts and responses are never logged.
 
 ## Dev
 
-    cargo test   # 19 tests incl. hostile-upstream redaction probes
+    cargo test   # 40 tests incl. hostile-upstream redaction probes
     cargo run    # serve
