@@ -103,16 +103,15 @@ svg{display:block}
   <div class="topbar">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>
     <span class="wm">aqua</span><span class="crumb">/ Playground</span>
-    <div class="modelpick"><span class="auto">auto</span><span class="picksub" style="color:var(--faint)">·</span><span class="picksub">router default</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg></div>
+    <div class="modelpick"><span class="auto" id="aqua-route">auto</span><span class="picksub" style="color:var(--faint)" id="aqua-routesub">· router default</span></div>
     <div class="right"><span class="keychip" id="aqua-keychip" style="cursor:pointer">set api key</span>
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
     </div>
   </div>
   <div class="phonechip" id="aqua-chip" style="display:none"></div>
   <div class="panes">
     <aside class="rail">
       <h3>Models</h3>
-      <div class="search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Filter</span></div>
+      <div class="search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><input id="aqua-filter" placeholder="Filter" style="background:none;border:0;outline:0;color:inherit;font:inherit;width:100%"></div>
       <div class="grouplab">Models</div>
       <div id="aqua-rail"><a class="mrow" href="#"><div class="id">No models loaded</div><div class="via"><span>set api key</span></div></a></div>
     </aside>
@@ -123,7 +122,6 @@ svg{display:block}
       </div>
       <div class="composer">
         <div class="cbox">
-          <svg class="att" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
           <input id="aqua-input" placeholder="Ask anything…" style="flex:1;background:none;border:0;outline:0;color:inherit;font:inherit">
           <span class="send" id="aqua-send" style="cursor:pointer"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#00272b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></span>
         </div>
@@ -137,7 +135,6 @@ svg{display:block}
       <div class="kv"><span class="k">Tokens</span><span class="v num" id="aqua-kv-tokens">—</span></div>
       <div class="kv"><span class="k">Cost</span><span class="v num">—</span></div>
       <div class="quota"><div class="qlab"><span>Daily quota</span><span class="num">not shown yet</span></div><div class="qcap">The backend enforces a per-key daily limit; live usage numbers land here once the backend exposes them.</div></div>
-      </div>
       <div class="failover">On the <span class="mono">auto</span> route, a full upstream window fails over to the next model in the pool. Same request, same code.</div>
       
     </aside>
@@ -206,12 +203,20 @@ svg{display:block}
           model = m.id;
           rail.querySelectorAll('.mrow').forEach(function (x) { x.classList.remove('on'); });
           a.classList.add('on');
+          document.getElementById('aqua-route').textContent = m.id;
+          document.getElementById('aqua-routesub').textContent = '';
         });
         rail.appendChild(a);
       });
     }).catch(function () {});
   }
   loadModels();
+  document.getElementById('aqua-filter').addEventListener('input', function () {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#aqua-rail .mrow').forEach(function (x) {
+      x.style.display = x.textContent.toLowerCase().indexOf(q) >= 0 ? '' : 'none';
+    });
+  });
 
   var input = document.getElementById('aqua-input');
   function send() {
