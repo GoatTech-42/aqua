@@ -71,4 +71,4 @@ fn find_event_end(buf: &[u8]) -> Option<(usize, usize)> {
         i += 1;
     }
     None
-      }
+}
