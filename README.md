@@ -95,6 +95,13 @@ are usage units, not money or purchased credits. Keys expire after 30 days.
 The adapter id is `radeon`, with `AMD_RADEON_API_KEY`, `AMD_RADEON_MODELS`
 and `AQUA_STATUS_RADEON`. The retired `AMD_TOKENLAB_*` variables are not read.
 
+Cloudflare Workers AI remains off until the account is verified to have no
+paid fallback. Its free allocation is 10,000 neurons/day across models.
+Only GLM 4.7 Flash is configured below, and no model marked
+`require_workers_paid=true` may be enabled. The account-specific base URL
+must be pinned by the deployment configuration; this registry entry does
+not enforce account billing limits.
+
 ## Config (env)
 
     AQUA_OWNER_KEYS="luke:<key>"        # name:key, comma-separated
@@ -114,6 +121,10 @@ and `AQUA_STATUS_RADEON`. The retired `AMD_TOKENLAB_*` variables are not read.
     AQUA_MODEL_META=coder-a=128000               # verified context windows, tokens
     AQUA_UPSTREAM_BUDGET_SECS=300                # aggregate deadline shared by ALL fallback attempts of one request
     OPENROUTER_API_KEY=... ZRO_API_KEY=... etc.
+    AQUA_STATUS_CLOUDFLARE=off               # until no-paid-fallback proof
+    CLOUDFLARE_AI_BASE_URL=https://api.cloudflare.com/client/v4/accounts/<account-id>/ai/v1
+    CLOUDFLARE_API_TOKEN=...
+    CLOUDFLARE_MODELS="glm-4.7-flash=@cf/zai-org/glm-4.7-flash"
 
 Empty or placeholder client keys are dropped at config build and never
 authenticate. Provider keys are only ever sent to their own provider.
