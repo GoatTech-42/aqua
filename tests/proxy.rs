@@ -568,4 +568,4 @@ fn unroutable_auto_does_not_burn_quota() {
         let r = chat(&agent, &srv.base, "friendkey", msg(false));
         assert_eq!(r.status(), 503, "unroutable auto must 503, not 429");
     }
-    }
+}
