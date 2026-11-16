@@ -19,6 +19,8 @@ his friends get Aqua keys; provider keys never leave the server.
 Each provider contributes (public, upstream) model pairs via env:
 
     ZRO_MODELS="deepseek-v4.1-flash=deepseek-v4.1-flash"   # public=upstream, comma-separated
+    LOGFARE_MODELS="glm-5.3=glm-5.3,qwen-3.8-27b=qwen-3.8-27b,deepseek-v4.1-flash-1017=deepseek-v4.1-flash-1017"
+    # dated model revisions stay distinct; Flash is not the full model
     NVIDIA_NIM_MODELS="deepseek-v4.1-flash=deepseek-ai/deepseek-v4.1-flash,glm-5.3-flash=z-ai/glm-5.3-flash"
 
 Routing is model-first. A specific public model name gathers every eligible
@@ -73,7 +75,6 @@ only after cost (no credits, no metered billing) and terms are verified. Status
 
 Known concerns recorded for the review trail: openrouter free-tier key sharing
 for friends not cleared by ToS; zro free plan documented "for your own use";
-logfare logs every prompt/response to eval datasets (18+, Discord required);
 tokenlab "points" may be credits
 and keys expire after 30 days; gonka is a paid metered service.
 
@@ -81,6 +82,13 @@ NIM free inference was verified on 2026-11-16: rate-limited access, no credits
 consumed and no per-token billing. NVIDIA describes this access as development
 and prototyping. This does not establish permission to share an account or key.
 The router honors valid Retry-After headers on rate-limit responses.
+
+Logfare free Standard inference was verified with qwen-3.8-27b on 2026-11-16.
+It logs prompts and responses to evaluation datasets (18+, Discord required).
+Keep `AQUA_STATUS_LOGFARE=personal`: no sharing the owner's key with friends.
+Friends need their own provider connection before they can use this route.
+The GLM full, Qwen and dated DeepSeek bindings above come from the verified catalog;
+only Qwen inference is verified so far.
 
 ## Config (env)
 
