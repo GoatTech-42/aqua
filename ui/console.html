@@ -162,7 +162,10 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
 
 <script>
 (function () {
-  var base = localStorage.getItem('aqua_api_base') || (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua.goattech.us/v1');
+  // Split deployment: Pages serves the console at aqua.goattech.us, the API lives at
+  // api.aqua.goattech.us. Served same-origin (local dev, or the API host directly) the
+  // API is the origin itself.
+  var base = localStorage.getItem('aqua_api_base') || (location.hostname === 'aqua.goattech.us' ? 'https://api.aqua.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://api.aqua.goattech.us/v1'));
   function getKey() { return localStorage.getItem('aqua_key') || ''; }
   function setBase(v) { localStorage.setItem('aqua_api_base', v); base = v; }
   window.AQUA = { baseUrl: function () { return base; }, key: getKey, setBase: setBase };
@@ -211,7 +214,7 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
     return row;
   }
   // Session identity: consumed from the OAuth backend when signed in.
-  fetch(serverOrigin + '/auth/me', { credentials: 'same-origin' }).then(function (r) {
+  fetch(serverOrigin + '/auth/me', { credentials: 'include' }).then(function (r) {
     if (!r.ok) { throw new Error('not signed in'); }
     return r.json();
   }).then(function (me) {
@@ -222,7 +225,7 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
     so.style.display = '';
     so.addEventListener('click', function (ev) {
       ev.preventDefault();
-      fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'same-origin' }).finally(function () { location.reload(); });
+      fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.reload(); });
     });
   }).catch(function () {
     document.getElementById('aqua-user').textContent = 'API key mode';
