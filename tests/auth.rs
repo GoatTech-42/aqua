@@ -177,3 +177,88 @@ fn static_pages_are_served_and_api_still_closed() {
     let resp = raw(&base, "GET /v1/models HTTP/1.1\r\nhost: x\r\n\r\n");
     assert!(resp.starts_with("HTTP/1.1 401"), "API stays key-gated alongside public pages");
 }
+
+fn cfg_with_origin(origin: &str) -> aqua::Config {
+    let mut c = cfg_with(OAuthConfig::default());
+    c.allowed_origin = origin.to_string();
+    c
+}
+
+#[test]
+fn cors_echoes_only_the_allowed_origin_and_allows_credentials() {
+    // the Pages console calls the API host with credentials:'include'; without
+    // allow-credentials on the response the browser hides every answer from it
+    let r = aqua::bind(cfg_with_origin("https://aqua.goattech.us")).unwrap();
+    let base = format!("http://127.0.0.1:{}", r.port());
+    let resp = raw(&base, "GET /auth/me HTTP/1.1\r\nhost: x\r\norigin: https://aqua.goattech.us\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 401"));
+    assert!(resp.contains("access-control-allow-origin: https://aqua.goattech.us"));
+    assert!(resp.contains("access-control-allow-credentials: true"), "credentialed console fetches need allow-credentials");
+    let resp = raw(&base, "GET /auth/me HTTP/1.1\r\nhost: x\r\norigin: https://evil.example\r\n\r\n");
+    assert!(!resp.contains("access-control-allow-origin"), "other origins get no CORS headers");
+    assert!(!resp.contains("access-control-allow-credentials"));
+}
+
+#[test]
+fn preflight_allows_credentials_and_key_headers() {
+    let r = aqua::bind(cfg_with_origin("https://aqua.goattech.us")).unwrap();
+    let base = format!("http://127.0.0.1:{}", r.port());
+    let resp = raw(&base, "OPTIONS /auth/me HTTP/1.1\r\nhost: x\r\norigin: https://aqua.goattech.us\r\naccess-control-request-method: GET\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 204"));
+    assert!(resp.contains("access-control-allow-credentials: true"), "credentialed preflight needs allow-credentials");
+    assert!(resp.contains("access-control-allow-headers: authorization, content-type"));
+}
+
+#[test]
+fn logout_rejects_cross_site_fetch_metadata() {
+    // a cross-site page must not be able to sign a user out; SameSite=Lax is the
+    // first wall, fetch metadata the second
+    let r = aqua::bind(cfg_with(OAuthConfig::default())).unwrap();
+    let base = format!("http://127.0.0.1:{}", r.port());
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\nsec-fetch-site: cross-site\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 403"), "cross-site logout must be rejected, got: {}", &resp[..resp.len().min(80)]);
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\nsec-fetch-site: same-site\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 204"), "same-site console logout must pass");
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 204"), "clients without fetch metadata rely on SameSite=Lax");
+}
+
+#[test]
+fn logout_rejects_same_site_sibling_origin_and_accepts_exact_console() {
+    // a hostile app on another *.goattech.us subdomain is same-SITE, so SameSite=Lax
+    // and Sec-Fetch-Site both wave its credentialed POST through; only the exact
+    // Origin check stops it
+    let r = aqua::bind(cfg_with_origin("https://aqua.goattech.us")).unwrap();
+    let base = format!("http://127.0.0.1:{}", r.port());
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\nsec-fetch-site: same-site\r\norigin: https://crafty.goattech.us\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 403"), "sibling-subdomain origin must be rejected, got: {}", &resp[..resp.len().min(80)]);
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\nsec-fetch-site: same-site\r\norigin: https://evil.example\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 403"), "cross-site origin must be rejected");
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\nsec-fetch-site: same-site\r\norigin: https://aqua.goattech.us\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 204"), "exact console origin must pass");
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: x\r\ncontent-length: 0\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 204"), "non-browser clients without Origin stay allowed");
+}
+
+#[test]
+fn logout_allows_same_origin_console_without_allowed_origin() {
+    // default local config: the backend serves the console itself, so the browser's
+    // Origin IS the backend's own host - the reviewer caught this returning 403
+    let r = aqua::bind(cfg_with(OAuthConfig::default())).unwrap();
+    let base = format!("http://127.0.0.1:{}", r.port());
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: localhost:8080\r\ncontent-length: 0\r\norigin: http://localhost:8080\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 204"), "same-origin console logout must pass, got: {}", &resp[..resp.len().min(80)]);
+}
+
+#[test]
+fn logout_allows_console_served_on_the_api_host_itself() {
+    // the split deployment keeps the pages reachable on the api host; a console
+    // loaded from api.aqua.goattech.us posts back to its own origin
+    let r = aqua::bind(cfg_with_origin("https://aqua.goattech.us")).unwrap();
+    let base = format!("http://127.0.0.1:{}", r.port());
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: api.aqua.goattech.us\r\ncontent-length: 0\r\nsec-fetch-site: same-origin\r\norigin: https://api.aqua.goattech.us\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 204"), "api-host same-origin console logout must pass, got: {}", &resp[..resp.len().min(80)]);
+    // ...while a same-site sibling on another host stays rejected
+    let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: api.aqua.goattech.us\r\ncontent-length: 0\r\nsec-fetch-site: same-site\r\norigin: https://crafty.goattech.us\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 403"), "sibling origin must stay rejected");
+}
