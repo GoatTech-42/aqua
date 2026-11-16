@@ -19,6 +19,7 @@ his friends get Aqua keys; provider keys never leave the server.
 Each provider contributes (public, upstream) model pairs via env:
 
     ZRO_MODELS="deepseek-v4.1-flash=deepseek-v4.1-flash"   # public=upstream, comma-separated
+    AMD_RADEON_MODELS="qwen-3.8-27b=Qwen3.8-27B,deepseek-v4.1-flash=DeepSeek-V4.1-Flash,glm-5.3-flash=GLM-5.3-Flash"
     LOGFARE_MODELS="glm-5.3=glm-5.3,qwen-3.8-27b=qwen-3.8-27b,deepseek-v4.1-flash-1017=deepseek-v4.1-flash-1017"
     # dated model revisions stay distinct; Flash is not the full model
     NVIDIA_NIM_MODELS="deepseek-v4.1-flash=deepseek-ai/deepseek-v4.1-flash,glm-5.3-flash=z-ai/glm-5.3-flash"
@@ -75,8 +76,7 @@ only after cost (no credits, no metered billing) and terms are verified. Status
 
 Known concerns recorded for the review trail: openrouter free-tier key sharing
 for friends not cleared by ToS; zro free plan documented "for your own use";
-tokenlab "points" may be credits
-and keys expire after 30 days; gonka is a paid metered service.
+gonka is a paid metered service.
 
 NIM free inference was verified on 2026-11-16: rate-limited access, no credits
 consumed and no per-token billing. NVIDIA describes this access as development
@@ -89,6 +89,11 @@ Keep `AQUA_STATUS_LOGFARE=personal`: no sharing the owner's key with friends.
 Friends need their own provider connection before they can use this route.
 The GLM full, Qwen and dated DeepSeek bindings above come from the verified catalog;
 only Qwen inference is verified so far.
+
+AMD Radeon Token Factory inference was verified on 2026-11-16. Its points
+are usage units, not money or purchased credits. Keys expire after 30 days.
+The adapter id is `radeon`, with `AMD_RADEON_API_KEY`, `AMD_RADEON_MODELS`
+and `AQUA_STATUS_RADEON`. The retired `AMD_TOKENLAB_*` variables are not read.
 
 ## Config (env)
 
