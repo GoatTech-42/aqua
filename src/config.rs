@@ -128,11 +128,11 @@ const REGISTRY: &[RegistryEntry] = &[
         models_env: Some("NVIDIA_NIM_MODELS"),
     },
     RegistryEntry {
-        id: "tokenlab",
-        base_url: "https://api.tokenlab.amd.com/v1",
+        id: "radeon",
+        base_url: "https://developer.amd.com.cn/radeon/api/v1",
         base_url_env: None,
-        key_env: "AMD_TOKENLAB_API_KEY",
-        models_env: Some("AMD_TOKENLAB_MODELS"),
+        key_env: "AMD_RADEON_API_KEY",
+        models_env: Some("AMD_RADEON_MODELS"),
     },
     RegistryEntry {
         id: "gonka",
