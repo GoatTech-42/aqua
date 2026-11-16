@@ -189,7 +189,7 @@ fn write_json(stream: &mut TcpStream, code: u16, body: &Value, cors: Option<&str
     let cors_head = cors_headers(cors);
     write!(
         stream,
-        "HTTP/1.1 {} {}\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
+        "HTTP/1.1 {} {}\r\ncontent-type: application/json\r\nx-content-type-options: nosniff\r\nreferrer-policy: no-referrer\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
         code,
         status_text(code),
         bytes.len(),
@@ -211,7 +211,7 @@ fn cors_headers(cors: Option<&str>) -> String {
 fn write_html(stream: &mut TcpStream, body: &str, cors: Option<&str>) -> std::io::Result<()> {
     write!(
         stream,
-        "HTTP/1.1 200 OK\r\ncontent-type: text/html; charset=utf-8\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
+        "HTTP/1.1 200 OK\r\ncontent-type: text/html; charset=utf-8\r\nx-content-type-options: nosniff\r\nreferrer-policy: no-referrer\r\ncache-control: no-store\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
         body.len(),
         cors_headers(cors),
         body
@@ -361,6 +361,10 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     let token = bearer(&req);
 
     if req.method == "GET" && req.path == "/v1/admin/providers" {
+        // Throttle check first: admin-key guessing must hit the same 429 wall as API keys.
+        if auth_throttled(&shared, &token) {
+            return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limited"), cors);
+        }
         if cfg.admin_key.is_empty() || cfg.admin_key.eq_ignore_ascii_case("change-me") || token != cfg.admin_key {
             record_auth_failure(&shared, &token);
             return write_json(&mut stream, 401, &err_body("invalid api key", "auth_error"), cors);
@@ -565,6 +569,9 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         .collect();
     if candidates.is_empty() && requested != ALIAS {
         return write_json(stream, 400, &err_body("unknown model", "invalid_request"), cors);
+    }
+    if candidates.is_empty() {
+        return write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors);
     }
     // quota is reserved only after the request is known-valid and routable
     if !reserve(shared, token) {
