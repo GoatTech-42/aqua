@@ -130,7 +130,7 @@ fn config(providers: Vec<Provider>) -> Config {
     let mut keys = HashMap::new();
     keys.insert("ownerkey".into(), KeyEntry { name: "luke".into(), role: aqua::Role::Owner });
     keys.insert("friendkey".into(), KeyEntry { name: "sam".into(), role: aqua::Role::Friend });
-    Config { keys, admin_key: "adminsecret".into(), daily_limit: 200, allowed_origin: String::new(), providers }
+    Config { keys, admin_key: "adminsecret".into(), daily_limit: 200, allowed_origin: String::new(), providers, oauth: Default::default() }
 }
 
 struct Running { base: String, _h: aqua::Server }
@@ -540,4 +540,4 @@ fn duplicate_content_length_rejected() {
     let req = "POST /v1/chat/completions HTTP/1.1\r\nauthorization: Bearer friendkey\r\ncontent-length: 20\r\ncontent-length: 40\r\ncontent-type: application/json\r\n\r\n{\"messages\":[],\"x\":1}";
     let resp = raw(&srv.base, req.as_bytes());
     assert!(resp.starts_with("HTTP/1.1 400"), "got: {}", &resp[..resp.len().min(80)]);
-}
+               }
