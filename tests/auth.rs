@@ -24,6 +24,8 @@ fn cfg_with(oauth: OAuthConfig) -> aqua::Config {
         allowed_origin: String::new(),
         providers: vec![],
         oauth,
+        auto_shortlist: vec![],
+        upstream_budget: Duration::from_secs(300),
     }
 }
 
@@ -261,4 +263,4 @@ fn logout_allows_console_served_on_the_api_host_itself() {
     // ...while a same-site sibling on another host stays rejected
     let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: api.aqua.goattech.us\r\ncontent-length: 0\r\nsec-fetch-site: same-site\r\norigin: https://crafty.goattech.us\r\n\r\n");
     assert!(resp.starts_with("HTTP/1.1 403"), "sibling origin must stay rejected");
-}
+               }
