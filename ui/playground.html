@@ -144,9 +144,17 @@ svg{display:block}
 <script>
 (function () {
   // Split deployment: Pages serves the site at aqua.goattech.us, the API lives at
-  // api.aqua.goattech.us. Served same-origin (local dev, or the API host directly) the
+  // aqua-api.goattech.us. Served same-origin (local dev, or the API host directly) the
   // API is the origin itself.
-  var base = localStorage.getItem('aqua_api_base') || (location.hostname === 'aqua.goattech.us' ? 'https://api.aqua.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://api.aqua.goattech.us/v1'));
+  var storedBase = localStorage.getItem('aqua_api_base');
+  // Migrate only the retired production default on the production Pages host.
+  // Preserve localhost, custom endpoints, paths and unrelated site storage.
+  if (location.hostname === 'aqua.goattech.us' &&
+      (storedBase === 'https://api.aqua.goattech.us/v1' || storedBase === 'https://api.aqua.goattech.us/v1/')) {
+    storedBase = 'https://aqua-api.goattech.us/v1';
+    localStorage.setItem('aqua_api_base', storedBase);
+  }
+  var base = storedBase || (location.hostname === 'aqua.goattech.us' ? 'https://aqua-api.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua-api.goattech.us/v1'));
   function getKey() { return localStorage.getItem('aqua_key') || ''; }
   function setBase(v) { localStorage.setItem('aqua_api_base', v); base = v; }
   window.AQUA = { baseUrl: function () { return base; }, key: getKey, setBase: setBase };
