@@ -49,6 +49,11 @@ struct Shared {
     // Standard Z.AI account limit is one active inference, across all models.
     zai_in_flight: AtomicBool,
     openrouter_in_flight: AtomicBool,
+    nim_in_flight: AtomicBool,
+    radeon_in_flight: AtomicBool,
+    logfare_in_flight: AtomicBool,
+    trial_recent: Mutex<HashMap<String,Vec<Instant>>>,
+    route_latency: Mutex<HashMap<(String,String),u64>>,
     auth_failures: Mutex<HashMap<String, (u32, Instant)>>,
     health: Mutex<HashMap<String, Cooldown>>,
     spend: Mutex<crate::spend::Store>,
@@ -101,6 +106,11 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         quotas: Mutex::new(HashMap::new()),
         zai_in_flight: AtomicBool::new(false),
         openrouter_in_flight: AtomicBool::new(false),
+        nim_in_flight: AtomicBool::new(false),
+        radeon_in_flight: AtomicBool::new(false),
+        logfare_in_flight: AtomicBool::new(false),
+        trial_recent: Mutex::new(HashMap::new()),
+        route_latency: Mutex::new(HashMap::new()),
         auth_failures: Mutex::new(HashMap::new()),
         health: Mutex::new(HashMap::new()),
     });
@@ -278,6 +288,7 @@ const PAGE_LANDING: &str = include_str!("../ui/landing.html");
 const PAGE_CONSOLE: &str = include_str!("../ui/console.html");
 const PAGE_PLAYGROUND: &str = include_str!("../ui/playground.html");
 const PAGE_ADMIN: &str = include_str!("../ui/admin.html");
+const PAGE_SETTINGS: &str = include_str!("../ui/settings.html");
 const PAGE_KEYS: &str = include_str!("../ui/keys.html");
 
 fn err_body(message: &str, ty: &str) -> Value {
@@ -355,11 +366,11 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 }
                 return write_html(&mut stream,PAGE_ADMIN,cors);
             }
-            "/console.html" | "/console" | "/playground.html" | "/playground" | "/keys.html" | "/keys" => {
+            "/console.html" | "/console" | "/playground.html" | "/playground" | "/keys.html" | "/keys" | "/settings" | "/settings.html" => {
                 if auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).is_none() {
                     return write_redirect(&mut stream, "/", &[]);
                 }
-                let page = if req.path.starts_with("/console") { PAGE_CONSOLE } else if req.path.starts_with("/keys") {PAGE_KEYS} else { PAGE_PLAYGROUND };
+                let page = if req.path.starts_with("/settings") {PAGE_SETTINGS} else if req.path.starts_with("/console") { PAGE_CONSOLE } else if req.path.starts_with("/keys") {PAGE_KEYS} else { PAGE_PLAYGROUND };
                 return write_html(&mut stream, page, cors);
             }
             _ => {}
@@ -466,6 +477,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                     "status": p.status.as_str(),
                     "models": p.models.iter().map(|m| json!({ "public": m.public, "upstream": m.upstream })).collect::<Vec<Value>>(),
                     "configured": !p.api_key.is_empty(),
+                    "retention": crate::preferences::facts(&p.id),
                 })
             })
             .collect();
@@ -478,7 +490,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     // separate owner/admin checks. Session IDs and synthetic API keys never leave.
     let session_entry = if !req.headers.contains_key("authorization")
         && matches!((req.method.as_str(),req.path.as_str()),
-            ("GET","/v1/models") | ("POST","/v1/chat/completions")) {
+            ("GET","/v1/models") | ("POST","/v1/chat/completions") | ("GET","/v1/settings") | ("POST","/v1/settings")) {
         auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id))
             .map(|(login,role)| crate::config::KeyEntry {name:login.to_ascii_lowercase(),role})
     } else {None};
@@ -526,9 +538,29 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     let quota_token = format!("login:{}",entry.name.to_ascii_lowercase());
 
     match (req.method.as_str(), req.path.as_str()) {
+        ("GET", "/v1/settings") => {
+            let store=shared.spend.lock().unwrap();
+            if !store.available() {return write_json(&mut stream,503,&err_body("settings unavailable","settings_unavailable"),cors);}
+            let value=store.ledger.preferences.get(&entry.name).cloned().unwrap_or_default();
+            return write_json(&mut stream,200,&json!(value),cors);
+        }
+        ("POST", "/v1/settings") => {
+            let value=serde_json::from_slice::<crate::preferences::Preferences>(&req.body);
+            let Ok(value)=value else {return write_json(&mut stream,400,&err_body("invalid settings","invalid_request"),cors);};
+            if !value.valid() {return write_json(&mut stream,400,&err_body("invalid settings","invalid_request"),cors);}
+            let mut store=shared.spend.lock().unwrap();
+            if !store.durable() || store.change(|ledger|ledger.set_preferences(&entry.name,value.clone())).is_err() {
+                return write_json(&mut stream,503,&err_body("settings could not be saved","settings_unavailable"),cors);
+            }
+            return write_json(&mut stream,200,&json!(value),cors);
+        }
         ("GET", "/v1/models") => {
             // canonical models, deduplicated across provider bindings; the auto
             // alias is advertised only when a shortlist is actually configured
+            let store=shared.spend.lock().unwrap();
+            if !store.available() {return write_json(&mut stream,503,&err_body("settings unavailable","settings_unavailable"),cors);}
+            let strict=store.ledger.preferences.get(&entry.name).is_some_and(|p|p.zdr_only);
+            drop(store);
             let mut data = Vec::new();
             let mut seen = std::collections::HashSet::new();
             if !shared.config.auto_shortlist.is_empty() {
@@ -536,7 +568,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 seen.insert(ALIAS.to_string());
             }
             for p in &shared.config.providers {
-                if p.status == Status::Off || p.api_key.is_empty() {
+                if p.status == Status::Off || p.api_key.is_empty() || (owner_trial(&p.id) && entry.role!=Role::Owner) || !crate::preferences::allows(&p.id,strict) {
                     continue;
                 }
                 if (p.status != Status::Friends || p.id == "zro") && entry.role != Role::Owner {
@@ -545,6 +577,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 if p.id=="cloudflare" {continue;}
                 if p.id=="openrouter" && (cfg.spend.account_verified_day!=chrono_day() || cfg.spend.openrouter_allowance==0 || !shared.spend.lock().unwrap().durable()) {continue;}
                 for m in &p.models {
+                    if owner_trial(&p.id) && !trial_model(&p.id,&m.upstream) {continue;}
                     if p.id=="openrouter" && !OPENROUTER_FREE.contains(&m.upstream.as_str()) {continue;}
                     if entry.role != Role::Owner && cfg.spend.restricted(&m.public) { continue; }
                     if m.public == ALIAS || !seen.insert(m.public.clone()) {
@@ -736,8 +769,14 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         "deepseek-v4-flash:fp8" => "deepseek-v4-flash",
         other => other,
     };
+    let store=shared.spend.lock().unwrap();
+    if !store.available() {return write_json(stream,503,&err_body("settings unavailable","settings_unavailable"),cors);}
+    let strict=store.ledger.preferences.get(&entry.name).is_some_and(|p|p.zdr_only);
+    drop(store);
     let eligible = |p: &&crate::config::Provider| {
         p.status != Status::Off
+            && (!owner_trial(&p.id) || entry.role==Role::Owner)
+            && crate::preferences::allows(&p.id,strict)
             && !p.api_key.is_empty()
             && !p.base_url.is_empty()
             && !p.models.is_empty()
@@ -761,7 +800,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             .providers
             .iter()
             .filter(eligible)
-            .any(|p| p.models.iter().any(|m| m.public == name))
+            .any(|p| p.models.iter().any(|m| m.public == name && (!owner_trial(&p.id)||trial_model(&p.id,&m.upstream))))
     };
     if requested != ALIAS && !known(requested) {
         return write_json(stream, 400, &err_body("unknown model", "invalid_request"), cors);
@@ -780,7 +819,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             let mut cooled: Vec<(_, Instant)> = Vec::new();
             let mut deferred: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
             for p in shared.config.providers.iter().filter(eligible) {
-                for m in p.models.iter().filter(|m| m.public == name) {
+                for m in p.models.iter().filter(|m| m.public == name && (!owner_trial(&p.id)||trial_model(&p.id,&m.upstream))) {
                     if entry.role != Role::Owner && shared.config.spend.restricted(&m.public) { continue; }
                     match health.get(p.id.as_str()) {
                         Some(cd) if cd.until > now => {
@@ -796,6 +835,9 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 }
             }
             cooled.sort_by_key(|(_, until)| *until);
+            let latency=shared.route_latency.lock().unwrap();
+            fresh.sort_by_key(|(p,m)|latency.get(&(p.id.clone(),m.public.clone())).copied().unwrap_or(u64::MAX));
+            drop(latency);
             immediate += fresh.len() + cooled.len();
             candidates.extend(fresh);
             candidates.extend(cooled.into_iter().map(|(c, _)| c));
@@ -850,15 +892,21 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     }
     let mut guard = QuotaGuard { shared, token, dispatched: false, day: chrono_day() };
 
-    // one aggregate deadline shared by every fallback attempt of this request:
-    // a per-upstream timeout must not multiply across candidates
-    let deadline = Instant::now()
-        .checked_add(shared.config.upstream_budget)
-        .unwrap_or_else(|| Instant::now() + Duration::from_secs(300));
+    // Every fallback shares one start. Non-NIM routes retain the configured
+    // aggregate window. Only an owner actually dispatching NIM may use 120s.
+    let request_started = Instant::now();
 
     let mut saw_rate_limit = false;
     let mut tried: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for (p, m) in candidates {
+        // Re-read privacy at dispatch: a concurrent settings change must not let
+        // a queued request escape through a route newly excluded by its owner.
+        let store=shared.spend.lock().unwrap();
+        if !store.available() {return write_json(stream,503,&err_body("settings unavailable","settings_unavailable"),cors);}
+        let strict=store.ledger.preferences.get(&entry.name).is_some_and(|p|p.zdr_only);
+        drop(store);
+        if !crate::preferences::allows(&p.id,strict) {continue;}
+
         // dispatch-time recheck: the snapshot above may be stale - a concurrent
         // request can cool this account while we walk. A hard limit found here
         // is always honored; soft only ever reorders, it never blocks dispatch.
@@ -882,8 +930,13 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         // Cloudflare stays closed until GLM full-input and total-output neuron
         // bounds are independently verified. Catalog presence is insufficient.
         if p.id=="cloudflare" { continue; }
+        if owner_trial(&p.id) && (entry.role!=Role::Owner || !trial_model(&p.id,&m.upstream) || !bounded_text_messages(&payload)
+            || serde_json::to_vec(&payload).map_or(true,|b|b.len()>8192) || payload.get("n").is_some_and(|v|v.as_u64()!=Some(1))) {continue;}
         let limited = if p.id=="openrouter" { Some(&shared.openrouter_in_flight) }
-            else if p.id=="zai" { Some(&shared.zai_in_flight) } else { None };
+            else if p.id=="zai" { Some(&shared.zai_in_flight) }
+            else if p.id=="nim" { Some(&shared.nim_in_flight) }
+            else if p.id=="radeon" { Some(&shared.radeon_in_flight) }
+            else if p.id=="logfare" { Some(&shared.logfare_in_flight) } else { None };
         let _provider_slot = if let Some(slot)=limited {
             if slot.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_err() {
                 continue;
@@ -913,12 +966,14 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             up_body.insert("stream_options".into(), json!({"include_usage":true}));
         }
 
-        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
-            break; // aggregate budget spent: no further fallback attempts
+        let Some(remaining) = provider_remaining_budget(&p.id, entry.role==Role::Owner,
+            shared.config.upstream_budget, request_started.elapsed()) else {
+            continue; // this route's shared window expired; NIM may still qualify
         };
         let attempt_agent: ureq::Agent = ureq::Agent::config_builder()
             .http_status_as_error(false)
             .timeout_global(Some(remaining))
+            .max_redirects(if owner_trial(&p.id) {0} else {10})
             .build()
             .into();
         let url = format!("{}/chat/completions", p.base_url.trim_end_matches('/'));
@@ -929,11 +984,13 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             if !store.durable() || store.change(|ledger|ledger.admit_account("openrouter",&day,&entry.name,entry.role==Role::Owner,
                 &m.upstream,1,shared.config.spend.openrouter_allowance,shared.config.spend.openrouter_allowance,3,10)).is_err() {continue;}
         }
+        if owner_trial(&p.id) && !reserve_trial_rpm(shared,&p.id) {continue;}
         let mut spend = match reserve_spend(shared,entry,m,&payload) {
             Ok(guard) => guard,
             Err((status,message,code)) => return write_json(stream,status,&spend_error(message,code),cors),
         };
         guard.dispatched = true;
+        let attempt_started=Instant::now();
         let resp = attempt_agent
             .post(&url)
             .header("authorization", &format!("Bearer {}", p.api_key))
@@ -946,6 +1003,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 continue; // network failure: try the next provider
             }
         };
+        let header_latency=attempt_started.elapsed();
         let status = resp.status().as_u16();
         if !(200..300).contains(&status) {
             if matches!(status,400|401|403|404|422|429) {
@@ -984,6 +1042,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                 continue;
             };
+            record_route_latency(shared,&p.id,&m.public,header_latency);
             if let Some(guard) = spend.as_mut() { guard.finish(crate::spend::usage(&json)); }
             clear_cooldown(shared, &p.id);
             println!(
@@ -999,6 +1058,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
             continue;
         }
+        record_route_latency(shared,&p.id,&m.public,header_latency);
         clear_cooldown(shared, &p.id);
         println!(
             "{}",
@@ -1052,6 +1112,39 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     } else {
         write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors)
     }
+}
+
+// Personal status never permits these development/trial accounts to serve friends.
+// Owner requested light local call/concurrency controls, not spend/token caps.
+fn owner_trial(id: &str) -> bool { matches!(id,"nim"|"radeon"|"logfare") }
+fn trial_model(provider:&str,model:&str)->bool {
+    match provider {
+        "logfare"=>matches!(model,"qwen-3.8-27b"|"deepseek-v4.1-flash-1017"|"glm-5.3-flash"|"glm-5.3"|"kimi-k2.6"|"kimi-k2.7-code"),
+        "nim"=>matches!(model,"z-ai/glm-5.3-flash"|"minimaxai/minimax-m3.1-flash"|"mistralai/mistral-large-4-1t-a52b"|"stepfun-ai/step-5-preview"|"nvidia/nemotron-3-ultra-550b-a55b"|"nvidia/nemotron-3.5-super-vl-120b-a12b"|"nvidia/nemotron-3.5-lightning-30b-a3b"),
+        "radeon"=>matches!(model,"GLM-5.3-Flash"|"MiMo-V2.6-Flash"|"DeepSeek-V4.1-Flash"|"DeepSeek-V4-Flash"|"Qwen3.8-27B"),
+        _=>false,
+    }
+}
+fn reserve_trial_rpm(shared:&Shared,provider:&str)->bool {
+    if !owner_trial(provider) {return false;}
+    let mut all=shared.trial_recent.lock().unwrap();
+    let calls=all.entry(provider.into()).or_default();
+    let now=Instant::now();calls.retain(|t|now.duration_since(*t)<Duration::from_secs(60));
+    if calls.len()>=2 {return false;}
+    calls.push(now);true
+}
+// Successful response-header latency, not token throughput or full answer time.
+// EWMA weights the latest sample 1/4; unknown routes retain configuration order.
+fn record_route_latency(shared:&Shared,provider:&str,model:&str,duration:Duration) {
+    if provider.len()>128 || model.len()>256 {return;}
+    let sample=duration.as_micros().min(u64::MAX as u128) as u64;
+    let mut cache=shared.route_latency.lock().unwrap();let key=(provider.into(),model.into());
+    if let Some(previous)=cache.get_mut(&key) { *previous=((*previous as u128*3+sample as u128)/4) as u64; }
+    else if cache.len()<512 {cache.insert(key,sample);}
+}
+fn provider_remaining_budget(id:&str,owner:bool,configured:Duration,elapsed:Duration)->Option<Duration> {
+    let window=if id=="nim" && owner {Duration::from_secs(120)} else {configured};
+    window.checked_sub(elapsed).filter(|d|!d.is_zero())
 }
 
 const OPENROUTER_FREE: &[&str]=&[
@@ -1239,6 +1332,11 @@ mod reviewer_regressions {
             quotas: Mutex::new(HashMap::new()),
             zai_in_flight: AtomicBool::new(false),
             openrouter_in_flight: AtomicBool::new(false),
+        nim_in_flight: AtomicBool::new(false),
+        radeon_in_flight: AtomicBool::new(false),
+        logfare_in_flight: AtomicBool::new(false),
+        trial_recent: Mutex::new(HashMap::new()),
+        route_latency: Mutex::new(HashMap::new()),
             auth_failures: Mutex::new(HashMap::new()),
             health: Mutex::new(HashMap::new()),
         }
@@ -1273,7 +1371,7 @@ mod reviewer_regressions {
         let store=state.spend.lock().unwrap();let account=&store.ledger.accounts["openrouter"];assert_eq!(account.total,3);assert_eq!(account.users.len(),1);assert_eq!(account.users["sam"],3);assert_eq!(account.friends,3);drop(store);drop(state);let _=std::fs::remove_file(path);
     }
 
-    fn keys_shared()->Arc<Shared>{
+    pub(super) fn keys_shared()->Arc<Shared>{
         let path=std::env::temp_dir().join(format!("aqua-http-keys-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
         let mut state=shared();state.keys=Mutex::new(crate::keys::Store::open(Some(path)).unwrap());state.config.allowed_origin="https://aqua.test".into();state.config.oauth.owner_users=vec!["luke".into()];state.config.oauth.friend_users=vec!["sam".into(),"alex".into()];Arc::new(state)
     }
@@ -1314,7 +1412,7 @@ mod reviewer_regressions {
         assert!(browser_api(state,"POST","/v1/chat/completions",&friend,Some("https://api.aqua.test"),"same-site",None,r#"{"model":"private-model","messages":[{"role":"user","content":"hi"}]}"#).starts_with("HTTP/1.1 400"));
     }
 
-    fn browser_api(state: Arc<Shared>,method:&str,path:&str,cookie:&str,origin:Option<&str>,site:&str,authorization:Option<&str>,body:&str)->String {
+    pub(super) fn browser_api(state: Arc<Shared>,method:&str,path:&str,cookie:&str,origin:Option<&str>,site:&str,authorization:Option<&str>,body:&str)->String {
         let listener=TcpListener::bind("127.0.0.1:0").unwrap();let address=listener.local_addr().unwrap();
         let worker=thread::spawn(move||handle(listener.accept().unwrap().0,state).unwrap());
         let mut c=TcpStream::connect(address).unwrap();
@@ -1328,7 +1426,7 @@ mod reviewer_regressions {
     }
     #[test]
     fn session_models_reuses_roles_and_never_shares_zro_or_personal_bindings() {
-        let mut state=shared();state.config.providers=vec![browser_provider("zro",Status::Friends,"zro-model","http://localhost"),browser_provider("logfare",Status::Personal,"private-model","http://localhost"),browser_provider("inferbase",Status::Friends,"shared-model","http://localhost")];
+        let mut state=shared();state.config.providers=vec![browser_provider("zro",Status::Friends,"zro-model","http://localhost"),browser_provider("test-personal",Status::Personal,"private-model","http://localhost"),browser_provider("inferbase",Status::Friends,"shared-model","http://localhost")];
         let state=Arc::new(state);let owner=state.auth.create_session("luke",Role::Owner).unwrap();let friend=state.auth.create_session("sam",Role::Friend).unwrap();
         let o=browser_api(state.clone(),"GET","/v1/models",&owner,None,"same-site",None,"");
         assert!(o.starts_with("HTTP/1.1 200"));assert!(o.contains("private-model")&&o.contains("zro-model")&&o.contains("shared-model"));assert!(!o.contains("secret-not-client")&&!o.contains("raw-"));
@@ -1568,4 +1666,85 @@ fn spend_admin(stream: &mut TcpStream, shared: &Shared, req: &Request, token: &s
         return write_json(stream,200,&json!({"name":name,"cap":cap,"units_per_usd":crate::spend::USD}),cors);
     }
     write_json(stream,404,&err_body("not found","invalid_request"),cors)
+  }
+
+
+#[cfg(test)]
+mod owner_bounds_tests {
+    use super::*;
+    #[test]
+    fn nim_owner_window_is_scoped_and_shared_with_fallback() {
+        let base=Duration::from_secs(30);
+        assert_eq!(provider_remaining_budget("nim",true,base,Duration::ZERO),Some(Duration::from_secs(120)));
+        assert_eq!(provider_remaining_budget("nim",false,base,Duration::ZERO),Some(base));
+        assert_eq!(provider_remaining_budget("logfare",true,base,Duration::ZERO),Some(base));
+        // Non-NIM first (auto or pin) consumes time from both fixed windows.
+        assert_eq!(provider_remaining_budget("nim",true,base,Duration::from_secs(29)),Some(Duration::from_secs(91)));
+        assert_eq!(provider_remaining_budget("other",true,base,Duration::from_secs(29)),Some(Duration::from_secs(1)));
+        // Slow NIM never gives a later non-NIM route a fresh window.
+        assert_eq!(provider_remaining_budget("other",true,base,Duration::from_secs(31)),None);
+        assert_eq!(provider_remaining_budget("nim",true,base,Duration::from_secs(119)),Some(Duration::from_secs(1)));
+        assert_eq!(provider_remaining_budget("nim",true,base,Duration::from_secs(120)),None);
+        assert_eq!(provider_remaining_budget("other",true,base,Duration::from_secs(30)),None);
+        assert_eq!(provider_remaining_budget("other",false,Duration::from_millis(25),Duration::from_millis(24)),Some(Duration::from_millis(1)));
+    }
 }
+
+#[cfg(test)]
+mod preferences_auth_tests {
+    use super::*;
+    use super::reviewer_regressions::{browser_api,keys_shared};
+    #[test]
+    fn settings_cookie_csrf_and_bad_bearer_fail_closed_and_cannot_target_another_user() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();let path=std::env::temp_dir().join(format!("aqua-settings-auth-{}.json",std::process::id()));state.spend=Mutex::new(crate::spend::Store::open(Some(path)).unwrap());let state=Arc::new(state);let id=state.auth.create_session("sam",Role::Friend).unwrap();
+        let body=r#"{"zdr_only":true,"default_model":"auto","show_cost":false}"#;
+        for origin in [None,Some("https://evil.test")] {
+            assert!(browser_api(state.clone(),"POST","/v1/settings",&id,origin,"same-site",None,body).starts_with("HTTP/1.1 403"));
+        }
+        assert!(browser_api(state.clone(),"POST","/v1/settings",&id,Some("https://aqua.test"),"same-site",Some("Bearer bad"),body).starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state.clone(),"POST","/v1/settings",&id,Some("https://aqua.test"),"same-site",None,body).starts_with("HTTP/1.1 200"));
+        assert!(state.spend.lock().unwrap().ledger.preferences["sam"].zdr_only);
+        let attack=r#"{"user":"luke","zdr_only":false,"default_model":"auto","show_cost":true}"#;
+        assert!(browser_api(state.clone(),"POST","/v1/settings",&id,Some("https://aqua.test"),"same-site",None,attack).starts_with("HTTP/1.1 400"));
+        assert!(!state.spend.lock().unwrap().ledger.preferences.contains_key("luke"));
+    }
+}
+
+#[cfg(test)]
+mod fastest_route_tests {
+    use super::*;
+    use super::reviewer_regressions::keys_shared;
+    #[test]
+    fn observed_latency_is_per_model_bounded_and_uses_exact_ewma() {
+        let state=keys_shared();
+        record_route_latency(&state,"one","model-a",Duration::from_millis(100));
+        record_route_latency(&state,"one","model-a",Duration::from_millis(20));
+        record_route_latency(&state,"one","model-b",Duration::from_millis(10));
+        let cache=state.route_latency.lock().unwrap();
+        assert_eq!(cache[&("one".into(),"model-a".into())],80_000);
+        assert_eq!(cache[&("one".into(),"model-b".into())],10_000);drop(cache);
+        for n in 0..1000 {record_route_latency(&state,"one",&format!("m{n}"),Duration::from_millis(1));}
+        assert_eq!(state.route_latency.lock().unwrap().len(),512);
+    }
+}
+
+#[cfg(test)]
+mod fastest_dispatch_tests {
+    use super::*;
+    use super::reviewer_regressions::{browser_api,keys_shared};
+    #[test]
+    fn fastest_observed_binding_is_used_before_config_order_for_same_model() {
+        let (tx,rx)=std::sync::mpsc::channel();let mut providers=vec![];
+        for (id,millis) in [("slow",100),("fast",20)] {
+            let listener=TcpListener::bind("127.0.0.1:0").unwrap();let url=format!("http://{}",listener.local_addr().unwrap());let tx=tx.clone();
+            thread::spawn(move||{let(mut socket,_)=listener.accept().unwrap();let _=read_request(&mut socket);tx.send(id).unwrap();let body=r#"{"model":"private","choices":[]}"#;write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",body.len()).unwrap();});
+            providers.push(crate::config::Provider{id:id.into(),base_url:url,api_key:"fixture".into(),status:Status::Friends,models:vec![crate::config::ModelEntry{public:"same".into(),upstream:"private".into(),context:None}]});
+            let _=millis;
+        }
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();state.config.providers=providers;let state=Arc::new(state);
+        record_route_latency(&state,"slow","same",Duration::from_millis(100));record_route_latency(&state,"fast","same",Duration::from_millis(20));
+        let id=state.auth.create_session("sam",Role::Friend).unwrap();
+        assert!(browser_api(state,"POST","/v1/chat/completions",&id,Some("https://aqua.test"),"same-site",None,r#"{"model":"same","messages":[]}"#).starts_with("HTTP/1.1 200"));
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)).unwrap(),"fast");
+    }
+                                      }

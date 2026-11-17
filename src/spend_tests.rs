@@ -227,3 +227,16 @@ fn account_bounds_error_has_no_partial_mutation() {
     assert_eq!(l.accounts["cloudflare"].total,u64::MAX);
     assert_eq!(l.accounts["cloudflare"].users["luke"],1);
 }
+
+#[test]
+fn preferences_persist_per_account_and_invalid_input_cannot_replace_privacy() {
+    let path=std::env::temp_dir().join(format!("aqua-preferences-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let strict=crate::preferences::Preferences {zdr_only:true,default_model:"auto".into(),show_cost:false};
+    { let mut store=Store::open(Some(path.clone())).unwrap();store.change(|l|l.set_preferences("luke",strict.clone())).unwrap();
+      let invalid=crate::preferences::Preferences{default_model:"<script>".into(),..strict.clone()};
+      assert!(store.change(|l|l.set_preferences("luke",invalid)).is_err()); }
+    let store=Store::open(Some(path.clone())).unwrap();
+    assert!(store.ledger.preferences["luke"].zdr_only);assert!(!store.ledger.preferences["luke"].show_cost);
+    assert!(!store.ledger.preferences.contains_key("sam"));
+    drop(store);let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+}

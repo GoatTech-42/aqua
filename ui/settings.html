@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en" data-session-pending>
+<head>
+<style>html[data-session-pending] { visibility:hidden; }</style>
+<noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aqua - settings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* aqua shell - shared by landing, console, playground, keys (admin.html carries its own inline copy).
+   black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
+   deliberately larger UI (16px at <=1024, ~19.4px at 1920, 22px at 2560+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
+:root {
+  color-scheme: dark;
+  --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
+  --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
+  --accent:#45d6e8; --accent-ink:#00272b;
+  --radius-card:0.625rem; --radius-control:0.5rem;
+  --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  --pad-x:clamp(1.25rem, 3.4vw, 4.5rem);
+  --pad-top:clamp(1.5rem, 3vw, 3.5rem);
+  --canvas-max:88rem;
+  --prose-max:88ch;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+/* Hide scrollbar chrome while preserving wheel, touch and keyboard scrolling. */
+* { scrollbar-width:none; -ms-overflow-style:none; }
+*::-webkit-scrollbar { display:none; width:0; height:0; }
+html,body { background:var(--ground); height:100%; }
+body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+::selection { background:var(--accent); color:var(--accent-ink); }
+svg { display:block; }
+.num { font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; }
+
+/* brief entrance: opacity/transform only, once, no ambient motion */
+@keyframes aqua-in { from { opacity:0; transform:translateY(0.625rem); } to { opacity:1; transform:none; } }
+.aqua-in { animation:aqua-in .45s cubic-bezier(.22,.61,.36,1) both; }
+.aqua-in-1 { animation-delay:.05s; } .aqua-in-2 { animation-delay:.12s; } .aqua-in-3 { animation-delay:.19s; }
+@media (prefers-reduced-motion: reduce) {
+  .aqua-in, .aqua-in-1, .aqua-in-2, .aqua-in-3 { animation:none; }
+  * { scroll-behavior:auto !important; transition:none !important; animation-duration:0s !important; }
+}
+
+.app { display:grid; grid-template-columns:16rem 1fr; height:100vh; height:100dvh; }
+
+/* ---- sidebar ---- */
+.side { background:#000; border-right:1px solid var(--rule); padding:1rem 0.75rem; display:flex; flex-direction:column; gap:2px; }
+.brand { display:flex; align-items:center; gap:0.625rem; padding:0.25rem 0.625rem 1.125rem; text-decoration:none; color:var(--text); }
+.brand svg { width:1.375rem; height:1.375rem; }
+.brand .wm { font-weight:600; font-size:1.125rem; letter-spacing:-0.01em; }
+.navlabel { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
+.nav a { display:flex; align-items:center; gap:0.625rem; min-height:2.375rem; padding:0 0.75rem; border-radius:0.5rem; color:var(--muted); text-decoration:none; font-size:0.9375rem; font-weight:450; }
+.nav a svg { color:#7a7a7a; width:1.0625rem; height:1.0625rem; flex:none; }
+.nav a:hover { color:var(--text); }
+.nav a.on { background:#161616; color:#fff; font-weight:500; }
+.nav a.on svg { color:#fff; }
+.spacer { flex:1; }
+.userrow { display:flex; align-items:center; gap:0.625rem; padding:0.75rem 0.625rem 0.25rem; border-top:1px solid var(--rule); }
+.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:0.72rem; font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
+.userrow .un { font-size:0.875rem; font-weight:500; }
+.userrow .up { font-size:0.75rem; color:var(--faint); }
+.userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
+.userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; }
+.userrow a:hover { color:var(--text); }
+
+/* ---- canvas ---- */
+.main { min-width:0; min-height:0; overflow-y:auto; }
+.side { overflow-y:auto; }
+.canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
+.titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
+h1 { font-size:1.75rem; font-weight:600; letter-spacing:-0.02em; }
+h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
+.sub { margin-top:0.4375rem; font-size:0.9375rem; color:var(--muted); max-width:var(--prose-max); }
+.stamp { display:flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; color:var(--faint); }
+.stamp svg { width:0.875rem; height:0.875rem; }
+
+.btn { display:inline-flex; align-items:center; gap:0.4375rem; min-height:2.375rem; padding:0 0.9375rem; border-radius:var(--radius-control);
+  font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; border:1px solid var(--control); background:transparent; color:var(--text); white-space:nowrap;
+  transition:border-color .15s ease, filter .15s ease; }
+.btn svg { width:0.875rem; height:0.875rem; }
+.btn:hover { border-color:var(--text); }
+.btn:disabled { color:var(--muted); cursor:wait; }
+.btn:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+.btn-solid { background:#fff; color:#000; border-color:#fff; }
+.btn-solid:hover { border-color:#fff; filter:brightness(0.9); }
+
+.stateline { margin-top:1rem; font-size:0.875rem; color:var(--muted); min-height:1.125rem; }
+.stateline.err { color:#e3b341; }
+
+.empty { margin-top:0.875rem; padding:1.75rem 1.125rem; border:1px dashed var(--control); border-radius:var(--radius-card); color:var(--faint); font-size:0.9375rem; text-align:center; }
+.empty[hidden] { display:none; }
+
+.foot { margin-top:1.5rem; font-size:0.8125rem; color:var(--faint); display:flex; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; }
+.foot a { color:var(--muted); text-decoration:none; }
+.foot a:hover { color:var(--text); }
+
+/* ---- endpoint card ---- */
+.endpoint { margin-top:1.5rem; padding:1.125rem 1.25rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card);
+  display:flex; align-items:center; gap:1.125rem; flex-wrap:wrap; }
+.endpoint .lab { font-size:0.9375rem; font-weight:600; flex:none; letter-spacing:-0.005em; }
+.endpoint .labsub { font-size:0.8125rem; color:var(--faint); font-weight:400; margin-top:2px; }
+.urlbar { margin-left:auto; display:flex; align-items:stretch; min-height:2.375rem; flex:none; max-width:100%; min-width:0; }
+.urlbar .u { display:flex; align-items:center; gap:0.5rem; padding:0 0.9375rem; background:#000; border:1px solid var(--control); border-right:none;
+  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#c8eff5;
+  min-width:0; overflow:hidden; white-space:nowrap; }
+.urlbar .cp { display:inline-flex; align-items:center; gap:0.375rem; padding:0 0.9375rem; background:#fff; color:#000; border:1px solid #fff;
+  border-radius:0 var(--radius-control) var(--radius-control) 0; font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; }
+.urlbar .cp svg { width:0.875rem; height:0.875rem; }
+
+/* ---- model table ---- */
+.table { margin-top:0.875rem; overflow-x:auto; }
+.thead, .mrow { display:grid; grid-template-columns:minmax(14rem,1.6fr) 7rem 8.125rem 8.125rem 8.125rem 7rem; align-items:center; gap:0.875rem; }
+.thead { min-height:2.5rem; font-size:0.72rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--faint); }
+.thead .h.r { text-align:right; }
+.mrow { min-height:3.5rem; border-top:1px solid var(--rule); padding:0.5rem 0; }
+.mrow:hover { background:#070707; }
+.mrow .c { padding-right:0.5rem; min-width:0; }
+.mrow .c.num { text-align:right; padding-right:2px; font-size:0.9375rem; color:var(--muted); }
+.mname { font-family:var(--mono); font-size:0.875rem; font-weight:600; overflow-wrap:anywhere; }
+.msub { font-size:0.8125rem; color:var(--faint); margin-top:3px; }
+.c-status { display:flex; justify-content:flex-end; }
+.pill { display:inline-flex; align-items:center; gap:0.375rem; min-height:1.4375rem; padding:0 0.625rem; border-radius:999px; font-size:0.75rem; font-weight:500; white-space:nowrap; }
+.pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
+.pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
+.pill-warn { background:#211a0c; border:1px solid #3a2e15; color:#e3b341; }
+
+.phonebar { display:none; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns:1fr; }
+  .side { display:none; }
+  .phonebar { display:flex; align-items:center; gap:0.75rem; min-height:3.375rem; padding:0 1.125rem; border-bottom:1px solid var(--rule); background:#000; }
+  .phonebar .pb-wm { display:flex; align-items:center; gap:0.5625rem; font-weight:600; font-size:1rem; }
+  .phonebar .pb-wm svg { width:1.125rem; height:1.125rem; }
+  .canvas { padding:1.25rem 1.125rem 2.5rem; }
+  h1 { font-size:1.375rem; }
+  .endpoint { flex-direction:column; align-items:flex-start; gap:0.75rem; }
+  .urlbar { margin-left:0; width:100%; }
+  .urlbar .u { flex:1; }
+  .thead { display:none; }
+  .mrow { grid-template-columns:minmax(0,1fr) auto; row-gap:3px; padding:0.75rem 0; }
+  .mrow:hover { background:transparent; }
+  .mrow .c.num { display:none; }
+  .c-status { grid-column:2; grid-row:1; align-self:center; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <div class="nav">
+      <div class="navlabel">gateway</div>
+      <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/settings.html" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+      <a href="#" id="aqua-admin-link" hidden><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>admin</span></a>
+    </div>
+    <div class="spacer"></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
+  </aside>
+  <div class="main">
+    <div class="phonebar"><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span></div>
+    <div class="canvas">
+<h1>settings</h1>
+<p class="sub">your account, across browser sessions and api keys.</p>
+<form id="settings-form" style="max-width:42rem;margin-top:2rem">
+<fieldset id="settings-fields" disabled style="border:0;display:grid;gap:1.5rem">
+<section><label style="display:flex;gap:.75rem;align-items:center"><input type="checkbox" id="zdr-only" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)"> zero data retention routes only</label>
+<p class="sub" style="font-size:.875rem">the server checks every route, including auto and api requests. unknown retention is excluded. no current route has verified end-to-end ZDR, so turning this on leaves no models available.</p></section>
+<section><label for="default-model">default playground model</label><br><select id="default-model" style="margin-top:.5rem;background:var(--surface);color:var(--text);border:1px solid var(--line);padding:.65rem;max-width:100%;font:inherit"></select>
+<p class="sub" style="font-size:.875rem">a starting choice, not permission to use a model. access and privacy filters still apply.</p></section>
+<section><label style="display:flex;gap:.75rem;align-items:center"><input type="checkbox" id="show-cost" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)"> show maker cost estimates in playground</label><p class="sub" style="font-size:.875rem">display only. this does not change usage tracking or account limits.</p></section>
+<button class="btn" type="submit" style="justify-self:start">save settings</button>
+</fieldset></form><p id="settings-status" class="stateline" role="status" aria-live="polite">loading settings...</p>
+<div class="foot"><a href="/console.html">models</a><a href="/playground.html">playground</a></div>
+</div></div></div>
+<script>
+(async function(){
+ var stored=localStorage.getItem('aqua_api_base');
+ if(location.hostname==='aqua.goattech.us'&&(stored==='https://api.aqua.goattech.us/v1'||stored==='https://api.aqua.goattech.us/v1/')){stored='https://aqua-api.goattech.us/v1';localStorage.setItem('aqua_api_base',stored);}
+ var base=stored||(location.hostname==='aqua.goattech.us'?'https://aqua-api.goattech.us/v1':location.origin+'/v1');var origin=base.replace(/\/v1$/,'');
+ var abort=new AbortController();var timeout=setTimeout(function(){abort.abort();},10000);var me;
+ try{var response=await fetch(origin+'/auth/me',{credentials:'include',cache:'no-store',signal:abort.signal});if(!response.ok)throw Error();me=await response.json();if(!me||typeof me.login!=='string'||!me.login||(me.role!=='owner'&&me.role!=='friend'))throw Error();}catch(_){location.replace('/');return;}finally{clearTimeout(timeout);}
+ document.documentElement.removeAttribute('data-session-pending');addEventListener('pagehide',function(){document.documentElement.setAttribute('data-session-pending','');});addEventListener('pageshow',function(e){if(e.persisted)location.reload();});
+ localStorage.removeItem('aqua_key');document.getElementById('aqua-user').textContent=me.login;document.getElementById('aqua-usersub').textContent=me.role;document.getElementById('aqua-avatar').textContent=me.login.charAt(0).toUpperCase();
+ if(me.role==='owner'){var admin=document.getElementById('aqua-admin-link');admin.href=origin+'/admin';admin.hidden=false;}
+ var signout=document.getElementById('aqua-signout');signout.style.display='';signout.onclick=function(e){e.preventDefault();fetch(origin+'/auth/logout',{method:'POST',credentials:'include'}).finally(function(){location.replace('/');});};
+ var status=document.getElementById('settings-status'),fields=document.getElementById('settings-fields'),picker=document.getElementById('default-model');
+ async function api(path,opts){opts=opts||{};opts.credentials='include';opts.cache='no-store';opts.headers={'content-type':'application/json'};var r=await fetch(base+path,opts);if(r.status===401){location.replace('/');throw Error('signed out');}if(!r.ok)throw Error('http '+r.status);return r.json();}
+ try{var results=await Promise.all([api('/settings'),api('/models')]);var p=results[0];if(typeof p.zdr_only!=='boolean'||typeof p.show_cost!=='boolean'||typeof p.default_model!=='string')throw Error('invalid settings response');
+ var ids=(results[1].data||[]).map(function(m){return m.id;});if(ids.indexOf(p.default_model)<0)ids.push(p.default_model);ids.forEach(function(id){var o=document.createElement('option');o.value=id;o.textContent=id+(results[1].data.some(function(m){return m.id===id;})?'':' (not currently available)');picker.appendChild(o);});
+ document.getElementById('zdr-only').checked=p.zdr_only;document.getElementById('show-cost').checked=p.show_cost;picker.value=p.default_model;fields.disabled=false;status.textContent='saved settings loaded.';
+ }catch(e){status.textContent='settings could not be loaded ('+e.message+'). controls stay disabled.';return;}
+ function applySaved(p){if(!p||typeof p.zdr_only!=='boolean'||typeof p.show_cost!=='boolean'||typeof p.default_model!=='string')throw Error('invalid settings response');if(!Array.from(picker.options).some(function(o){return o.value===p.default_model;})){var o=document.createElement('option');o.value=p.default_model;o.textContent=p.default_model+' (not currently available)';picker.appendChild(o);}document.getElementById('zdr-only').checked=p.zdr_only;document.getElementById('show-cost').checked=p.show_cost;picker.value=p.default_model;}
+ var saveBusy=false,saveLocked=false;
+ document.getElementById('settings-form').onsubmit=async function(e){e.preventDefault();if(saveBusy||saveLocked)return;saveBusy=true;fields.disabled=true;status.textContent='saving...';try{applySaved(await api('/settings',{method:'POST',body:JSON.stringify({zdr_only:document.getElementById('zdr-only').checked,default_model:picker.value,show_cost:document.getElementById('show-cost').checked})}));status.textContent='saved. open a new playground page to use display changes. privacy applies on the next server dispatch.';}catch(e){status.textContent='save response failed. checking saved settings...';try{applySaved(await api('/settings'));status.textContent='save response failed. current saved settings are shown; no save was repeated.';}catch(_){saveLocked=true;status.textContent='save outcome unknown. reload to check saved settings before saving again.';}}finally{saveBusy=false;fields.disabled=saveLocked;}};
+})();
+</script></body></html>

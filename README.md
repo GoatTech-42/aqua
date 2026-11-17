@@ -377,3 +377,49 @@ Update the runtime bindings with this source release; no counter or ledger reset
 Keep maker-price metadata unavailable for generic DeepSeek aliases until the
 exact official API snapshot is grounded. A self-identification answer is not
 model provenance.
+
+## Owner-only trial adapters and account settings
+
+NIM, Radeon and Logfare are owner-only even if their runtime status is mistakenly
+set to friends. Only the exact upstream IDs in `trial_model` are eligible. NIM
+DeepSeek is excluded (410 on the current key). Runtime still ships off by default;
+a source allowlist is not a deployment or account-entitlement claim.
+
+These three adapters have local concurrency one, held through the full JSON/SSE
+response, and a shared rolling two-admissions-per-minute limit per provider.
+Local rate state is bounded and in memory; restart clears it. It is not a spend,
+token or daily account quota and does not promise that an upstream will accept a
+call. Owner asked to rely on provider-side free quota exhaustion rather than add
+spend limits. This does not alter existing Aqua virtual USD tracking, friend
+caps, ledger history, or Gonka/Cloudflare eligibility.
+
+Trial adapters reject non-text messages, tools, multiple choices and requests
+over 8192 serialized UTF-8 bytes. A byte limit is transport hygiene, not a token
+bound. Redirects are not followed. NIM upstream I/O is limited to120seconds and
+never extends the remaining aggregate request budget. Downstream writes remain
+bounded per operation, not by a promised whole-request wall clock. Output limits
+are whatever the upstream actually enforces; no hard token guarantee is claimed.
+
+Healthy same-model bindings prefer observed successful response-header latency:
+EWMA with25%latest sample, per(provider,canonical model). A bounded512entry cache
+lives until restart. Unmeasured bindings retain config order after measured ones;
+there are no active probes or synthetic performance claims. Passive cooldowns
+still win; pinned requests never switch model and auto keeps its model shortlist
+order. This measures headers, not first generated token, throughput or answer
+quality. It cannot rank an untried provider or guarantee the next call's latency.
+
+`GET/POST /v1/settings` use the canonical authenticated account. Writes save
+atomically in the existing ledger, require a durable store, reject unknown fields
+and cannot select another user. Cookie writes require the existing safe-origin
+checks. The settings page offers server-enforced ZDR-only routing, a default
+playground model and a playground maker-estimate visibility option. Strict ZDR
+filters both catalog and pin/auto dispatch and rejects UNKNOWN as well as NON_ZDR.
+No current route is VERIFIED_ROUTE, so strict mode currently leaves no usable
+models. Changing a default never changes entitlement. Hiding cost never changes
+accounting. Existing ledgers default to ZDR-off, auto, estimates-visible.
+
+Retention source URLs and checked date are exposed only in owner admin provider
+metadata. Broker-only promises do not certify upstream retention. Logfare,
+Radeon and NIM trial are NON_ZDR; remaining routes are UNKNOWN until full-route
+terms and live configuration are verified. No training or consent setting is
+changed by this source.
