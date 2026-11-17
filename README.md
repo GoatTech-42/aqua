@@ -304,3 +304,49 @@ Account balances, policy and free pricing are time-bound evidence. No loader,
 secret transport, upgrade, top-up, provider enablement or service start is part
 of this source change. Future friend routing still needs verified context
 metadata for spend reservations; missing metadata continues to fail closed.
+
+## Account-wide free-route admission (wave 2, not enabled)
+
+OpenRouter uses only these exact upstream IDs: `cohere/north-mini-code:free`,
+`nvidia/nemotron-3-ultra-550b-a55b:free`, `nvidia/nemotron-3.5-super-vl:free`, and
+`google/gemma-4-31b-it:free`. Requests force zero prompt/completion max price,
+no provider fallback, and required parameter support. User plugins, tools,
+model-fallback arrays, and search options are not forwarded. Initial input is
+text-only, at most 64 messages and 8192 serialized bytes. This is a transport
+limit, not a claim of exact token counting. Output defaults to 512 and requests
+above 1024, zero, noninteger values, or `n != 1` are refused for this route.
+
+Admission requires the existing durable `AQUA_SPEND_STATE_PATH` store plus
+`AQUA_ACCOUNT_VERIFIED_UTC_DAY=YYYY-MM-DD` for the current UTC day and
+`AQUA_OPENROUTER_VERIFIED_REMAINING` from an operator's current account check.
+The latter must be an integer 0..50. Local allowance is remaining minus 10,
+clamped to at most 40. Missing/stale verification leaves this route closed and
+unlisted. There is no automatic daily renewal or remote-check bypass.
+These are proposed loader inputs, not a change to a deployed loader.
+
+All OpenRouter models, owners and friends share one persistent daily counter.
+The account has one in-flight attempt across JSON and SSE. Every admitted
+attempt consumes one call permanently, even on error, timeout, missing usage,
+client disconnect or restart. This deliberately underuses uncertain allowance.
+A friend has at most 3 calls per UTC day across all models. Each exact upstream
+model has at most 10 calls per day including owner calls. A local preflight
+failure after admission can also consume a call. There are no refunds or key
+rotations to regain allowance. Outside traffic is not observed by this ledger;
+use a dedicated account/key scope or keep remote checks current. The snapshot
+is not a live claim of remaining provider capacity.
+
+The durable account resource ledger also supports integer micro-neuron
+reservations, with unit tests for a 10,000-neuron shared account cap and an
+8,000-neuron aggregate friend subcap. Cloudflare dispatch and listing remain
+closed in source: GLM-4.7-Flash's full-input token bound and forced total-output
+cap, including reasoning, are not yet verified. No byte-to-token guess is used
+for neuron admission. GPT-OSS and Qwen are not wave 2 routes. A bounded smoke
+alone does not prove worst-case cap enforcement. Activating Cloudflare needs a
+separate reviewed adapter change after that evidence, Workers Free active,
+current account usage and no-paid-fallback checks. No paid plan upgrade.
+
+For owner-development-only AMD Radeon, NVIDIA NIM and Logfare, retain
+`AQUA_STATUS_RADEON=personal`, `AQUA_STATUS_NIM=personal`, and
+`AQUA_STATUS_LOGFARE=personal`. The existing status filter excludes their
+provider bindings from friend catalog, direct routing and auto candidates.
+This does not grant production use or override provider terms. Gonka stays off.
