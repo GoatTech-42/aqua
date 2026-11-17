@@ -48,6 +48,8 @@ struct Shared {
     quotas: Mutex<HashMap<String, Quota>>,
     auth_failures: Mutex<HashMap<String, (u32, Instant)>>,
     health: Mutex<HashMap<String, Cooldown>>,
+    spend: Mutex<crate::spend::Store>,
+    unknown_owner_requests: Mutex<u64>,
 }
 
 pub struct Server {
@@ -84,7 +86,10 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         .timeout_global(Some(Duration::from_secs(300)))
         .build()
         .into();
+    let spend = crate::spend::Store::open(config.spend.path.clone())?;
     let shared = Arc::new(Shared {
+        spend: Mutex::new(spend),
+        unknown_owner_requests: Mutex::new(0),
         auth: Auth::new(config.oauth.clone()),
         config,
         agent,
@@ -417,6 +422,11 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
 
     let token = bearer(&req);
 
+    if matches!(req.path.as_str(), "/v1/admin/usage" | "/v1/admin/caps") {
+        if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
+        return spend_admin(&mut stream,&shared,&req,&token,cors);
+    }
+
     if req.method == "GET" && req.path == "/v1/admin/providers" {
         // Throttle check first: admin-key guessing must hit the same 429 wall as API keys.
         if auth_throttled(&shared, &token) {
@@ -470,6 +480,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                     continue;
                 }
                 for m in &p.models {
+                    if entry.role != Role::Owner && cfg.spend.restricted(&m.public) { continue; }
                     if m.public == ALIAS || !seen.insert(m.public.clone()) {
                         continue;
                     }
@@ -556,11 +567,18 @@ fn auth_throttled(shared: &Shared, token: &str) -> bool {
 struct QuotaGuard<'a> {
     shared: &'a Shared,
     token: &'a str,
+    dispatched: bool,
+    day: String,
 }
 
 impl Drop for QuotaGuard<'_> {
     fn drop(&mut self) {
         release(self.shared, self.token);
+        if !self.dispatched {
+            if let Some(q) = self.shared.quotas.lock().unwrap().get_mut(self.token) {
+                if q.day == self.day { q.reserved = q.reserved.saturating_sub(1); }
+            }
+        }
     }
 }
 
@@ -648,6 +666,9 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     if requested != ALIAS && !known(requested) {
         return write_json(stream, 400, &err_body("unknown model", "invalid_request"), cors);
     }
+    if requested != ALIAS && entry.role != Role::Owner && shared.config.spend.restricted(requested) {
+        return write_json(stream,403,&spend_error("model restricted to the admin account","model_forbidden"),cors);
+    }
     let mut hard_excluded = false;
     let mut immediate = 0usize;
     let mut candidates: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
@@ -660,6 +681,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             let mut deferred: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
             for p in shared.config.providers.iter().filter(eligible) {
                 for m in p.models.iter().filter(|m| m.public == name) {
+                    if entry.role != Role::Owner && shared.config.spend.restricted(&m.public) { continue; }
                     match health.get(p.id.as_str()) {
                         Some(cd) if cd.until > now => {
                             if cd.hard {
@@ -726,8 +748,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     if !reserve(shared, token) {
         return write_json(stream, 429, &err_body("rate limit exceeded", "rate_limit_error"), cors);
     }
-    let guard = QuotaGuard { shared, token };
-    let _ = &guard;
+    let mut guard = QuotaGuard { shared, token, dispatched: false, day: chrono_day() };
 
     // one aggregate deadline shared by every fallback attempt of this request:
     // a per-upstream timeout must not multiply across candidates
@@ -762,6 +783,9 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         }
         up_body.insert("model".into(), json!(m.upstream));
         up_body.insert("stream".into(), json!(want_stream));
+        if want_stream && shared.config.spend.enabled {
+            up_body.insert("stream_options".into(), json!({"include_usage":true}));
+        }
 
         let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
             break; // aggregate budget spent: no further fallback attempts
@@ -772,6 +796,11 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             .build()
             .into();
         let url = format!("{}/chat/completions", p.base_url.trim_end_matches('/'));
+        let mut spend = match reserve_spend(shared,entry,m,&payload) {
+            Ok(guard) => guard,
+            Err((status,message,code)) => return write_json(stream,status,&spend_error(message,code),cors),
+        };
+        guard.dispatched = true;
         let resp = attempt_agent
             .post(&url)
             .header("authorization", &format!("Bearer {}", p.api_key))
@@ -786,6 +815,9 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         };
         let status = resp.status().as_u16();
         if !(200..300).contains(&status) {
+            if matches!(status,400|401|403|404|422|429) {
+                if let Some(guard) = spend.as_mut() { guard.refund(); }
+            }
             if status == 429 {
                 saw_rate_limit = true;
                 // a Retry-After is evidence of a real limit: honor it (bounded)
@@ -819,6 +851,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                 continue;
             };
+            if let Some(guard) = spend.as_mut() { guard.finish(crate::spend::usage(&json)); }
             clear_cooldown(shared, &p.id);
             println!(
                 "{}",
@@ -877,6 +910,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 }
             }
         }
+        if let Some(guard) = spend.as_mut() { guard.finish(rewriter.usage()); }
         return Ok(());
     }
 
@@ -1036,11 +1070,13 @@ mod reviewer_regressions {
             daily_limit: 200,
             allowed_origin: String::new(),
             providers: vec![],
-            oauth: Default::default(),
+            oauth: Default::default(), spend: Default::default(),
             auto_shortlist: vec![],
             upstream_budget: std::time::Duration::from_secs(300),
         };
         Shared {
+            spend: Mutex::new(crate::spend::Store::open(None).unwrap()),
+            unknown_owner_requests: Mutex::new(0),
             auth: Auth::new(config.oauth.clone()),
             config,
             agent: ureq::Agent::new_with_defaults(),
@@ -1048,6 +1084,33 @@ mod reviewer_regressions {
             auth_failures: Mutex::new(HashMap::new()),
             health: Mutex::new(HashMap::new()),
         }
+    }
+
+    fn admin_request(shared: Arc<Shared>, method: &str, path: &str, cookie: &str, origin: &str, fetch_site: &str) -> String {
+        use std::io::{Read,Write};
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let worker = std::thread::spawn(move || handle(listener.accept().unwrap().0, shared).unwrap());
+        let body = r#"{"name":"sam","daily":"2","monthly":"15"}"#;
+        let mut client = TcpStream::connect(address).unwrap();
+        write!(client,"{method} {path} HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\norigin: {origin}\r\nsec-fetch-site: {fetch_site}\r\ncontent-length: {}\r\n\r\n{body}",body.len()).unwrap();
+        let mut out = String::new();client.read_to_string(&mut out).unwrap();worker.join().unwrap();out
+    }
+
+    #[test]
+    fn spend_admin_cookie_route_requires_owner_and_explicit_csrf_safe_origin() {
+        let mut state = shared();state.config.allowed_origin="https://aqua.test".into();
+        let state=Arc::new(state);
+        let owner=state.auth.create_session("luke",Role::Owner);
+        let friend=state.auth.create_session("sam",Role::Friend);
+        assert!(admin_request(state.clone(),"GET","/v1/admin/usage",&friend,"https://aqua.test","same-site").starts_with("HTTP/1.1 401"));
+        assert!(admin_request(state.clone(),"GET","/v1/admin/usage",&owner,"https://aqua.test","same-site").starts_with("HTTP/1.1 200"));
+        for (origin,site) in [("https://evil.test","cross-site"),("https://aqua.test","cross-site"),("","same-site")] {
+            assert!(admin_request(state.clone(),"POST","/v1/admin/caps",&owner,origin,site).starts_with("HTTP/1.1 403"));
+        }
+        assert!(state.spend.lock().unwrap().ledger.caps.is_empty());
+        assert!(admin_request(state.clone(),"POST","/v1/admin/caps",&owner,"https://aqua.test","same-site").starts_with("HTTP/1.1 200"));
+        assert_eq!(state.spend.lock().unwrap().ledger.caps["sam"].daily,2_000_000_000);
     }
 
     #[test]
@@ -1115,3 +1178,102 @@ mod reviewer_regressions {
         assert!(parse_imf_fixdate("Mon, 15 Nov 2027 00:00:00 GMT").is_some(), "valid IMF-fixdate parses");
     }
 }
+
+fn spend_error(message: &str, code: &str) -> Value {
+    json!({"error":{"message":message,"type":"spend_error","code":code}})
+}
+
+struct SpendGuard<'a> {
+    shared: &'a Shared,
+    id: u64,
+    price: crate::spend::Price,
+    done: bool,
+}
+impl SpendGuard<'_> {
+    fn finish(&mut self, usage: Option<(u64, u64)>) {
+        let actual = usage.and_then(|(i,o)| self.price.cost(i,o));
+        if self.shared.spend.lock().unwrap().change(|l| l.settle(self.id, actual)).is_err() {
+            eprintln!("spend settlement unavailable; reservation retained");
+        }
+        self.done = true;
+    }
+    fn refund(&mut self) { self.finish(Some((0,0))); }
+}
+impl Drop for SpendGuard<'_> {
+    fn drop(&mut self) { if !self.done { self.finish(None); } }
+}
+
+fn reserve_spend<'a>(shared: &'a Shared, entry: &crate::config::KeyEntry, model: &crate::config::ModelEntry, payload: &Value) -> Result<Option<SpendGuard<'a>>, (u16, &'static str, &'static str)> {
+    let settings = &shared.config.spend;
+    if !settings.enabled { return Ok(None); }
+    let price = settings.price(&model.public);
+    let owner = entry.role == Role::Owner;
+    if !owner && settings.error.is_some() { return Err((503, "spend configuration unavailable", "spend_config_error")); }
+    let amount = if owner { 0 } else {
+        // A verified context bound, not a prompt token estimate. Reserve both
+        // full input and full output windows, multiplied by completion count.
+        let context = model.context.ok_or((503, "model needs a verified accounting bound", "spend_bound_unavailable"))? as u64;
+        let n = match payload.get("n") { None => 1, Some(v) => v.as_u64().filter(|n| *n > 0 && *n <= 8).ok_or((400, "n must be an integer from 1 to 8", "invalid_request"))? };
+        let output = context.checked_mul(n).ok_or((503,"accounting overflow","spend_bound_unavailable"))?;
+        price.cost(context, output).ok_or((503,"accounting overflow","spend_bound_unavailable"))?
+    };
+    let mut store = shared.spend.lock().unwrap();
+    let cap = if owner { None } else { Some(settings.cap(&store.ledger, &entry.name)) };
+    match store.change(|ledger| ledger.reserve(&entry.name, &model.public, &chrono_day(), amount, cap)) {
+        Ok(id) => Ok(Some(SpendGuard { shared, id, price, done: false })),
+        Err(_) if owner => { let mut unknown = shared.unknown_owner_requests.lock().unwrap(); *unknown = unknown.saturating_add(1); eprintln!("owner usage accounting unavailable; owner remains uncapped"); Ok(None) },
+        Err(e) if e == "spend cap reached" => Err((429,"spend cap reached","spend_cap_exceeded")),
+        Err(_) => Err((503,"spend accounting unavailable","spend_accounting_unavailable")),
+    }
+}
+
+fn spend_admin(stream: &mut TcpStream, shared: &Shared, req: &Request, token: &str, cors: Option<&str>) -> std::io::Result<()> {
+    let cfg = &shared.config;
+    let key_ok = !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key;
+    let session_owner = auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).map(|(_,role)|role==Role::Owner).unwrap_or(false);
+    if !key_ok && !session_owner {
+        record_auth_failure(shared, token);
+        return write_json(stream,401,&err_body("invalid api key","auth_error"),cors);
+    }
+    if req.method == "POST" && !key_ok {
+        if req.headers.get("sec-fetch-site").map(String::as_str)==Some("cross-site") {
+            return write_json(stream,403,&err_body("cross-site request rejected","auth_error"),cors);
+        }
+        // Cookie mutations require an explicit approved Origin, including on
+        // non-browser clients. Bearer admin clients are not cookie-authorized.
+        let valid_origin = req.headers.get("origin").map(|origin| {
+            (!cfg.allowed_origin.is_empty() && origin==&cfg.allowed_origin) || origin_host_matches(origin,req.headers.get("host").map(String::as_str).unwrap_or(""))
+        }).unwrap_or(false);
+        if !valid_origin { return write_json(stream,403,&err_body("origin not allowed","auth_error"),cors); }
+    }
+    if req.method=="GET" && req.path=="/v1/admin/usage" {
+        let store = shared.spend.lock().unwrap();
+        let mut users = serde_json::Map::new();
+        let day = chrono_day();
+        for (name, value) in &store.ledger.users {
+            let mut usage = value.clone();
+            if usage.day.period != day { usage.day = crate::spend::Window { period: day.clone(), ..Default::default() }; }
+            if usage.month.period != day[..7] { usage.month = crate::spend::Window { period: day[..7].into(), ..Default::default() }; }
+            let owner = cfg.keys.values().any(|e|e.name==*name && e.role==Role::Owner) || cfg.oauth.owner_users.iter().any(|login|login==name);
+            let cap = if owner { Value::Null } else { json!(cfg.spend.cap(&store.ledger,name)) };
+            users.insert(name.clone(),json!({"day":usage.day,"month":usage.month,"cap":cap,"unknown_requests":usage.unknown_requests,"accounting_error":usage.accounting_error}));
+        }
+        return write_json(stream,200,&json!({"currency":"virtual USD","units_per_usd":crate::spend::USD,"users":users,"default_friend_caps":cfg.spend.default_caps,"configuration_error":cfg.spend.error,"accounting_available":store.available(),"unknown_owner_requests_since_startup":*shared.unknown_owner_requests.lock().unwrap(),"prices":cfg.spend.prices,"unknown_model_price":cfg.spend.price(""),"period_timezone":"UTC"}),cors);
+    }
+    if req.method=="POST" && req.path=="/v1/admin/caps" {
+        let value: Value = match serde_json::from_slice(&req.body) { Ok(v)=>v,Err(_)=>return write_json(stream,400,&err_body("invalid request body","invalid_request"),cors) };
+        let name = value.get("name").and_then(Value::as_str).unwrap_or("");
+        if name.is_empty() || name.len()>128 { return write_json(stream,400,&err_body("account name required","invalid_request"),cors); }
+        let owner = cfg.keys.values().any(|e|e.name==name && e.role==Role::Owner) || cfg.oauth.owner_users.iter().any(|login|login==name);
+        if owner { return write_json(stream,400,&err_body("owner usage is uncapped","invalid_request"),cors); }
+        let daily = value.get("daily").and_then(Value::as_str).and_then(crate::spend::usd);
+        let monthly = value.get("monthly").and_then(Value::as_str).and_then(crate::spend::usd);
+        let (Some(daily),Some(monthly))=(daily,monthly) else { return write_json(stream,400,&err_body("daily and monthly must be decimal USD strings","invalid_request"),cors); };
+        let cap = crate::spend::Caps { daily,monthly };
+        if shared.spend.lock().unwrap().change(|l| { l.caps.insert(name.into(),cap); Ok(()) }).is_err() {
+            return write_json(stream,503,&err_body("cannot persist spend caps","spend_error"),cors);
+        }
+        return write_json(stream,200,&json!({"name":name,"cap":cap,"units_per_usd":crate::spend::USD}),cors);
+    }
+    write_json(stream,404,&err_body("not found","invalid_request"),cors)
+            }
