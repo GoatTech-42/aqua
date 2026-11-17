@@ -227,3 +227,80 @@ check `accounting_available` and `unknown_requests` before treating totals as
 complete. `unknown_owner_requests_since_startup` counts owner admissions skipped
 because storage failed, and resets on restart. Audit logs are needed across such
 outages. Owner usage cannot be reconstructed when an upstream omits usage.
+
+## November 16 provider intake (registry only, all default OFF)
+
+These adapters add no credentials, enablement or deployment. New variable names
+are source mappings, not permission to widen a loader's allowlist. Keep every
+new `AQUA_STATUS_*` unset/OFF until its account, model mapping, user scope and
+reviewed deployment config are bound together. Shared friend access is not
+implied by an owner's successful test; existing per-account restrictions remain.
+
+| Adapter | API base | Key / models environment variables | Exact upstream allowlist |
+| --- | --- | --- | --- |
+| OrcaRouter | https://api.orcarouter.ai/v1 | `ORCAROUTER_API_KEY` / `ORCAROUTER_MODELS` | `deepseek/deepseek-v4.1-flash-free` only |
+| Z.AI standard API | https://api.z.ai/api/paas/v4 | `ZAI_API_KEY` / `ZAI_MODELS` | `glm-4.7-flash`, `glm-4.5-flash` only |
+| Inferbase | https://api.inferbase.ai/v1 | `INFERBASE_API_KEY` / `INFERBASE_MODELS` | requested `deepseek-v4-flash` only |
+
+Status variables are `AQUA_STATUS_ORCAROUTER`, `AQUA_STATUS_ZAI` and
+`AQUA_STATUS_INFERBASE`. Unknown or paid upstream IDs in these three adapters are
+dropped during model parsing, rather than treated as fallback candidates.
+Illustrative mappings, not an active environment file:
+
+    ORCAROUTER_MODELS="deepseek-v4.1-flash=deepseek/deepseek-v4.1-flash-free"
+    ZAI_MODELS="glm-4.7-flash=glm-4.7-flash"
+    INFERBASE_MODELS="deepseek-v4-flash:fp8=deepseek-v4-flash"
+
+Inferbase returned `deepseek-v4-flash:fp8` in its qualified test. Preserve this
+build in its public canonical name; do not silently merge it with an unsuffixed
+DeepSeek binding. An Orca free suffix is a route requirement, not permission to
+remove a model's version. Verify identity before joining any canonical pool.
+
+Z.AI has a fixed local concurrency limit of **one active inference across all
+its models**, not one request per minute. A nonblocking account permit is held
+through the complete upstream JSON/SSE response and downstream writes; all exits
+release it. Local saturation skips that account and may use another binding of
+the exact requested model. If no binding succeeds, the existing generic 503/429
+rules apply. Local saturation alone returns 503, creates no provider cooldown,
+and invents no Retry-After. The permit covers this Aqua server instance only;
+other processes or external clients using the same account are outside it.
+
+Qualification evidence received from the server operator on November 16, 2026:
+one real inference each succeeded for Zro `deepseek-v4.1-flash`, OrcaRouter's exact
+allowlisted route, Z.AI `glm-4.7-flash`, and Inferbase's requested model above.
+These are individual route smoke tests, not coding benchmarks or statistical
+reliability claims. `glm-4.5-flash` has pricing/catalog evidence only, not a smoke
+pass, and is intentionally absent from the example mapping. No new inference
+was made while implementing this registry.
+
+- Orca's explicit free alias must stay intact: no paid alias or wallet fallback.
+  Standard free limit recorded as 10 RPM / 50 daily requests. Sources:
+  https://docs.orcarouter.ai/routing/free-models and
+  https://www.orcarouter.ai/api/free-package/public .
+- Z.AI's exact two Standard API models had free input/output/cache pricing;
+  FlashX, other Flash generations, Coding Plan, tools, paid fallback and top-ups
+  are not included. Recorded account balances were zero with auto-recharge off
+  and no payment method. Current pricing is not a forever-price guarantee.
+  Sources: https://docs.z.ai/guides/overview/pricing and
+  https://docs.z.ai/legal-agreement/terms-of-use .
+- Inferbase qualification was for the verified existing Google account, not an
+  earlier separate account's Playground. Recorded Free plan, zero credit/spend,
+  100 requests/day, 5,000/month, 10 RPM, 8,192 input/1,024 output tokens, $0.50/day
+  provider-cost allowance. Allowance metering is not paid cost. Its saved policy
+  allows Inferbase Managed only, known output price at most $2/million, one
+  attempt and no cross-model/direct/BYOK fallback; request-content logging OFF.
+  This price-eligibility policy is NOT a permanent no-spend cap after a top-up or
+  upgrade. No saved-card list was available to prove historical card absence.
+  Keep zero credit and no top-up, upgrade or paid fallback. Sources:
+  https://inferbase.ai/docs/api and
+  https://inferbase.ai/models/deepseek-v4-flash .
+- NextRouter remains parked OFF after Cloudflare 1010 on both tested paths.
+  No qualified model, no further workarounds, and no inference that its key is
+  invalid. Groq remains held. Neither gets a new active registry route here.
+- Existing AMD/NIM/Logfare/OpenRouter and the held Cloudflare registry retain
+  their previous gates. Cloudflare remains OFF pending no-paid-fallback proof.
+
+Account balances, policy and free pricing are time-bound evidence. No loader,
+secret transport, upgrade, top-up, provider enablement or service start is part
+of this source change. Future friend routing still needs verified context
+metadata for spend reservations; missing metadata continues to fail closed.
