@@ -53,6 +53,7 @@ struct Shared {
     health: Mutex<HashMap<String, Cooldown>>,
     spend: Mutex<crate::spend::Store>,
     unknown_owner_requests: Mutex<u64>,
+    keys: Mutex<crate::keys::Store>,
 }
 
 pub struct Server {
@@ -91,6 +92,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         .into();
     let spend = crate::spend::Store::open(config.spend.path.clone())?;
     let shared = Arc::new(Shared {
+        keys: Mutex::new(crate::keys::Store::open(config.spend.path.clone())?),
         spend: Mutex::new(spend),
         unknown_owner_requests: Mutex::new(0),
         auth: Auth::new(config.oauth.clone()),
@@ -213,7 +215,7 @@ fn write_json(stream: &mut TcpStream, code: u16, body: &Value, cors: Option<&str
     let cors_head = cors_headers(cors);
     write!(
         stream,
-        "HTTP/1.1 {} {}\r\ncontent-type: application/json\r\nx-content-type-options: nosniff\r\nreferrer-policy: no-referrer\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
+        "HTTP/1.1 {} {}\r\ncontent-type: application/json\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nreferrer-policy: no-referrer\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
         code,
         status_text(code),
         bytes.len(),
@@ -275,6 +277,8 @@ fn write_no_content(stream: &mut TcpStream, cookies: &[String], cors: Option<&st
 const PAGE_LANDING: &str = include_str!("../ui/landing.html");
 const PAGE_CONSOLE: &str = include_str!("../ui/console.html");
 const PAGE_PLAYGROUND: &str = include_str!("../ui/playground.html");
+const PAGE_ADMIN: &str = include_str!("../ui/admin.html");
+const PAGE_KEYS: &str = include_str!("../ui/keys.html");
 
 fn err_body(message: &str, ty: &str) -> Value {
     json!({ "error": { "message": message, "type": ty } })
@@ -289,17 +293,12 @@ fn bearer(req: &Request) -> String {
         .to_string()
 }
 
-// host[:port] portion of an Origin value ("scheme://host[:port][/...]"), or "" when
-// the value has no authority part - a malformed origin simply never matches.
-fn origin_host(origin: &str) -> &str {
-    match origin.split("://").nth(1) {
-        Some(rest) => rest.split('/').next().unwrap_or(""),
-        None => "",
-    }
-}
-
+// An Origin is exactly scheme + authority, without a path, query, credentials
+// or extra separators. A hostile sibling cannot match the target Host.
 fn origin_host_matches(origin: &str, host_header: &str) -> bool {
-    !host_header.is_empty() && origin_host(origin).eq_ignore_ascii_case(host_header)
+    if host_header.is_empty() { return false; }
+    let authority=origin.strip_prefix("https://").or_else(||origin.strip_prefix("http://"));
+    authority.map(|host| !host.contains(['/', '?', '#', '@']) && host.eq_ignore_ascii_case(host_header)).unwrap_or(false)
 }
 
 fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
@@ -350,11 +349,17 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     if req.method == "GET" {
         match req.path.as_str() {
             "/" | "/landing.html" => return write_html(&mut stream, PAGE_LANDING, cors),
-            "/console.html" | "/console" | "/playground.html" | "/playground" => {
+            "/admin" | "/admin.html" => {
+                if !auth::session_cookie(&req.headers).and_then(|id|shared.auth.get_session(&id)).map(|(_,r)|r==Role::Owner).unwrap_or(false) {
+                    return write_json(&mut stream,403,&err_body("owner access required","auth_error"),cors);
+                }
+                return write_html(&mut stream,PAGE_ADMIN,cors);
+            }
+            "/console.html" | "/console" | "/playground.html" | "/playground" | "/keys.html" | "/keys" => {
                 if auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).is_none() {
                     return write_redirect(&mut stream, "/", &[]);
                 }
-                let page = if req.path.starts_with("/console") { PAGE_CONSOLE } else { PAGE_PLAYGROUND };
+                let page = if req.path.starts_with("/console") { PAGE_CONSOLE } else if req.path.starts_with("/keys") {PAGE_KEYS} else { PAGE_PLAYGROUND };
                 return write_html(&mut stream, page, cors);
             }
             _ => {}
@@ -366,7 +371,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         if !shared.auth.cfg.enabled() {
             return write_json(&mut stream, 503, &err_body("github login is not configured on this deployment", "auth_error"), cors);
         }
-        let state = shared.auth.new_state();
+        let state = match shared.auth.new_state() {Ok(state)=>state,Err(_)=>return write_json(&mut stream,503,&err_body("secure login unavailable","auth_error"),cors)};
         return write_redirect(&mut stream, &auth::authorize_url(&shared.auth.cfg, &state), &[]);
     }
     if req.method == "GET" && req.path == "/auth/github/callback" {
@@ -382,7 +387,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         return match github_exchange(&shared.agent, &shared.auth.cfg, &code) {
             Ok(login) => match shared.auth.cfg.role_for(&login) {
                 Some(role) => {
-                    let id = shared.auth.create_session(&login, role);
+                    let id = match shared.auth.create_session(&login, role) {Ok(id)=>id,Err(_)=>return write_json(&mut stream,503,&err_body("secure login unavailable","auth_error"),cors)};
                     write_redirect(&mut stream, &shared.auth.cfg.post_login_url(), &[shared.auth.set_cookie(&id)])
                 }
                 None => write_json(&mut stream, 403, &err_body("github account is not on the allowlist", "auth_error"), cors),
@@ -430,6 +435,11 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         return write_no_content(&mut stream, &[shared.auth.clear_cookie()], cors);
     }
 
+    // Key management is session-only. Bearer possession cannot mint keys.
+    if req.path == "/v1/keys" || req.path.starts_with("/v1/keys/") {
+        return manage_keys(&mut stream,&shared,&req,cors);
+    }
+
     let token = bearer(&req);
 
     if matches!(req.path.as_str(), "/v1/admin/usage" | "/v1/admin/caps") {
@@ -442,7 +452,8 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         if auth_throttled(&shared, &token) {
             return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limited"), cors);
         }
-        if cfg.admin_key.is_empty() || cfg.admin_key.eq_ignore_ascii_case("change-me") || token != cfg.admin_key {
+        if !( !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key )
+            && !( !req.headers.contains_key("authorization") && auth::session_cookie(&req.headers).and_then(|id|shared.auth.get_session(&id)).map(|(_,r)|r==Role::Owner).unwrap_or(false) ) {
             record_auth_failure(&shared, &token);
             return write_json(&mut stream, 401, &err_body("invalid api key", "auth_error"), cors);
         }
@@ -461,16 +472,58 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         return write_json(&mut stream, 200, &json!({ "providers": providers }), cors);
     }
 
-    if auth_throttled(&shared, &token) {
-        return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limit_error"), cors);
-    }
-    let entry = match cfg.keys.get(&token).filter(|_| !token.is_empty() && !token.eq_ignore_ascii_case("change-me")) {
-        Some(e) => e,
-        None => {
-            record_auth_failure(&shared, &token);
-            return write_json(&mut stream, 401, &err_body("invalid api key", "auth_error"), cors);
+    // A present Authorization header is authoritative, even if malformed.
+    // Never silently downgrade an explicit bearer failure to cookie authority.
+    // Only models/chat accept session API auth; admin routes above retain their
+    // separate owner/admin checks. Session IDs and synthetic API keys never leave.
+    let session_entry = if !req.headers.contains_key("authorization")
+        && matches!((req.method.as_str(),req.path.as_str()),
+            ("GET","/v1/models") | ("POST","/v1/chat/completions")) {
+        auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id))
+            .map(|(login,role)| crate::config::KeyEntry {name:login.to_ascii_lowercase(),role})
+    } else {None};
+    let generated_entry = if token.starts_with("aqua_sk_") {
+        // Current allowlist is authoritative, not a role frozen at key creation.
+        shared.keys.lock().unwrap().resolve(&token).ok().flatten()
+            .and_then(|login| cfg.oauth.role_for(&login).map(|role|crate::config::KeyEntry{name:login,role}))
+    } else {None};
+    let entry = if let Some(ref entry) = session_entry {
+        if req.method == "POST" && !cookie_origin_ok(&req,cfg) {
+            return write_json(&mut stream,403,&err_body("origin not allowed","auth_error"),cors);
+        }
+        entry
+    } else {
+        if auth_throttled(&shared, &token) {
+            return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limit_error"), cors);
+        }
+        if let Some(ref entry) = generated_entry {entry} else {
+            if token.starts_with("aqua_sk_") {
+                record_auth_failure(&shared,&token);
+                return write_json(&mut stream,401,&err_body("invalid api key","auth_error"),cors);
+            }
+            match cfg.keys.get(&token).filter(|_| !token.is_empty() && !token.eq_ignore_ascii_case("change-me")) {
+                Some(e) => e,
+                None => {
+                    record_auth_failure(&shared, &token);
+                    return write_json(&mut stream, 401, &err_body("invalid api key", "auth_error"), cors);
+                }
+            }
         }
     };
+    // Canonicalize BEFORE every quota/spend/account operation. Legacy labels
+    // cannot create a second identity alongside a GitHub login. With OAuth
+    // allowlists configured, an alias or role mismatch is rejected, not guessed.
+    let canonical_name=entry.name.to_ascii_lowercase();
+    if !cfg.oauth.owner_users.is_empty() || !cfg.oauth.friend_users.is_empty() {
+        if cfg.oauth.role_for(&canonical_name)!=Some(entry.role) {
+            return write_json(&mut stream,401,&err_body("key account is not an allowed login","auth_error"),cors);
+        }
+    }
+    let canonical_entry=crate::config::KeyEntry{name:canonical_name,role:entry.role};
+    let entry=&canonical_entry;
+    // Re-logins and concurrent browser sessions share one daily request quota.
+    // The spend/account ledgers below already use entry.name for all API paths.
+    let quota_token = format!("login:{}",entry.name.to_ascii_lowercase());
 
     match (req.method.as_str(), req.path.as_str()) {
         ("GET", "/v1/models") => {
@@ -486,7 +539,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 if p.status == Status::Off || p.api_key.is_empty() {
                     continue;
                 }
-                if p.status != Status::Friends && entry.role != Role::Owner {
+                if (p.status != Status::Friends || p.id == "zro") && entry.role != Role::Owner {
                     continue;
                 }
                 if p.id=="cloudflare" {continue;}
@@ -506,8 +559,34 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
             }
             write_json(&mut stream, 200, &json!({ "object": "list", "data": data }), cors)
         }
-        ("POST", "/v1/chat/completions") => chat(&mut stream, &shared, &req, entry, &token, cors),
+        ("POST", "/v1/chat/completions") => chat(&mut stream, &shared, &req, entry, &quota_token, cors),
         _ => write_json(&mut stream, 404, &err_body("not found", "invalid_request"), cors),
+    }
+}
+
+fn cookie_origin_ok(req:&Request,cfg:&Config)->bool {
+    req.headers.get("sec-fetch-site").map(String::as_str)!=Some("cross-site") && req.headers.get("origin").map(|origin|
+        (!cfg.allowed_origin.is_empty() && origin==&cfg.allowed_origin) || ((!cfg.oauth.secure_cookies() || origin.starts_with("https://")) && origin_host_matches(origin,req.headers.get("host").map(String::as_str).unwrap_or("")))
+    ).unwrap_or(false)
+}
+fn manage_keys(stream:&mut TcpStream,shared:&Shared,req:&Request,cors:Option<&str>)->std::io::Result<()> {
+    let login=match auth::session_cookie(&req.headers).and_then(|id|shared.auth.get_session(&id)) {Some((login,_))=>login.to_ascii_lowercase(),None=>return write_json(stream,401,&err_body("sign in required","auth_error"),cors)};
+    if req.method=="POST" && !cookie_origin_ok(req,&shared.config) {return write_json(stream,403,&err_body("origin not allowed","auth_error"),cors);}
+    let mut keys=shared.keys.lock().unwrap();
+    match (req.method.as_str(),req.path.as_str()) {
+        ("GET","/v1/keys")=>match keys.list(&login) {Ok(data)=>write_json(stream,200,&json!({"data":data}),cors),Err(_)=>write_json(stream,503,&err_body("key storage unavailable","storage_error"),cors)},
+        ("POST","/v1/keys")=>{
+            let body:Value=match serde_json::from_slice(&req.body){Ok(v)=>v,Err(_)=>return write_json(stream,400,&err_body("invalid JSON","invalid_request"),cors)};
+            let name=body.get("name").and_then(Value::as_str).unwrap_or("");
+            if name.trim().is_empty()||name.len()>64||name.chars().any(char::is_control){return write_json(stream,400,&err_body("key name must be 1-64 bytes without control characters","invalid_request"),cors);}
+            match keys.create(&login,name){Ok(key)=>write_json(stream,201,&key,cors),Err(_)=>write_json(stream,503,&err_body("key creation unavailable or key limit reached","storage_error"),cors)}
+        }
+        ("POST",path) if path.starts_with("/v1/keys/") && path.ends_with("/revoke")=>{
+            let id=match path.strip_prefix("/v1/keys/").and_then(|s|s.strip_suffix("/revoke")).filter(|id|id.len()==32&&id.bytes().all(|b|b.is_ascii_hexdigit())) {
+                Some(id)=>id,None=>return write_json(stream,404,&err_body("key not found","invalid_request"),cors)
+            };match keys.revoke(&login,id){Ok(true)=>write_json(stream,200,&json!({"revoked":true}),cors),Ok(false)=>write_json(stream,404,&err_body("key not found","invalid_request"),cors),Err(_)=>write_json(stream,503,&err_body("key storage unavailable","storage_error"),cors)}
+        }
+        _=>write_json(stream,404,&err_body("not found","invalid_request"),cors)
     }
 }
 
@@ -562,7 +641,7 @@ fn record_auth_failure(shared: &Shared, token: &str) {
             failures.clear(); // last resort bound: counters reset, map cannot grow without limit
         }
     }
-    let entry = failures.entry(token.to_string()).or_insert((0, Instant::now()));
+    let entry = failures.entry(crate::keys::fingerprint(token)).or_insert((0, Instant::now()));
     if entry.1.elapsed() > Duration::from_secs(60) {
         *entry = (0, Instant::now());
     }
@@ -571,7 +650,7 @@ fn record_auth_failure(shared: &Shared, token: &str) {
 
 fn auth_throttled(shared: &Shared, token: &str) -> bool {
     let failures = shared.auth_failures.lock().unwrap();
-    match failures.get(token) {
+    match failures.get(&crate::keys::fingerprint(token)) {
         Some((n, since)) => *n >= AUTH_FAIL_LIMIT && since.elapsed() <= Duration::from_secs(60),
         None => false,
     }
@@ -654,7 +733,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             && !p.api_key.is_empty()
             && !p.base_url.is_empty()
             && !p.models.is_empty()
-            && (p.status == Status::Friends || entry.role == Role::Owner)
+            && ((p.status == Status::Friends && p.id != "zro") || entry.role == Role::Owner)
     };
     // model first, then provider: a pinned name gathers every eligible provider
     // carrying that exact canonical model; "auto" walks the configured coding
@@ -1143,6 +1222,7 @@ mod reviewer_regressions {
             upstream_budget: std::time::Duration::from_secs(300),
         };
         Shared {
+            keys: Mutex::new(crate::keys::Store::open(None).unwrap()),
             spend: Mutex::new(crate::spend::Store::open(None).unwrap()),
             unknown_owner_requests: Mutex::new(0),
             auth: Auth::new(config.oauth.clone()),
@@ -1168,11 +1248,123 @@ mod reviewer_regressions {
     }
 
     #[test]
+    fn mixed_legacy_session_and_generated_keys_share_real_openrouter_account_cap(){
+        let upstream=TcpListener::bind("127.0.0.1:0").unwrap();let url=format!("http://{}",upstream.local_addr().unwrap());
+        let worker=thread::spawn(move|| {for _ in 0..3 {let(mut socket,_)=upstream.accept().unwrap();let _=read_request(&mut socket).unwrap();let body=r#"{"choices":[{"message":{"content":"ok"}}]}"#;write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",body.len()).unwrap();}});
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        let path=std::env::temp_dir().join(format!("aqua-mixed-budget-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        state.spend=Mutex::new(crate::spend::Store::open(Some(path.clone())).unwrap());state.config.spend.account_verified_day=chrono_day();state.config.spend.openrouter_allowance=40;
+        let mut provider=browser_provider("openrouter",Status::Friends,"shared-model",&url);provider.models[0].upstream=OPENROUTER_FREE[0].into();state.config.providers=vec![provider];
+        state.config.keys.insert("legacy-sam".into(),crate::config::KeyEntry{name:"Sam".into(),role:Role::Friend});
+        let key=state.keys.get_mut().unwrap().create("sam","client").unwrap();let bearer=format!("Bearer {}",key["key"].as_str().unwrap());
+        let state=Arc::new(state);let session=state.auth.create_session("sam",Role::Friend).unwrap();let body=r#"{"model":"shared-model","messages":[{"role":"user","content":"hi"}]}"#;
+        assert!(browser_api(state.clone(),"POST","/v1/chat/completions","",None,"none",Some("Bearer legacy-sam"),body).starts_with("HTTP/1.1 200"));
+        assert!(browser_api(state.clone(),"POST","/v1/chat/completions",&session,Some("https://aqua.test"),"same-site",None,body).starts_with("HTTP/1.1 200"));
+        assert!(browser_api(state.clone(),"POST","/v1/chat/completions","",None,"none",Some(&bearer),body).starts_with("HTTP/1.1 200"));worker.join().unwrap();
+        let denied=browser_api(state.clone(),"POST","/v1/chat/completions","",None,"none",Some("Bearer legacy-sam"),body);assert!(denied.starts_with("HTTP/1.1 503"));
+        let store=state.spend.lock().unwrap();let account=&store.ledger.accounts["openrouter"];assert_eq!(account.total,3);assert_eq!(account.users.len(),1);assert_eq!(account.users["sam"],3);assert_eq!(account.friends,3);drop(store);drop(state);let _=std::fs::remove_file(path);
+    }
+
+    fn keys_shared()->Arc<Shared>{
+        let path=std::env::temp_dir().join(format!("aqua-http-keys-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let mut state=shared();state.keys=Mutex::new(crate::keys::Store::open(Some(path)).unwrap());state.config.allowed_origin="https://aqua.test".into();state.config.oauth.owner_users=vec!["luke".into()];state.config.oauth.friend_users=vec!["sam".into(),"alex".into()];Arc::new(state)
+    }
+    fn response_body(response:&str)->Value{serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap()}
+    #[test]
+    fn key_http_lifecycle_is_session_scoped_csrf_safe_and_never_retrieves_secret(){
+        let state=keys_shared();let sam=state.auth.create_session("sam",Role::Friend).unwrap();let alex=state.auth.create_session("alex",Role::Friend).unwrap();
+        for origin in [None,Some("null"),Some("https://evil.aqua.test"),Some("https://api.aqua.test/path"),Some("https://api.aqua.test?x"),Some("ftp://api.aqua.test")] {assert!(browser_api(state.clone(),"POST","/v1/keys",&sam,origin,"same-site",None,r#"{"name":"laptop"}"#).starts_with("HTTP/1.1 403"));}
+        for path in ["/v1/keys/revoke","/v1/keys//revoke","/v1/keys/😄/revoke","/v1/keys/a/revoke"] {assert!(browser_api(state.clone(),"POST",path,&sam,Some("https://aqua.test"),"same-site",None,"{}").starts_with("HTTP/1.1 404"));}
+        let response=browser_api(state.clone(),"POST","/v1/keys",&sam,Some("https://aqua.test"),"same-site",None,r#"{"name":"laptop"}"#);assert!(response.starts_with("HTTP/1.1 201"));assert!(response.contains("cache-control: no-store\r\n"));
+        let created=response_body(&response);let token=created["key"].as_str().unwrap();let bearer=format!("Bearer {token}");let id=created["id"].as_str().unwrap();
+        let list=browser_api(state.clone(),"GET","/v1/keys",&sam,None,"same-site",None,"");assert!(!list.contains(token));assert!(!list.contains("hash"));assert!(list.contains("laptop"));
+        assert!(response_body(&browser_api(state.clone(),"GET","/v1/keys",&alex,None,"same-site",None,""))["data"].as_array().unwrap().is_empty());
+        assert!(browser_api(state.clone(),"GET","/v1/keys","",None,"none",Some(&bearer),"").starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state.clone(),"GET","/v1/models","",None,"none",Some(&bearer),"").starts_with("HTTP/1.1 200"));
+        let path=format!("/v1/keys/{id}/revoke");assert!(browser_api(state.clone(),"POST",&path,&alex,Some("https://aqua.test"),"same-site",None,"{}").starts_with("HTTP/1.1 404"));
+        assert!(browser_api(state.clone(),"POST",&path,&sam,Some("https://aqua.test"),"same-site",None,"{}").starts_with("HTTP/1.1 200"));
+        assert!(browser_api(state,"GET","/v1/models","",None,"none",Some(&bearer),"").starts_with("HTTP/1.1 401"));
+    }
+    #[test]
+    fn generated_keys_inherit_request_limit_and_require_current_allowlist(){
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();state.config.daily_limit=0;state.config.providers=vec![browser_provider("inferbase",Status::Friends,"shared-model","http://127.0.0.1:1")];
+        let key=state.keys.get_mut().unwrap().create("sam","one").unwrap();let second=state.keys.get_mut().unwrap().create("sam","two").unwrap();let gone=state.keys.get_mut().unwrap().create("removed-user","gone").unwrap();
+        let state=Arc::new(state);let session=state.auth.create_session("sam",Role::Friend).unwrap();
+        for key in [key,second] {let bearer=format!("Bearer {}",key["key"].as_str().unwrap());
+            assert!(browser_api(state.clone(),"POST","/v1/chat/completions","",None,"none",Some(&bearer),r#"{"model":"shared-model","messages":[{"role":"user","content":"hi"}]}"#).starts_with("HTTP/1.1 429"));
+        }
+        assert!(browser_api(state.clone(),"POST","/v1/chat/completions",&session,Some("https://aqua.test"),"same-site",None,r#"{"model":"shared-model","messages":[{"role":"user","content":"hi"}]}"#).starts_with("HTTP/1.1 429"));
+        let bearer=format!("Bearer {}",gone["key"].as_str().unwrap());assert!(browser_api(state,"GET","/v1/models","",None,"none",Some(&bearer),"").starts_with("HTTP/1.1 401"));
+    }
+    #[test]
+    fn admin_document_and_provider_metadata_are_owner_only(){
+        let mut state=shared();state.config.providers=vec![browser_provider("zro",Status::Friends,"private-model","http://localhost")];let state=Arc::new(state);let owner=state.auth.create_session("luke",Role::Owner).unwrap();let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        for path in ["/admin","/admin.html"] {for cookie in ["",friend.as_str()] {let response=browser_api(state.clone(),"GET",path,cookie,None,"same-site",None,"");assert!(response.starts_with("HTTP/1.1 403"));assert!(!response.contains("<html"));}assert!(browser_api(state.clone(),"GET",path,&owner,None,"same-site",None,"").starts_with("HTTP/1.1 200"));}
+        assert!(browser_api(state.clone(),"GET","/v1/admin/providers",&owner,None,"same-site",None,"").contains("private-model"));
+        assert!(browser_api(state.clone(),"GET","/v1/admin/providers",&friend,None,"same-site",None,"").starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state.clone(),"GET","/v1/admin/providers",&owner,None,"same-site",Some("Bearer bad"),"").starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state,"POST","/v1/chat/completions",&friend,Some("https://api.aqua.test"),"same-site",None,r#"{"model":"private-model","messages":[{"role":"user","content":"hi"}]}"#).starts_with("HTTP/1.1 400"));
+    }
+
+    fn browser_api(state: Arc<Shared>,method:&str,path:&str,cookie:&str,origin:Option<&str>,site:&str,authorization:Option<&str>,body:&str)->String {
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();let address=listener.local_addr().unwrap();
+        let worker=thread::spawn(move||handle(listener.accept().unwrap().0,state).unwrap());
+        let mut c=TcpStream::connect(address).unwrap();
+        write!(c,"{method} {path} HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\nsec-fetch-site: {site}\r\ncontent-length: {}\r\n",body.len()).unwrap();
+        if let Some(v)=origin {write!(c,"origin: {v}\r\n").unwrap();}
+        if let Some(v)=authorization {write!(c,"authorization: {v}\r\n").unwrap();}
+        write!(c,"\r\n{body}").unwrap();let mut out=String::new();c.read_to_string(&mut out).unwrap();worker.join().unwrap();out
+    }
+    fn browser_provider(id:&str,status:Status,model:&str,url:&str)->crate::config::Provider {
+        crate::config::Provider{id:id.into(),status,api_key:"secret-not-client".into(),base_url:url.into(),models:vec![crate::config::ModelEntry{public:model.into(),upstream:format!("raw-{model}"),context:None}]}
+    }
+    #[test]
+    fn session_models_reuses_roles_and_never_shares_zro_or_personal_bindings() {
+        let mut state=shared();state.config.providers=vec![browser_provider("zro",Status::Friends,"zro-model","http://localhost"),browser_provider("logfare",Status::Personal,"private-model","http://localhost"),browser_provider("inferbase",Status::Friends,"shared-model","http://localhost")];
+        let state=Arc::new(state);let owner=state.auth.create_session("luke",Role::Owner).unwrap();let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        let o=browser_api(state.clone(),"GET","/v1/models",&owner,None,"same-site",None,"");
+        assert!(o.starts_with("HTTP/1.1 200"));assert!(o.contains("private-model")&&o.contains("zro-model")&&o.contains("shared-model"));assert!(!o.contains("secret-not-client")&&!o.contains("raw-"));
+        let f=browser_api(state.clone(),"GET","/v1/models",&friend,None,"same-site",None,"");assert!(f.starts_with("HTTP/1.1 200"));assert!(f.contains("shared-model"));assert!(!f.contains("zro-model")&&!f.contains("private-model"));
+        assert!(browser_api(state.clone(),"GET","/v1/models",&friend,None,"same-site",Some("Bearer bad"),"").starts_with("HTTP/1.1 401"));
+        state.auth.revoke(&friend);assert!(browser_api(state,"GET","/v1/models",&friend,None,"same-site",None,"").starts_with("HTTP/1.1 401"));
+    }
+    #[test]
+    fn cookie_chat_requires_explicit_approved_origin_even_for_same_site_siblings() {
+        let mut state=shared();state.config.allowed_origin="https://aqua.test".into();let state=Arc::new(state);let id=state.auth.create_session("sam",Role::Friend).unwrap();
+        let body=r#"{"model":"x","messages":[]}"#;
+        for (origin,site) in [(None,"same-site"),(Some("https://evil.aqua.test"),"same-site"),(Some("null"),"same-origin"),(Some("https://aqua.test"),"cross-site")] {
+            assert!(browser_api(state.clone(),"POST","/v1/chat/completions",&id,origin,site,None,body).starts_with("HTTP/1.1 403"));
+        }
+        for origin in ["https://aqua.test","https://api.aqua.test"] {assert!(browser_api(state.clone(),"POST","/v1/chat/completions",&id,Some(origin),"same-site",None,body).starts_with("HTTP/1.1 400"));}
+        assert!(browser_api(state,"GET","/v1/admin/providers",&id,None,"same-site",None,"").starts_with("HTTP/1.1 401"));
+    }
+    #[test]
+    fn separate_sessions_for_one_login_share_chat_quota_in_json_and_sse() {
+        for streaming in [false,true] {
+            let upstream=TcpListener::bind("127.0.0.1:0").unwrap();let url=format!("http://{}",upstream.local_addr().unwrap());
+            let worker=thread::spawn(move|| {let(mut socket,_)=upstream.accept().unwrap();let _=read_request(&mut socket).unwrap();
+                let body=if streaming {"data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n"}else{r#"{"choices":[{"message":{"content":"ok"}}]}"#};
+                write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: {}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",if streaming{"text/event-stream"}else{"application/json"},body.len()).unwrap();});
+            let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();state.config.daily_limit=1;state.config.providers=vec![browser_provider("inferbase",Status::Friends,"shared-model",&url)];
+            let key=state.keys.get_mut().unwrap().create("sam","client").unwrap();let bearer=format!("Bearer {}",key["key"].as_str().unwrap());
+            state.config.keys.insert("legacy-sam".into(),crate::config::KeyEntry{name:"Sam".into(),role:Role::Friend});
+            state.config.keys.insert("legacy-alias".into(),crate::config::KeyEntry{name:"my-friend".into(),role:Role::Friend});
+            let state=Arc::new(state);let a=state.auth.create_session("Sam",Role::Friend).unwrap();let b=state.auth.create_session("sam",Role::Friend).unwrap();
+            let payload=json!({"model":"shared-model","messages":[{"role":"user","content":"hi"}],"stream":streaming}).to_string();
+            assert!(browser_api(state.clone(),"POST","/v1/chat/completions","",None,"none",Some("Bearer legacy-sam"),&payload).starts_with("HTTP/1.1 200"));worker.join().unwrap();
+            assert!(browser_api(state.clone(),"POST","/v1/chat/completions",&a,Some("https://aqua.test"),"same-site",None,&payload).starts_with("HTTP/1.1 429"));
+            assert!(browser_api(state.clone(),"GET","/v1/models","",None,"none",Some("Bearer legacy-alias"),"").starts_with("HTTP/1.1 401"));
+            assert!(browser_api(state.clone(),"POST","/v1/chat/completions",&b,Some("https://aqua.test"),"same-site",None,&payload).starts_with("HTTP/1.1 429"));
+            assert!(browser_api(state,"POST","/v1/chat/completions","",None,"none",Some(&bearer),&payload).starts_with("HTTP/1.1 429"));
+        }
+    }
+
+    #[test]
     fn embedded_interactive_pages_require_session_not_bearer_key() {
         let state=Arc::new(shared());
-        let owner=state.auth.create_session("luke",Role::Owner);
-        let friend=state.auth.create_session("sam",Role::Friend);
-        for path in ["/console.html","/playground.html","/console","/playground"] {
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        for path in ["/console.html","/playground.html","/console","/playground","/keys.html","/keys"] {
             for cookie in ["", "invalid"] {
                 let response=admin_request(state.clone(),"GET",path,cookie,"","");
                 assert!(response.starts_with("HTTP/1.1 302"),"{path} admitted logged-out browser");
@@ -1193,8 +1385,8 @@ mod reviewer_regressions {
     fn spend_admin_cookie_route_requires_owner_and_explicit_csrf_safe_origin() {
         let mut state = shared();state.config.allowed_origin="https://aqua.test".into();
         let state=Arc::new(state);
-        let owner=state.auth.create_session("luke",Role::Owner);
-        let friend=state.auth.create_session("sam",Role::Friend);
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let friend=state.auth.create_session("sam",Role::Friend).unwrap();
         assert!(admin_request(state.clone(),"GET","/v1/admin/usage",&friend,"https://aqua.test","same-site").starts_with("HTTP/1.1 401"));
         assert!(admin_request(state.clone(),"GET","/v1/admin/usage",&owner,"https://aqua.test","same-site").starts_with("HTTP/1.1 200"));
         for (origin,site) in [("https://evil.test","cross-site"),("https://aqua.test","cross-site"),("","same-site")] {
@@ -1322,7 +1514,7 @@ fn reserve_spend<'a>(shared: &'a Shared, entry: &crate::config::KeyEntry, model:
 fn spend_admin(stream: &mut TcpStream, shared: &Shared, req: &Request, token: &str, cors: Option<&str>) -> std::io::Result<()> {
     let cfg = &shared.config;
     let key_ok = !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key;
-    let session_owner = auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).map(|(_,role)|role==Role::Owner).unwrap_or(false);
+    let session_owner = !req.headers.contains_key("authorization") && auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).map(|(_,role)|role==Role::Owner).unwrap_or(false);
     if !key_ok && !session_owner {
         record_auth_failure(shared, token);
         return write_json(stream,401,&err_body("invalid api key","auth_error"),cors);
@@ -1368,4 +1560,4 @@ fn spend_admin(stream: &mut TcpStream, shared: &Shared, req: &Request, token: &s
         return write_json(stream,200,&json!({"name":name,"cap":cap,"units_per_usd":crate::spend::USD}),cors);
     }
     write_json(stream,404,&err_body("not found","invalid_request"),cors)
-}
+  }

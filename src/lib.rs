@@ -1,3 +1,4 @@
+mod keys;
 pub mod auth;
 pub mod config;
 mod redact;

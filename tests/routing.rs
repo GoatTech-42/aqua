@@ -959,7 +959,7 @@ fn spend_owner_stays_uncapped_on_storage_failure_but_usage_gap_is_visible() {
     let up=mock_upstream(|_|json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}})));
     let dir=std::env::temp_dir().join(format!("aqua-storage-fault-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));std::fs::create_dir(&dir).unwrap();
     let mut cfg=spend_cfg(&up.url);cfg.spend.path=Some(dir.join("state.json"));let srv=serve(cfg);
-    std::fs::remove_file(dir.join("state.lock")).unwrap();std::fs::remove_dir(&dir).unwrap();
+    std::fs::remove_file(dir.join("state.lock")).unwrap();std::fs::remove_file(dir.join("state.keys.lock")).unwrap();std::fs::remove_dir(&dir).unwrap();
     let agent=client();assert_eq!(chat(&agent,&srv.base,"ownerkey",pin_msg("coder-a")).status(),200);
     let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
     assert_eq!(data["accounting_available"],false);

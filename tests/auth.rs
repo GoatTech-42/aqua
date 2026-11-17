@@ -42,7 +42,7 @@ fn raw(base: &str, req: &str) -> String {
 #[test]
 fn state_is_single_use() {
     let a = Auth::new(oauth_cfg());
-    let s = a.new_state();
+    let s = a.new_state().unwrap();
     assert!(a.take_state(&s));
     assert!(!a.take_state(&s), "replayed state must fail");
     assert!(!a.take_state("does-not-exist"));
@@ -51,7 +51,7 @@ fn state_is_single_use() {
 #[test]
 fn session_lifecycle() {
     let a = Auth::new(oauth_cfg());
-    let id = a.create_session("luke", Role::Owner);
+    let id = a.create_session("luke", Role::Owner).unwrap();
     let got = a.get_session(&id).expect("fresh session must resolve");
     assert_eq!(got.0, "luke");
     assert_eq!(got.1, Role::Owner);
@@ -62,8 +62,8 @@ fn session_lifecycle() {
 #[test]
 fn expired_session_is_dropped() {
     let a = Auth::new(oauth_cfg());
-    let live = a.create_session("sam", Role::Friend);
-    let doomed = a.create_session("sam", Role::Friend);
+    let live = a.create_session("sam", Role::Friend).unwrap();
+    let doomed = a.create_session("sam", Role::Friend).unwrap();
     let future = Instant::now() + aqua::auth::SESSION_TTL + Duration::from_secs(1);
     assert!(a.get_session_at(&doomed, future).is_none(), "expired session must not resolve");
     assert!(a.get_session(&live).is_some(), "live session must resolve");
@@ -81,7 +81,7 @@ fn role_matching_is_case_insensitive_and_closed() {
 #[test]
 fn cookie_roundtrip_and_rejects_garbage() {
     let a = Auth::new(oauth_cfg());
-    let id = a.create_session("luke", Role::Owner);
+    let id = a.create_session("luke", Role::Owner).unwrap();
     let cookie = a.set_cookie(&id);
     assert!(cookie.contains("HttpOnly"));
     assert!(cookie.contains("SameSite=Lax"));
@@ -91,7 +91,7 @@ fn cookie_roundtrip_and_rejects_garbage() {
     assert_eq!(aqua::auth::session_cookie(&headers), Some(id));
     // a same-prefix cookie name without '=' must not abort parsing of later parts
     let mut headers2 = HashMap::new();
-    let id2 = a.create_session("sam", Role::Friend);
+    let id2 = a.create_session("sam", Role::Friend).unwrap();
     headers2.insert("cookie".to_string(), format!("aqua_sessionfoo=1; aqua_session={}", id2));
     assert_eq!(aqua::auth::session_cookie(&headers2), Some(id2));
     headers.insert("cookie".to_string(), "aqua_session=<script>alert(1)</script>".to_string());
@@ -270,4 +270,4 @@ fn logout_allows_console_served_on_the_api_host_itself() {
     // ...while a same-site sibling on another host stays rejected
     let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: api.aqua.goattech.us\r\ncontent-length: 0\r\nsec-fetch-site: same-site\r\norigin: https://crafty.goattech.us\r\n\r\n");
     assert!(resp.starts_with("HTTP/1.1 403"), "sibling origin must stay rejected");
-}
+                   }
