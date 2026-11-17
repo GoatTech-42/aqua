@@ -64,50 +64,38 @@ pub struct Session {
 
 pub struct Auth {
     pub cfg: OAuthConfig,
+    entropy: fn(usize) -> std::io::Result<String>,
     states: Mutex<HashMap<String, Instant>>,
     sessions: Mutex<HashMap<String, Session>>,
 }
 
-// 128 bits from the OS RNG, hex-encoded. No rand crate in the tree; /dev/urandom
-// is the right source on every host this targets. Falls back to a time+counter
-// mix only if the OS RNG is unreadable, and login stays disabled-quality either
-// way (ids remain unguessable in practice because they are per-process random).
-fn rand_hex(bytes: usize) -> String {
+// OS randomness only. Entropy failure must not create predictable authority.
+fn rand_hex(bytes: usize) -> std::io::Result<String> {
     use std::io::Read;
     let mut buf = vec![0u8; bytes];
-    let ok = std::fs::File::open("/dev/urandom")
-        .and_then(|mut f| f.read_exact(&mut buf))
-        .is_ok();
-    if !ok {
-        let n = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or(0);
-        for (i, b) in buf.iter_mut().enumerate() {
-            *b = (n.wrapping_shr((i % 16) as u32 * 8) as u8) ^ (i as u8).wrapping_mul(89);
-        }
-    }
-    buf.iter().map(|b| format!("{:02x}", b)).collect()
+    std::fs::File::open("/dev/urandom")?.read_exact(&mut buf)?;
+    Ok(buf.iter().map(|b| format!("{:02x}", b)).collect())
 }
 
 impl Auth {
     pub fn new(cfg: OAuthConfig) -> Auth {
         Auth {
             cfg,
+            entropy: rand_hex,
             states: Mutex::new(HashMap::new()),
             sessions: Mutex::new(HashMap::new()),
         }
     }
 
-    pub fn new_state(&self) -> String {
+    pub fn new_state(&self) -> std::io::Result<String> {
         let mut states = self.states.lock().unwrap();
         if states.len() >= MAX_STATES {
             let cutoff = Instant::now();
             states.retain(|_, t| cutoff.duration_since(*t) < STATE_TTL);
         }
-        let id = rand_hex(16);
+        let id = (self.entropy)(16)?;
         states.insert(id.clone(), Instant::now());
-        id
+        Ok(id)
     }
 
     // single-use: a state is consumed by the check
@@ -119,13 +107,13 @@ impl Auth {
         }
     }
 
-    pub fn create_session(&self, login: &str, role: Role) -> String {
+    pub fn create_session(&self, login: &str, role: Role) -> std::io::Result<String> {
         let mut sessions = self.sessions.lock().unwrap();
         if sessions.len() >= MAX_SESSIONS {
             let now = Instant::now();
             sessions.retain(|_, s| s.expires > now);
         }
-        let id = rand_hex(16);
+        let id = (self.entropy)(16)?;
         sessions.insert(
             id.clone(),
             Session {
@@ -134,7 +122,7 @@ impl Auth {
                 expires: Instant::now() + SESSION_TTL,
             },
         );
-        id
+        Ok(id)
     }
 
     pub fn get_session_at(&self, id: &str, now: Instant) -> Option<(String, Role)> {
@@ -236,4 +224,16 @@ fn percent_decode(s: &str) -> String {
         i += 1;
     }
     String::from_utf8_lossy(&out).to_string()
+}
+
+#[cfg(test)]
+mod rng_failure_tests {
+    use super::*;
+    #[test]
+    fn entropy_failure_creates_no_state_or_session() {
+        let mut auth=Auth::new(OAuthConfig::default());
+        auth.entropy=|_|Err(std::io::Error::other("injected OS entropy failure"));
+        for _ in 0..3 {assert!(auth.new_state().is_err());assert!(auth.create_session("sam",Role::Friend).is_err());}
+        assert!(auth.states.lock().unwrap().is_empty());assert!(auth.sessions.lock().unwrap().is_empty());
+    }
 }
