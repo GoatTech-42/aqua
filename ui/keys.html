@@ -397,7 +397,16 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
           })
           .catch(function (e) {
             btn.disabled = false; btn.textContent = 'revoke'; armed = false;
-            say('could not revoke "' + k.name + '". ' + e.message, true);
+            // A failed POST may still have committed server-side; reconcile from GET, never auto-repeat.
+            return load(true).then(function () {
+              if (!keys.some(function (x) { return x.id === k.id; })) {
+                say('revoked "' + k.name + '".');
+              } else {
+                say('could not confirm the revocation of "' + k.name + '". ' + e.message + ' the list has been refreshed — check it before trying again.', true);
+              }
+            }).catch(function (re) {
+              say('could not confirm the revocation of "' + k.name + '", and refreshing the list failed (' + re.message + '). reload the page and check before trying again.', true);
+            });
           });
       });
       acts.appendChild(btn); row.appendChild(acts);
