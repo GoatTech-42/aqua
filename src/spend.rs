@@ -292,4 +292,4 @@ impl Settings {
 pub fn parse_caps(raw: &str) -> Option<Caps> {
     let (daily, monthly) = raw.trim().split_once('/')?;
     Some(Caps { daily: usd(daily.trim())?, monthly: usd(monthly.trim())? })
-          }
+}
