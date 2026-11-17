@@ -269,7 +269,7 @@ fn write_no_content(stream: &mut TcpStream, cookies: &[String], cors: Option<&st
     )
 }
 
-// the console pages are a public shell; every API call they make still needs a key
+// Landing is public; interactive embedded pages also require a browser session.
 const PAGE_LANDING: &str = include_str!("../ui/landing.html");
 const PAGE_CONSOLE: &str = include_str!("../ui/console.html");
 const PAGE_PLAYGROUND: &str = include_str!("../ui/playground.html");
@@ -344,12 +344,17 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         return Ok(());
     }
 
-    // static console pages (public shell, key still required for every API call)
+    // Embedded page routes require sessions; bearer keys still protect API calls.
     if req.method == "GET" {
         match req.path.as_str() {
             "/" | "/landing.html" => return write_html(&mut stream, PAGE_LANDING, cors),
-            "/console.html" => return write_html(&mut stream, PAGE_CONSOLE, cors),
-            "/playground.html" => return write_html(&mut stream, PAGE_PLAYGROUND, cors),
+            "/console.html" | "/console" | "/playground.html" | "/playground" => {
+                if auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).is_none() {
+                    return write_redirect(&mut stream, "/", &[]);
+                }
+                let page = if req.path.starts_with("/console") { PAGE_CONSOLE } else { PAGE_PLAYGROUND };
+                return write_html(&mut stream, page, cors);
+            }
             _ => {}
         }
     }
@@ -1115,6 +1120,28 @@ mod reviewer_regressions {
         let mut client = TcpStream::connect(address).unwrap();
         write!(client,"{method} {path} HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\norigin: {origin}\r\nsec-fetch-site: {fetch_site}\r\ncontent-length: {}\r\n\r\n{body}",body.len()).unwrap();
         let mut out = String::new();client.read_to_string(&mut out).unwrap();worker.join().unwrap();out
+    }
+
+    #[test]
+    fn embedded_interactive_pages_require_session_not_bearer_key() {
+        let state=Arc::new(shared());
+        let owner=state.auth.create_session("luke",Role::Owner);
+        let friend=state.auth.create_session("sam",Role::Friend);
+        for path in ["/console.html","/playground.html","/console","/playground"] {
+            for cookie in ["", "invalid"] {
+                let response=admin_request(state.clone(),"GET",path,cookie,"","");
+                assert!(response.starts_with("HTTP/1.1 302"),"{path} admitted logged-out browser");
+                assert!(response.contains("location: /\r\n"));
+            }
+            for cookie in [&owner,&friend] {
+                assert!(admin_request(state.clone(),"GET",path,cookie,"","").starts_with("HTTP/1.1 200"));
+            }
+        }
+        state.auth.revoke(&friend);
+        assert!(admin_request(state.clone(),"GET","/console.html",&friend,"","").starts_with("HTTP/1.1 302"));
+        for path in ["/","/landing.html"] {
+            assert!(admin_request(state.clone(),"GET",path,"","","").starts_with("HTTP/1.1 200"));
+        }
     }
 
     #[test]

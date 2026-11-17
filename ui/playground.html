@@ -1,6 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-session-pending>
 <head>
+<style>html[data-session-pending] { visibility:hidden; }</style>
+<noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aqua — Playground</title>
@@ -176,7 +178,30 @@ svg{display:block}
 </script>
 
 <script>
-(function () {
+(async function () {
+  // A saved API key never substitutes for a signed-in browser session.
+  // Pages HTML is static; this is a navigation gate, not source confidentiality.
+  var me;
+  var sessionAbort = new AbortController();
+  var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
+  try {
+    var sessionResponse = await fetch(AQUA.baseUrl().replace(/\/v1$/, '') + '/auth/me', {
+      credentials: 'include', cache: 'no-store', signal: sessionAbort.signal
+    });
+    if (!sessionResponse.ok) throw Error('not signed in');
+    me = await sessionResponse.json();
+    if (!me || typeof me.login !== 'string' || !me.login ||
+        (me.role !== 'owner' && me.role !== 'friend')) throw Error('invalid session');
+  } catch (_) {
+    location.replace('/');
+    return;
+  } finally {
+    clearTimeout(sessionTimeout);
+  }
+  document.documentElement.removeAttribute('data-session-pending');
+  // Recheck cached history entries rather than restoring a logged-out screen.
+  addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
+
   var model = 'auto';
   var history = [];
   var stream = document.getElementById('aqua-stream');
