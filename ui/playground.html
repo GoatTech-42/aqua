@@ -28,6 +28,9 @@ html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
   --prose-max:88ch;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
+/* Hide scrollbar chrome while preserving wheel, touch and keyboard scrolling. */
+* { scrollbar-width:none; -ms-overflow-style:none; }
+*::-webkit-scrollbar { display:none; width:0; height:0; }
 html,body { background:var(--ground); height:100%; }
 body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 ::selection { background:var(--accent); color:var(--accent-ink); }
@@ -173,6 +176,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .details { border-left:1px solid var(--rule); padding:1.5rem 1.25rem; background:#050505; overflow-y:auto; }
 .details h2 { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--faint); margin-bottom:0.75rem; }
 .kv { display:flex; justify-content:space-between; gap:1rem; padding:0.5rem 0; font-size:0.875rem; border-bottom:1px solid var(--rule); }
+.kv[hidden] { display:none; }
 .kv .k { color:var(--faint); }
 .kv .v { color:var(--text); font-family:var(--mono); font-size:0.8125rem; text-align:right; overflow:hidden; text-overflow:ellipsis; }
 .pgnote { margin-top:1.25rem; font-size:0.8125rem; color:var(--faint); line-height:1.6; }
@@ -201,6 +205,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
       <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
       <a href="/playground.html" class="on"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
       <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
       <a href="#" id="aqua-admin-link" hidden><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1-1-1.73l.43-.25a2 2 0 0 1 2 0l.15-.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15-.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>admin</span></a>
       <div class="navlabel">models</div>
       <div class="msearch"><input id="aqua-filter" placeholder="filter models" aria-label="filter models"></div>
@@ -210,7 +215,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
     <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
   </aside>
   <main class="main">
-    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">playground</span></div>
+    <div class="phonebar"><a href="/settings.html" style="color:var(--muted);font-size:.8125rem;order:2;margin-left:auto">settings</a><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">playground</span></div>
     <div class="pg">
       <section class="conv">
         <p class="keynotice" id="aqua-keynotice" hidden></p>
@@ -323,6 +328,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   }
   var modelPrices = Object.create(null);
   var model = 'auto';
+  var showCost = true;
   var history = [];
   var stream = document.getElementById('aqua-stream');
   function addMsg(who, text, route, isErr) {
@@ -376,7 +382,12 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
       if (e.message !== 'signed out.') { rail.innerHTML = '<span class="mrow">could not load models</span>'; }
     });
   }
-  loadModels();
+  request('/v1/settings').then(function(r){if(!r.ok)throw Error('settings unavailable');return r.json();}).then(function(p){
+    if(typeof p.default_model==='string')model=p.default_model;
+    showCost=p.show_cost!==false;
+    document.getElementById('aqua-kv-cost').closest('.kv').hidden=!showCost;
+    document.getElementById('aqua-cost-note').hidden=!showCost;
+  }).catch(function(){}).finally(loadModels);
   document.getElementById('aqua-filter').addEventListener('input', function () {
     var q = this.value.toLowerCase();
     document.querySelectorAll('#aqua-rail .mrow').forEach(function (x) {
@@ -435,7 +446,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
         document.getElementById('aqua-kv-cost').textContent = cost;
         document.getElementById('aqua-cost-note').textContent = note;
         var route = used + ' · ' + dt + (usage ? (' · ' + usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '') +
-          ' · maker est. ' + cost + (cost !== '—' ? ' virtual USD' : '');
+          (showCost ? ' · maker est. ' + cost + (cost !== '—' ? ' virtual USD' : '') : '');
         pending.querySelector('.body').textContent = reply;
         pending.querySelector('.route').textContent = route;
         history.push({ role: 'assistant', content: reply });
