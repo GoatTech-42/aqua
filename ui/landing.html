@@ -131,7 +131,7 @@ h1 .dot { color:var(--accent); }
     <pre class="req"><span class="m">POST</span> /v1/chat/completions
 authorization: bearer aqua_sk_…
 {
-  "model": "dsv4.1-flash",
+  "model": "auto",
   "stream": true,
   "messages": [{"role": "user", "content": "explain sql joins in one line"}]
 }</pre>
@@ -141,14 +141,14 @@ a shared key, so related data reads as one result.<span class="caret"></span></p
   </div>
 </section>
 
-<section class="rail" id="how">
+<section class="rail" id="base">
   <div class="inner in in-4">
-    <div class="lab">one base url<div class="labsub">swap it into any openai client. your code stays the same.</div></div>
+    <div class="lab">one base url<div class="labsub">swap it into any openai client. use model: "auto" to pick a model and fail over through the configured shortlist.</div></div>
     <div class="urlbar"><span class="u" id="aqua-base">https://aqua-api.goattech.us/v1</span><button type="button" class="cp" id="aqua-copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span>copy</span></button></div>
   </div>
 </section>
 
-<section class="steps">
+<section class="steps" id="how">
   <div class="grid">
     <div class="step in"><div class="n">01</div><h2>sign in</h2><p>github sign-in opens the console. accounts are invite-only for now.</p></div>
     <div class="step in in-1"><div class="n">02</div><h2>make a key</h2><p>create a named key on the api keys page. it is shown once, and you can revoke it any time.</p></div>
