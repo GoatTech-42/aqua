@@ -59,6 +59,7 @@ struct Shared {
     spend: Mutex<crate::spend::Store>,
     unknown_owner_requests: Mutex<u64>,
     keys: Mutex<crate::keys::Store>,
+    images: crate::images::Switches,
 }
 
 pub struct Server {
@@ -98,6 +99,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
     let spend = crate::spend::Store::open(config.spend.path.clone())?;
     let shared = Arc::new(Shared {
         keys: Mutex::new(crate::keys::Store::open(config.spend.path.clone())?),
+        images: crate::images::Switches::from_env(),
         spend: Mutex::new(spend),
         unknown_owner_requests: Mutex::new(0),
         auth: Auth::new(config.oauth.clone()),
@@ -490,7 +492,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     // separate owner/admin checks. Session IDs and synthetic API keys never leave.
     let session_entry = if !req.headers.contains_key("authorization")
         && matches!((req.method.as_str(),req.path.as_str()),
-            ("GET","/v1/models") | ("POST","/v1/chat/completions") | ("GET","/v1/settings") | ("POST","/v1/settings")) {
+            ("GET","/v1/models") | ("POST","/v1/chat/completions") | ("GET","/v1/settings") | ("POST","/v1/settings") | ("POST","/v1/images/generations") | ("GET","/v1/images/models")) {
         auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id))
             .map(|(login,role)| crate::config::KeyEntry {name:login.to_ascii_lowercase(),role})
     } else {None};
@@ -538,6 +540,22 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     let quota_token = format!("login:{}",entry.name.to_ascii_lowercase());
 
     match (req.method.as_str(), req.path.as_str()) {
+        ("GET", "/v1/images/models") | ("POST", "/v1/images/generations") => {
+            if entry.role != Role::Owner {
+                let (status,body)=crate::images::Failure::Owner.response();
+                return write_json(&mut stream,status,&body,cors);
+            }
+            let store=shared.spend.lock().unwrap();
+            if !store.available() {return write_json(&mut stream,503,&err_body("settings unavailable","settings_unavailable"),cors);}
+            let strict=store.ledger.preferences.get(&entry.name).is_some_and(|p|p.zdr_only);
+            drop(store);
+            if req.method=="GET" {
+                // No qualified route. Keep image aliases out of the text catalog.
+                return write_json(&mut stream,200,&json!({"object":"list","data":[]}),cors);
+            }
+            let (status,body)=crate::images::unavailable(&req.body,true,strict,&shared.images);
+            return write_json(&mut stream,status,&body,cors);
+        }
         ("GET", "/v1/settings") => {
             let store=shared.spend.lock().unwrap();
             if !store.available() {return write_json(&mut stream,503,&err_body("settings unavailable","settings_unavailable"),cors);}
@@ -1324,6 +1342,7 @@ mod reviewer_regressions {
         };
         Shared {
             keys: Mutex::new(crate::keys::Store::open(None).unwrap()),
+            images: crate::images::Switches::default(),
             spend: Mutex::new(crate::spend::Store::open(None).unwrap()),
             unknown_owner_requests: Mutex::new(0),
             auth: Auth::new(config.oauth.clone()),
@@ -1747,4 +1766,28 @@ mod fastest_dispatch_tests {
         assert!(browser_api(state,"POST","/v1/chat/completions",&id,Some("https://aqua.test"),"same-site",None,r#"{"model":"same","messages":[]}"#).starts_with("HTTP/1.1 200"));
         assert_eq!(rx.recv_timeout(Duration::from_secs(2)).unwrap(),"fast");
     }
-                                      }
+}
+
+#[cfg(test)]
+mod image_core_http_tests {
+    use super::*;
+    use super::reviewer_regressions::{browser_api,keys_shared};
+    const BODY:&str=r#"{"model":"image-auto","prompt":"private prompt sentinel"}"#;
+    #[test]
+    fn image_owner_auth_csrf_bad_bearer_and_disabled_routes_are_closed(){
+        let state=keys_shared();let owner=state.auth.create_session("luke",Role::Owner).unwrap();let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        for origin in [None,Some("https://evil.test")]{let r=browser_api(state.clone(),"POST","/v1/images/generations",&owner,origin,"same-site",None,BODY);assert!(r.starts_with("HTTP/1.1 403"));assert!(r.contains("cache-control: no-store"));}
+        assert!(browser_api(state.clone(),"POST","/v1/images/generations",&owner,Some("https://aqua.test"),"same-site",Some("Bearer bad"),BODY).starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state.clone(),"POST","/v1/images/generations",&friend,Some("https://aqua.test"),"same-site",None,BODY).starts_with("HTTP/1.1 403"));
+        let r=browser_api(state.clone(),"POST","/v1/images/generations",&owner,Some("https://aqua.test"),"same-site",None,BODY);assert!(r.starts_with("HTTP/1.1 503"));assert!(!r.contains("private prompt sentinel"));assert!(r.contains("cache-control: no-store"));
+        let cat=browser_api(state.clone(),"GET","/v1/images/models",&owner,None,"same-site",None,"");assert!(cat.starts_with("HTTP/1.1 200"));assert!(cat.contains("\"data\":[]"));
+        assert!(state.quotas.lock().unwrap().is_empty());assert!(state.health.lock().unwrap().is_empty());assert!(state.route_latency.lock().unwrap().is_empty());
+    }
+    #[test]
+    fn image_strict_privacy_and_generated_key_use_canonical_owner(){
+        let mut s=Arc::try_unwrap(keys_shared()).ok().unwrap();let key=s.keys.get_mut().unwrap().create("luke","image fixture").unwrap();let bearer=format!("Bearer {}",key["key"].as_str().unwrap());s.spend.lock().unwrap().ledger.preferences.insert("luke".into(),crate::preferences::Preferences{zdr_only:true,default_model:"auto".into(),show_cost:true});let state=Arc::new(s);
+        let r=browser_api(state.clone(),"POST","/v1/images/generations","",None,"none",Some(&bearer),BODY);assert!(r.starts_with("HTTP/1.1 403"));assert!(!r.contains(key["key"].as_str().unwrap()));assert!(r.contains("privacy_error"));
+        // A missing/unknown model is never changed to flux or text auto.
+        let r=browser_api(state,"POST","/v1/images/generations","",None,"none",Some(&bearer),r#"{"model":"flux","prompt":"x"}"#);assert!(r.starts_with("HTTP/1.1 400"));
+    }
+}

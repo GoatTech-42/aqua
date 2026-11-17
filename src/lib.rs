@@ -1,3 +1,4 @@
+mod images;
 mod maker_pricing;
 mod preferences;
 mod keys;
