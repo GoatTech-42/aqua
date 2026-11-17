@@ -1,6 +1,8 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-session-pending>
 <head>
+<style>html[data-session-pending] { visibility:hidden; }</style>
+<noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aqua — Models</title>
@@ -259,7 +261,30 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
 </script>
 
 <script>
-(function () {
+(async function () {
+  // A saved API key never substitutes for a signed-in browser session.
+  // Pages HTML is static; this is a navigation gate, not source confidentiality.
+  var me;
+  var sessionAbort = new AbortController();
+  var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
+  try {
+    var sessionResponse = await fetch(AQUA.baseUrl().replace(/\/v1$/, '') + '/auth/me', {
+      credentials: 'include', cache: 'no-store', signal: sessionAbort.signal
+    });
+    if (!sessionResponse.ok) throw Error('not signed in');
+    me = await sessionResponse.json();
+    if (!me || typeof me.login !== 'string' || !me.login ||
+        (me.role !== 'owner' && me.role !== 'friend')) throw Error('invalid session');
+  } catch (_) {
+    location.replace('/');
+    return;
+  } finally {
+    clearTimeout(sessionTimeout);
+  }
+  document.documentElement.removeAttribute('data-session-pending');
+  // Recheck cached history entries rather than restoring a logged-out screen.
+  addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
+
   var base = AQUA.baseUrl();
   var serverOrigin = base.replace(/\/v1$/, '');
   document.querySelectorAll('[data-aqua-signin]').forEach(function (a) {
@@ -368,25 +393,16 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
     refresh.addEventListener('click',load);
     load();
   }
-  // Session identity: consumed from the OAuth backend when signed in.
-  fetch(serverOrigin + '/auth/me', { credentials: 'include' }).then(function (r) {
-    if (!r.ok) { throw new Error('not signed in'); }
-    return r.json();
-  }).then(function (me) {
-    if (me.role === 'owner') ownerUsage();
-    document.getElementById('aqua-user').textContent = me.login;
-    document.getElementById('aqua-usersub').textContent = me.role;
-    document.getElementById('aqua-avatar').textContent = (me.login || '?').charAt(0).toUpperCase();
-    var so = document.getElementById('aqua-signout');
-    so.style.display = '';
-    so.addEventListener('click', function (ev) {
-      ev.preventDefault();
-      fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.reload(); });
-    });
-  }).catch(function () {
-    document.getElementById('aqua-user').textContent = 'API key mode';
-    document.getElementById('aqua-usersub').textContent = 'not signed in';
-    document.getElementById('aqua-avatar').textContent = '-';
+  // Identity is the validated session used by the page gate above.
+  if (me.role === 'owner') ownerUsage();
+  document.getElementById('aqua-user').textContent = me.login;
+  document.getElementById('aqua-usersub').textContent = me.role;
+  document.getElementById('aqua-avatar').textContent = me.login.charAt(0).toUpperCase();
+  var so = document.getElementById('aqua-signout');
+  so.style.display = '';
+  so.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
   });
   document.getElementById('aqua-copy').addEventListener('click', function () {
     navigator.clipboard.writeText(base).then(function () {
