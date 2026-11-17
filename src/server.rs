@@ -46,6 +46,8 @@ struct Shared {
     agent: ureq::Agent,
     auth: Auth,
     quotas: Mutex<HashMap<String, Quota>>,
+    // Standard Z.AI account limit is one active inference, across all models.
+    zai_in_flight: AtomicBool,
     auth_failures: Mutex<HashMap<String, (u32, Instant)>>,
     health: Mutex<HashMap<String, Cooldown>>,
     spend: Mutex<crate::spend::Store>,
@@ -94,6 +96,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         config,
         agent,
         quotas: Mutex::new(HashMap::new()),
+        zai_in_flight: AtomicBool::new(false),
         auth_failures: Mutex::new(HashMap::new()),
         health: Mutex::new(HashMap::new()),
     });
@@ -775,6 +778,16 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         if !tried.insert(p.id.as_str()) {
             continue;
         }
+        // Nonblocking local account permit, acquired before spend admission.
+        // Keep it for this whole attempt, including the full JSON/SSE body and
+        // all early exits. Busy is not provider 429 evidence: no cooldown or
+        // fabricated Retry-After, and exact-model fallback may still proceed.
+        let _provider_slot = if p.id == "zai" {
+            if shared.zai_in_flight.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_err() {
+                continue;
+            }
+            Some(ProviderSlot(&shared.zai_in_flight))
+        } else { None };
         let mut up_body = serde_json::Map::new();
         for k in PARAM_WHITELIST {
             if let Some(v) = payload.get(*k) {
@@ -919,6 +932,12 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     } else {
         write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors)
     }
+}
+
+// RAII release also covers invalid responses, network errors and client exits.
+struct ProviderSlot<'a>(&'a AtomicBool);
+impl Drop for ProviderSlot<'_> {
+    fn drop(&mut self) { self.0.store(false, Ordering::Release); }
 }
 
 const COOLDOWN_SOFT_SECS: u64 = 15;
@@ -1081,6 +1100,7 @@ mod reviewer_regressions {
             config,
             agent: ureq::Agent::new_with_defaults(),
             quotas: Mutex::new(HashMap::new()),
+            zai_in_flight: AtomicBool::new(false),
             auth_failures: Mutex::new(HashMap::new()),
             health: Mutex::new(HashMap::new()),
         }
