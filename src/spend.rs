@@ -60,11 +60,45 @@ struct Reservation { user: String, model: String, day: String, amount: u64, capp
 pub struct Ledger {
     pub users: BTreeMap<String, UserUsage>,
     pub caps: BTreeMap<String, Caps>,
+    #[serde(default)]
+    pub accounts: BTreeMap<String, AccountUsage>,
     next_id: u64,
     reservations: BTreeMap<u64, Reservation>,
 }
 
+// Account resources are charged in full before dispatch. Unknown outcomes never
+// refund an allowance. Neurons use integer micro-neurons; calls use whole units.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct AccountUsage {
+    pub day: String,
+    pub total: u64,
+    pub friends: u64,
+    pub users: BTreeMap<String,u64>,
+    pub models: BTreeMap<String,u64>,
+}
+
 impl Ledger {
+    pub fn admit_account(&mut self, account: &str, day: &str, user: &str, owner: bool,
+        model: &str, amount: u64, total_cap: u64, friend_cap: u64, user_cap: u64, model_cap: u64)
+        -> Result<(), &'static str> {
+        if !matches!(account,"cloudflare"|"openrouter") || amount == 0 || user.is_empty() || user.len()>128 || model.len()>256 {
+            return Err("invalid account admission");
+        }
+        let mut next=self.accounts.get(account).cloned().unwrap_or_default();
+        if next.day.as_str()>day { return Err("account clock moved backwards"); }
+        if next.day!=day { next=AccountUsage {day:day.into(),..Default::default()}; }
+        // Bound allocation at admission, not just serialized state size.
+        if !next.users.contains_key(user) && next.users.len()>=1024 { return Err("account users full"); }
+        if !next.models.contains_key(model) && next.models.len()>=32 { return Err("account models full"); }
+        let total=next.total.checked_add(amount).ok_or("account overflow")?;
+        let friends=next.friends.checked_add(if owner {0}else{amount}).ok_or("account overflow")?;
+        let calls=next.users.get(user).copied().unwrap_or(0).checked_add(1).ok_or("account overflow")?;
+        let model_calls=next.models.get(model).copied().unwrap_or(0).checked_add(1).ok_or("account overflow")?;
+        if total>total_cap || friends>friend_cap || (!owner && calls>user_cap) || model_calls>model_cap {return Err("account cap reached");}
+        next.total=total;next.friends=friends;next.users.insert(user.into(),calls);next.models.insert(model.into(),model_calls);
+        self.accounts.insert(account.into(),next);Ok(())
+    }
+
     pub fn reserve(&mut self, user: &str, model: &str, day: &str, amount: u64, cap: Option<Caps>) -> Result<u64, &'static str> {
         if day.len() != 10 || !day.is_ascii() || day.as_bytes()[4] != b'-' || day.as_bytes()[7] != b'-' { return Err("invalid accounting day"); }
         let month = &day[..7];
@@ -167,6 +201,7 @@ impl Store {
         ledger.reservations.clear();
         Ok(Self { ledger, path, failed: false, _lock: lock })
     }
+    pub fn durable(&self) -> bool { self.path.is_some() && !self.failed }
     pub fn available(&self) -> bool { !self.failed }
     pub fn change<T>(&mut self, f: impl FnOnce(&mut Ledger) -> Result<T, &'static str>) -> Result<T, String> {
         if self.failed { return Err("spend state unavailable until restart".into()); }
@@ -221,6 +256,8 @@ pub fn usage(json: &serde_json::Value) -> Option<(u64,u64)> {
 #[derive(Clone, Debug)]
 pub struct Settings {
     pub enabled: bool,
+    pub account_verified_day: String,
+    pub openrouter_allowance: u64,
     pub path: Option<std::path::PathBuf>,
     pub prices: BTreeMap<String, Price>,
     pub access: BTreeMap<String, bool>,
@@ -239,13 +276,18 @@ impl Default for Settings {
             ("deepseek-v4.1-flash-1017", 300_000_000, 1_200_000_000),
             ("qwen-3.8-27b", 500_000_000, 3_000_000_000),
         ] { prices.insert(name.into(), Price { input, output }); }
-        Self { enabled: false, path: None, prices, access: BTreeMap::new(), caps: BTreeMap::new(), default_caps: FRIEND_CAPS, error: None }
+        Self { account_verified_day: String::new(), openrouter_allowance: 0, enabled: false, path: None, prices, access: BTreeMap::new(), caps: BTreeMap::new(), default_caps: FRIEND_CAPS, error: None }
     }
 }
 impl Settings {
     pub fn from_env() -> Self {
         let mut out = Self { enabled: true, path: Some(std::path::PathBuf::from("aqua-spend.json")), ..Self::default() };
         let result = (|| -> Result<(), String> {
+            out.account_verified_day=std::env::var("AQUA_ACCOUNT_VERIFIED_UTC_DAY").unwrap_or_default();
+            out.openrouter_allowance=match std::env::var("AQUA_OPENROUTER_VERIFIED_REMAINING") {
+                Ok(raw)=>raw.parse::<u64>().ok().filter(|n|*n<=50).ok_or("invalid OpenRouter remaining")?.saturating_sub(10).min(40),
+                Err(_)=>0,
+            };
             if let Ok(path) = std::env::var("AQUA_SPEND_STATE_PATH") {
                 if path.trim().is_empty() { return Err("empty AQUA_SPEND_STATE_PATH".into()); }
                 out.path = Some(path.into());
