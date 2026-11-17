@@ -117,6 +117,51 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
   .row .qline { display:block; }
 }
 .row .qline { display:none; font-size:12px; color:var(--faint); grid-column:1; margin-top:2px; }
+
+/* Contain intrinsic endpoint/table widths without changing the shell's scale. */
+.main { min-width:0; }
+.endpoint { flex-wrap:wrap; }
+.urlbar { max-width:100%; min-width:0; }
+.urlbar .u { min-width:0; overflow:hidden; white-space:nowrap; }
+.table { overflow-x:auto; }
+.foot { flex-wrap:wrap; }
+/* The existing canvas owns the frame; one full-width section, no new shell. */
+.usage-panel { margin-top:24px; padding:20px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); }
+.usage-panel[hidden] { display:none; }
+.usage-title { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.usage-panel h2 { font-size:18px; font-weight:600; }
+.usage-panel h3 { font-size:14px; font-weight:600; }
+.usage-note { font-size:13px; color:var(--muted); margin-top:8px; max-width:80ch; }
+.usage-panel button,.usage-panel input { font:inherit; min-height:38px; border:1px solid var(--control); border-radius:var(--radius-control); }
+.usage-panel button { color:var(--text); background:transparent; padding:0 12px; cursor:pointer; }
+.usage-panel button:hover { border-color:var(--text); }
+.usage-panel button:disabled { color:var(--muted); cursor:wait; }
+.usage-panel :focus-visible { outline:2px solid var(--text); outline-offset:3px; }
+.usage-account { padding:16px 0; border-bottom:1px solid var(--line); }
+.usage-account-head { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; }
+.usage-account-name { font-weight:600; overflow-wrap:anywhere; }
+.usage-account-totals { font-variant-numeric:tabular-nums; }
+.usage-models { margin-top:8px; color:var(--muted); font-size:12px; }
+.usage-models summary { cursor:pointer; min-height:28px; }
+.usage-model-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:4px 0; font-variant-numeric:tabular-nums; }
+.usage-model-row span:first-child { overflow-wrap:anywhere; }
+.usage-model-row span:last-child { text-align:right; }
+.cap-form { margin-top:20px; }
+/* Four columns sum to the section's inner width; minmax keeps the identity flexible. */
+.cap-fields { display:grid; grid-template-columns:minmax(120px,1fr) minmax(90px,.6fr) minmax(90px,.6fr) auto; align-items:end; gap:12px; margin-top:16px; }
+.cap-fields label { display:flex; flex-direction:column; gap:8px; font-size:13px; min-width:0; }
+.cap-fields input { background:var(--ground); color:var(--text); width:100%; padding:8px 10px; }
+#aqua-cap-save { background:var(--text); color:var(--ground); }
+@media(max-width:1000px) { .cap-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:760px) {
+ .usage-panel { padding:16px; }
+ .usage-panel button,.usage-panel input { min-height:44px; }
+ .usage-account-head { flex-direction:column; gap:6px; }
+ .usage-account-totals { font-size:14px; }
+ .usage-model-row { grid-template-columns:1fr; gap:2px; padding:6px 0; }
+ .usage-model-row span:last-child { text-align:left; }
+ .cap-fields { grid-template-columns:1fr; }
+}
 </style>
 </head>
 <body>
@@ -143,6 +188,25 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
         <div class="lab">One endpoint<div class="labsub">OpenAI-compatible. Swap the base URL, keep your code.</div></div>
         <div class="urlbar"><span class="u" id="aqua-base"></span><span class="cp" id="aqua-copy" style="cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy</span></div>
       </div>
+
+<section class="usage-panel" id="aqua-usage" hidden aria-labelledby="aqua-usage-title">
+  <div class="usage-title"><h2 id="aqua-usage-title">Usage &amp; limits</h2><button type="button" id="aqua-usage-refresh">Refresh</button></div>
+  <p class="usage-note">Virtual USD at model list prices, not a bill. Your owner account is uncapped. Daily and monthly windows use UTC.</p>
+  <p class="usage-note" id="aqua-usage-status" role="status" aria-live="polite">Loading usage...</p>
+  <div id="aqua-usage-accounts"></div>
+  <form id="aqua-cap-form" class="cap-form">
+    <h3>Friend limits</h3>
+    <p class="usage-note" id="aqua-cap-defaults">Loading default friend limits...</p>
+    <div class="cap-fields">
+      <label>Account name<input id="aqua-cap-name" name="name" required maxlength="128" autocomplete="off" list="aqua-cap-accounts"></label>
+      <datalist id="aqua-cap-accounts"></datalist>
+      <label>Daily virtual USD<input id="aqua-cap-daily" name="daily" required inputmode="decimal" value="2" pattern="[0-9]+(\.[0-9]{1,9})?"></label>
+      <label>Monthly virtual USD<input id="aqua-cap-monthly" name="monthly" required inputmode="decimal" value="15" pattern="[0-9]+(\.[0-9]{1,9})?"></label>
+      <button type="submit" id="aqua-cap-save">Save limits</button>
+    </div>
+    <p class="usage-note" id="aqua-cap-message" role="status" aria-live="polite"></p>
+  </form>
+</section>
       <div class="tabsrow">
         <div class="tabs">
           <a class="tab on" href="/console.html">All models</a>
@@ -213,11 +277,95 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
     st.appendChild(pill); row.appendChild(st);
     return row;
   }
+
+  function ownerUsage() {
+    var panel=document.getElementById('aqua-usage');
+    var status=document.getElementById('aqua-usage-status');
+    var accounts=document.getElementById('aqua-usage-accounts');
+    var refresh=document.getElementById('aqua-usage-refresh');
+    var form=document.getElementById('aqua-cap-form');
+    var name=document.getElementById('aqua-cap-name');
+    var daily=document.getElementById('aqua-cap-daily');
+    var monthly=document.getElementById('aqua-cap-monthly');
+    var message=document.getElementById('aqua-cap-message');
+    var save=document.getElementById('aqua-cap-save');
+    var current=null;
+    panel.hidden=false;
+    function element(tag,cls,text) {
+      var node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;
+    }
+    function money(value) {
+      if(!Number.isSafeInteger(value)||value<0)return 'Unavailable';
+      if(value>0&&value<1000)return '<$0.000001';
+      return '$'+(value/1e9).toLocaleString('en-US',{minimumFractionDigits:6,maximumFractionDigits:6});
+    }
+    function total(window,field) {
+      return Object.values(window.models||{}).reduce(function(sum,m){return sum+m[field];},0);
+    }
+    function request(path,options) {
+      options=options||{};options.credentials='include';
+      return fetch(serverOrigin+path,options).then(function(r){
+        if(!r.ok)throw Error(r.status===401?'Owner sign-in required.':r.status===403?'Request not allowed from this origin.':'Request failed (HTTP '+r.status+').');
+        return r.json();
+      });
+    }
+    function load() {
+      refresh.disabled=true;
+      return request('/v1/admin/usage').then(function(data){
+        if(!current){daily.value=String(data.default_friend_caps.daily/1e9);monthly.value=String(data.default_friend_caps.monthly/1e9);}
+        document.getElementById('aqua-cap-defaults').textContent='Defaults: '+money(data.default_friend_caps.daily)+' per day and '+money(data.default_friend_caps.monthly)+" per month. Saving changes only this account's virtual USD limits.";
+        current=data;accounts.textContent='';
+        var options=document.getElementById('aqua-cap-accounts');options.textContent='';
+        var names=Object.keys(data.users||{});
+        if(!names.length)accounts.appendChild(element('p','usage-note','No usage recorded. New friend accounts use the default limits.'));
+        names.sort(function(a,b){return (data.users[a].cap===null?-1:0)-(data.users[b].cap===null?-1:0)||a.localeCompare(b);}).forEach(function(account){
+          var user=data.users[account],owner=user.cap===null;
+          var row=element('div','usage-account');
+          var head=element('div','usage-account-head');head.appendChild(element('span','usage-account-name',account+(owner?' - Uncapped':'')));
+          head.appendChild(element('span','usage-account-totals','Today '+money(total(user.day,'confirmed'))+' / Month '+money(total(user.month,'confirmed'))));row.appendChild(head);
+          if(!owner){
+            row.appendChild(element('p','usage-note','Limits: '+money(user.cap.daily)+' daily / '+money(user.cap.monthly)+' monthly'));
+            var option=element('option','',account);option.value=account;options.appendChild(option);
+          }
+          var dayHeld=total(user.day,'held'),monthHeld=total(user.month,'held');
+          if(dayHeld||monthHeld)row.appendChild(element('p','usage-note','Reserved: '+money(dayHeld)+' today / '+money(monthHeld)+' this month. Includes in-flight or unreported usage.'));
+          if(user.unknown_requests)row.appendChild(element('p','usage-note',user.unknown_requests+' request(s) with unknown usage across recorded history. Totals are incomplete.'));
+          if(user.accounting_error)row.appendChild(element('p','usage-note','Accounting bound exceeded. Friend access is blocked until repaired.'));
+          var models=Array.from(new Set(Object.keys(user.day.models||{}).concat(Object.keys(user.month.models||{}))));
+          if(models.length){
+            var details=element('details','usage-models');details.appendChild(element('summary','','Usage by model'));
+            models.sort().forEach(function(model){
+              var day=user.day.models[model]||{confirmed:0},month=user.month.models[model]||{confirmed:0};
+              var line=element('div','usage-model-row');line.appendChild(element('span','',model));line.appendChild(element('span','','Today '+money(day.confirmed)+' / Month '+money(month.confirmed)));details.appendChild(line);
+            });row.appendChild(details);
+          }
+          accounts.appendChild(row);
+        });
+        var gaps=data.unknown_owner_requests_since_startup||0;
+        if(!data.accounting_available||data.configuration_error||gaps){status.textContent='Accounting unavailable or incomplete. Owner requests remain uncapped; '+gaps+' owner request(s) were not recorded since startup. Do not treat these totals as complete.';}
+        else status.textContent='Updated '+new Date().toLocaleTimeString()+'. Confirmed usage only; reservations are shown separately.';
+      }).catch(function(e){status.textContent='Usage unavailable. '+e.message+' Any figures still shown are from the last successful refresh.';}).finally(function(){refresh.disabled=false;});
+    }
+    name.addEventListener('change',function(){
+      var user=current&&current.users&&current.users[name.value];
+      if(user&&user.cap){daily.value=(user.cap.daily/1e9).toFixed(9).replace(/\.?0+$/,'');monthly.value=(user.cap.monthly/1e9).toFixed(9).replace(/\.?0+$/,'');}
+    });
+    form.addEventListener('submit',function(e){
+      e.preventDefault();if(save.disabled)return;
+      var account=name.value.trim(),user=current&&current.users&&current.users[account];
+      if(user&&user.cap===null){message.textContent='Owner usage is uncapped. Choose a friend account.';return;}
+      save.disabled=true;message.textContent='Saving limits...';
+      request('/v1/admin/caps',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:account,daily:daily.value,monthly:monthly.value})}).then(function(){message.textContent='Saved limits for '+account+'.';return load();}).catch(function(e){message.textContent='Limits were not saved. '+e.message;}).finally(function(){save.disabled=false;});
+    });
+    refresh.addEventListener('click',load);
+    load();
+  }
   // Session identity: consumed from the OAuth backend when signed in.
   fetch(serverOrigin + '/auth/me', { credentials: 'include' }).then(function (r) {
     if (!r.ok) { throw new Error('not signed in'); }
     return r.json();
   }).then(function (me) {
+    if (me.role === 'owner') ownerUsage();
     document.getElementById('aqua-user').textContent = me.login;
     document.getElementById('aqua-usersub').textContent = me.role;
     document.getElementById('aqua-avatar').textContent = (me.login || '?').charAt(0).toUpperCase();
