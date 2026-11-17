@@ -1,7 +1,9 @@
 # Image core, qualification locked
 
 This packet adds only owner-authenticated POST /v1/images/generations and
-GET /v1/images/models. No image network connector exists in this packet.
+GET /v1/images/models. No image provider network connector exists in this packet.
+The later generic transport qualification helper is described in IMAGES-TRANSPORT.md;
+it is not wired to a provider or this endpoint.
 The catalog is empty and valid owner requests return503, including when
 AQUA_IMAGES_CLASSIC=1 or AQUA_IMAGES_HORDE=1. Both are off when unset. These
 switches are requested configuration, not enablement or qualification grants.
@@ -9,8 +11,8 @@ No CF/Logfare/video signup, credit, key or connector is added.
 
 Request subset: model=image-auto,prompt,n=1,size=512x512,response_format=b64_json.
 Pinned flux and text auto are rejected, not silently changed. No URL response,
-artifact store, external job lookup, decoder, SSRF client, or real cancellation
-exists. All such behavior remains a hard connector qualification gate.
+artifact store, external job lookup, decoder, or real cancellation
+exists. A separate generic pinned transport helper exists but is unused by this endpoint. All such behavior remains a hard connector qualification gate.
 
 The module contains pure/fixture-backed admission, ordering, deadline and
 privacy-boundary policy, NOT active production network or cancellation code.
@@ -36,15 +38,16 @@ No 402/payment/challenge/moderation fallback. No IP/key rotation.
 Qualification requires actual connecting-client public-IP pinning with correct
 SNI/certificate verification, no proxies/env bypass/redirects, exact verified
 result hosts, HTTPS443,no userinfo,numeric-host aliases,private/mappedIPv4/IPv6.
-Never forward Horde key/cookie to result storage. Current core cannot download
-anything, so no SSRF-safe download is claimed yet. Current dependency graph
+Never forward Horde key/cookie to result storage. Current endpoint cannot download
+anything. The separate generic transport has only loopback fixture qualification,
+not a Horde result-host or provider contract. Current dependency graph
 has no bounded JPEG/PNG/WebP decoder. Magic/MIME/dimensions alone are not enough.
 Add a reviewed decoder with header/pixel/byte/CPU bounds BEFORE allocation,
 single frame, hard body caps withoutContent-Length. Reject faulted,censored,
 csam,zero-result; never evade moderation via fallback. Base64+JSON overhead
 must fit the bounded envelope. All current JSON responses/errors are no-store.
 Upstream client and reverse-proxy/access-log redaction must also be verified
-before any connector enablement; current core has no prompt-bearing HTTPclient.
+before any connector enablement; current endpoint has no prompt-bearing HTTPclient caller.
 
 No image route appears in text models/auto and no text config/schema changed.
 Existing owner settings/accounting/revocations are not altered by image

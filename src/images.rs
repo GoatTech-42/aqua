@@ -80,13 +80,13 @@ pub struct Policy {
     latency:HashMap<Lane,u64>,
 }
 impl Policy {
-    pub fn admit(&mut self,now:Instant)->Result<(),Failure>{
+    fn admit(&mut self,now:Instant)->Result<(),Failure>{
         if self.active{return Err(Failure::Busy)}
         self.recent.retain(|t|now.saturating_duration_since(*t)<Duration::from_secs(60));
         if self.recent.len()>=2{return Err(Failure::Rate)}
         self.active=true;self.recent.push(now);Ok(())
     }
-    pub fn release(&mut self){self.active=false}
+    fn release(&mut self){self.active=false}
     pub fn before_classic(&mut self,now:Instant,durable_written:bool)->Result<(),Failure>{
         // A future caller MUST durably reserve the public-egress-IP cooldown
         // before starting HTTP. Restart alone cannot erase that reservation.
@@ -102,7 +102,7 @@ impl Policy {
         // Caller must include queue, status and full image download+validation.
         // HTTP202 and header/error responses must never reach this method.
         let us=elapsed.as_micros().min(u64::MAX as u128)as u64;
-        self.latency.entry(lane).and_modify(|old|*old=(*old/4)*3+us/4).or_insert(us);
+        self.latency.entry(lane).and_modify(|old|*old=((3u128*(*old as u128)+us as u128)/4)as u64).or_insert(us);
     }
     pub fn remaining(start:Instant,now:Instant)->Result<Duration,Failure>{
         REQUEST_BUDGET.checked_sub(now.saturating_duration_since(start)).filter(|d|!d.is_zero()).ok_or(Failure::Deadline)
@@ -159,14 +159,15 @@ mod tests {
 // lock immediately before each external prompt-bearing action. A toggle after
 // this boundary cannot retract a send. No retrospective ZDR promise is made.
 #[derive(Default)]
-pub struct Flow { submitted:bool, cancelled:bool }
+pub struct Flow { submitted:bool, cancelled:bool, terminal:Option<Failure> }
 impl Flow {
     pub fn before_prompt_action(&mut self,strict_now:bool,disconnected:bool,start:Instant,now:Instant)->Result<(),Failure>{
-        if disconnected || Policy::remaining(start,now).is_err(){self.cancelled=self.submitted;return Err(Failure::Deadline)}
-        if strict_now {self.cancelled=self.submitted;return Err(Failure::Privacy)}
+        if let Some(reason)=self.terminal{return Err(reason)}
+        if disconnected || Policy::remaining(start,now).is_err(){self.cancelled=self.submitted;self.terminal=Some(Failure::Deadline);return Err(Failure::Deadline)}
+        if strict_now {self.cancelled=self.submitted;self.terminal=Some(Failure::Privacy);return Err(Failure::Privacy)}
         Ok(())
     }
-    pub fn sent(&mut self){self.submitted=true}
+    pub fn sent(&mut self){if self.terminal.is_none(){self.submitted=true}}
     pub fn cancel_due(&self)->bool{self.cancelled}
 }
 #[cfg(test)]
@@ -179,4 +180,46 @@ mod flow_tests {
     #[test] fn disconnect_and_deadline_mark_owned_job_for_best_effort_cancel(){
         let t=Instant::now();for disconnected in [false,true]{let mut f=Flow::default();f.sent();let now=if disconnected{t}else{t+REQUEST_BUDGET};assert_eq!(f.before_prompt_action(false,disconnected,t,now),Err(Failure::Deadline));assert!(f.cancel_due());}
     }
-          }
+}
+
+#[cfg(test)]
+mod terminal_regressions {
+    use super::*;
+    #[test]
+    fn cancelled_flow_cannot_resume_after_privacy_is_relaxed() {
+        let t=Instant::now(); let mut f=Flow::default(); f.sent();
+        assert_eq!(f.before_prompt_action(true,false,t,t),Err(Failure::Privacy));
+        assert!(f.before_prompt_action(false,false,t,t).is_err());
+    }
+    #[test]
+    fn equal_latency_samples_do_not_decay_due_to_rounding() {
+        let mut p=Policy::default();
+        p.completed_validated_image(Lane::Classic,Duration::from_micros(3));
+        p.completed_validated_image(Lane::Classic,Duration::from_micros(3));
+        assert_eq!(p.latency[&Lane::Classic],3);
+        p.completed_validated_image(Lane::Horde,Duration::from_micros(u64::MAX));
+        p.completed_validated_image(Lane::Horde,Duration::from_micros(u64::MAX));
+        assert_eq!(p.latency[&Lane::Horde],u64::MAX);
+    }
+}
+
+pub struct Permit { policy:std::sync::Arc<std::sync::Mutex<Policy>> }
+impl Permit {
+    pub fn acquire(policy:&std::sync::Arc<std::sync::Mutex<Policy>>,now:Instant)->Result<Self,Failure>{
+        policy.lock().map_err(|_|Failure::Unavailable)?.admit(now)?;
+        Ok(Self{policy:policy.clone()})
+    }
+}
+impl Drop for Permit {fn drop(&mut self){if let Ok(mut policy)=self.policy.lock(){policy.release()}}}
+#[cfg(test)]
+mod permit_regression {
+    use super::*;
+    #[test]
+    fn dropped_permit_releases_concurrency_but_not_rate_reservations(){
+        let p=std::sync::Arc::new(std::sync::Mutex::new(Policy::default()));let t=Instant::now();
+        let first=Permit::acquire(&p,t).unwrap();assert!(matches!(Permit::acquire(&p,t),Err(Failure::Busy)));
+        drop(first);let second=Permit::acquire(&p,t).unwrap();drop(second);
+        assert!(matches!(Permit::acquire(&p,t),Err(Failure::Rate)));
+        assert!(Permit::acquire(&p,t+Duration::from_secs(60)).is_ok());
+    }
+        }
