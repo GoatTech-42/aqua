@@ -199,7 +199,8 @@ svg{display:block}
     clearTimeout(sessionTimeout);
   }
   document.documentElement.removeAttribute('data-session-pending');
-  // Recheck cached history entries rather than restoring a logged-out screen.
+  // Hide before history capture; restore must recheck the session before reveal.
+  addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
   addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
 
   var model = 'auto';
