@@ -973,4 +973,4 @@ fn spend_upstream_server_error_is_ambiguous_and_keeps_the_hold() {
     assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),503);
     let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
     assert_eq!(data["users"]["sam"]["day"]["models"]["coder-a"]["held"],20000);
-                                                                                       }
+}
