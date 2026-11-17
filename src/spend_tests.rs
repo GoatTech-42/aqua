@@ -191,4 +191,4 @@ fn parent_directory_symlink_cannot_create_a_second_ledger_budget() {
     let first=Store::open(Some(dir.join("real/state.json"))).unwrap();
     assert!(Store::open(Some(dir.join("alias/state.json"))).is_err());
     drop(first);let _=std::fs::remove_dir_all(dir);
-  }
+}
