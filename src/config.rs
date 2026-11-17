@@ -79,6 +79,7 @@ pub struct Config {
     pub allowed_origin: String,
     pub providers: Vec<Provider>,
     pub oauth: OAuthConfig,
+    pub spend: crate::spend::Settings,
     // ordered canonical model names the "auto" alias walks, model first,
     // then every eligible provider carrying that model. Empty: auto disabled.
     pub auto_shortlist: Vec<String>,
@@ -259,6 +260,7 @@ pub fn from_env() -> Config {
     };
     let meta = parse_model_meta(env("AQUA_MODEL_META"));
     Config {
+        spend: crate::spend::Settings::from_env(),
         keys,
         admin_key: env("AQUA_ADMIN_KEY").unwrap_or_default(),
         daily_limit: env("AQUA_DAILY_LIMIT").and_then(|v| v.parse().ok()).unwrap_or(200),
