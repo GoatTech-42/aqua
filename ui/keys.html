@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en" data-session-pending>
+<head>
+<style>html[data-session-pending] { visibility:hidden; }</style>
+<noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aqua — api keys</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/aqua.css">
+<style>
+/* keys page specifics (shell comes from aqua.css) */
+.newkey { margin-top:1.5rem; padding:1.125rem 1.25rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); }
+.newkey .nk-row { display:flex; gap:0.75rem; align-items:stretch; }
+.newkey input { flex:1; min-width:0; min-height:2.375rem; padding:0 0.75rem; background:var(--ground); color:var(--text);
+  border:1px solid var(--control); border-radius:var(--radius-control); font:inherit; font-size:0.9375rem; }
+.newkey input:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+.nk-hint { margin-top:0.5625rem; font-size:0.8125rem; color:var(--faint); }
+
+.reveal { margin-top:1rem; padding:1.125rem 1.25rem; background:var(--surface); border:1px solid var(--accent); border-radius:var(--radius-card); }
+.reveal[hidden] { display:none; }
+.reveal .rv-title { display:flex; align-items:center; gap:0.5rem; font-size:0.9375rem; font-weight:600; }
+.reveal .rv-title svg { color:var(--accent); flex:none; width:1rem; height:1rem; }
+.reveal .rv-key { margin-top:0.625rem; display:flex; align-items:stretch; max-width:44rem; }
+.reveal .rv-key .k { flex:1; min-width:0; display:flex; align-items:center; padding:0 0.875rem; min-height:2.5rem; background:#000;
+  border:1px solid var(--control); border-right:none; border-radius:var(--radius-control) 0 0 var(--radius-control);
+  font-family:var(--mono); font-size:0.875rem; color:#c8eff5; overflow-x:auto; white-space:nowrap; }
+.reveal .rv-key .cp { display:inline-flex; align-items:center; gap:0.375rem; padding:0 0.875rem; background:#fff; color:#000;
+  border:1px solid #fff; border-radius:0 var(--radius-control) var(--radius-control) 0; font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; }
+.reveal .rv-key .cp svg { width:0.875rem; height:0.875rem; }
+.reveal .rv-note { margin-top:0.5625rem; font-size:0.8125rem; color:var(--muted); }
+
+.thead, .krow { display:grid; grid-template-columns:minmax(8rem,1.2fr) minmax(12rem,1.4fr) 9rem 9rem 6.5rem; align-items:center; gap:0.875rem; }
+.krow { min-height:3.25rem; border-top:1px solid var(--rule); padding:0.5rem 0; }
+.krow:hover { background:#070707; }
+.krow .nm { font-size:0.9375rem; font-weight:500; overflow-wrap:anywhere; }
+.krow .mk { font-family:var(--mono); font-size:0.875rem; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.krow .dt { font-size:0.875rem; color:var(--muted); }
+.krow .dt.never { color:var(--faint); }
+.krow .acts { display:flex; justify-content:flex-end; }
+.rv-btn { min-height:1.875rem; padding:0 0.75rem; font-size:0.8125rem; }
+.rv-btn.arming { border-color:#e3b341; color:#e3b341; }
+
+@media (max-width: 760px) {
+  .thead { display:none; }
+  .newkey .nk-row { flex-direction:column; }
+  .newkey input, .newkey .btn { min-height:2.75rem; }
+  .krow { grid-template-columns:minmax(0,1fr) auto; row-gap:2px; padding:0.75rem 0; }
+  .krow .mk { grid-column:1; }
+  .krow .dt { grid-column:1; }
+  .krow .acts { grid-column:2; grid-row:1 / span 3; align-self:center; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <div class="nav">
+      <div class="navlabel">gateway</div>
+      <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html" class="on"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="#" id="aqua-admin-link" hidden><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>admin</span></a>
+    </div>
+    <div class="spacer"></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
+  </aside>
+  <div class="main">
+    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span></div>
+    <div class="canvas">
+      <div class="titlerow aqua-in"><h1>api keys</h1></div>
+      <p class="sub aqua-in aqua-in-1">keys authenticate apps to the aqua endpoint. they are shown once, then only masked.</p>
+      <p class="stateline err" id="aqua-keynotice" hidden></p>
+
+      <form class="newkey aqua-in aqua-in-2" id="aqua-newkey">
+        <div class="nk-row">
+          <input id="aqua-keyname" name="name" maxlength="64" autocomplete="off" placeholder="key name, e.g. laptop" required>
+          <button type="submit" class="btn btn-solid" id="aqua-create">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg>
+            create key
+          </button>
+        </div>
+        <p class="nk-hint">up to 16 keys. 1-64 characters, no control characters.</p>
+      </form>
+
+      <div class="reveal" id="aqua-reveal" hidden>
+        <div class="rv-title">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+          <span id="aqua-reveal-title">key created</span>
+        </div>
+        <div class="rv-key">
+          <span class="k" id="aqua-reveal-key"></span>
+          <button type="button" class="cp" id="aqua-reveal-copy">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+            <span>copy</span>
+          </button>
+        </div>
+        <p class="rv-note">shown once. copy it now — aqua stores only the masked version.</p>
+      </div>
+
+      <p class="stateline" id="aqua-status" role="status" aria-live="polite">loading keys...</p>
+
+      <div class="table aqua-in aqua-in-3" id="aqua-table" hidden>
+        <div class="thead"><span class="h">name</span><span class="h">key</span><span class="h">created</span><span class="h">last used</span><span class="h" style="text-align:right"></span></div>
+        <div id="aqua-rows"></div>
+      </div>
+      <div class="empty" id="aqua-empty" hidden>no keys yet. create one above to use the api from your own apps.</div>
+
+      <div class="foot"><span>use a key as a bearer token against the base url on the models page.</span><span><a href="/console.html">models</a> · <a href="/playground.html">playground</a></span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var storedBase = localStorage.getItem('aqua_api_base');
+  if (location.hostname === 'aqua.goattech.us' &&
+      (storedBase === 'https://api.aqua.goattech.us/v1' || storedBase === 'https://api.aqua.goattech.us/v1/')) {
+    storedBase = 'https://aqua-api.goattech.us/v1';
+    localStorage.setItem('aqua_api_base', storedBase);
+  }
+  var base = storedBase || (location.hostname === 'aqua.goattech.us' ? 'https://aqua-api.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua-api.goattech.us/v1'));
+  window.AQUA = { baseUrl: function () { return base; } };
+})();
+</script>
+
+<script>
+(async function () {
+  // Session gate: static HTML, so this is a navigation gate, not source confidentiality.
+  var me;
+  var sessionAbort = new AbortController();
+  var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
+  var serverOrigin = AQUA.baseUrl().replace(/\/v1$/, '');
+  try {
+    var sessionResponse = await fetch(serverOrigin + '/auth/me', {
+      credentials: 'include', cache: 'no-store', signal: sessionAbort.signal
+    });
+    if (!sessionResponse.ok) throw Error('not signed in');
+    me = await sessionResponse.json();
+    if (!me || typeof me.login !== 'string' || !me.login ||
+        (me.role !== 'owner' && me.role !== 'friend')) throw Error('invalid session');
+  } catch (_) {
+    location.replace('/');
+    return;
+  } finally {
+    clearTimeout(sessionTimeout);
+  }
+  document.documentElement.removeAttribute('data-session-pending');
+  addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
+  addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
+
+  document.getElementById('aqua-user').textContent = me.login;
+  document.getElementById('aqua-usersub').textContent = me.role;
+  document.getElementById('aqua-avatar').textContent = me.login.charAt(0).toUpperCase();
+  if (me.role === 'owner') {
+    var adminLink = document.getElementById('aqua-admin-link');
+    adminLink.href = serverOrigin + '/admin';
+    adminLink.hidden = false;
+  }
+  var so = document.getElementById('aqua-signout');
+  so.style.display = '';
+  so.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
+  });
+
+  // Sign-in replaces saved browser keys: clear any legacy key once and say so inline.
+  if (localStorage.getItem('aqua_key') !== null) {
+    localStorage.removeItem('aqua_key');
+    var notice = document.getElementById('aqua-keynotice');
+    notice.textContent = 'sign-in replaces saved keys — make a key on the api keys page for apps.';
+    notice.hidden = false;
+  }
+
+  var status = document.getElementById('aqua-status');
+  var table = document.getElementById('aqua-table');
+  var rows = document.getElementById('aqua-rows');
+  var empty = document.getElementById('aqua-empty');
+  var form = document.getElementById('aqua-newkey');
+  var nameInput = document.getElementById('aqua-keyname');
+  var createBtn = document.getElementById('aqua-create');
+  var reveal = document.getElementById('aqua-reveal');
+  var revealKey = document.getElementById('aqua-reveal-key');
+  var revealTitle = document.getElementById('aqua-reveal-title');
+  var revealCopy = document.getElementById('aqua-reveal-copy');
+
+  function say(msg, isErr) {
+    status.textContent = msg;
+    status.className = isErr ? 'stateline err' : 'stateline';
+  }
+  function fmt(unixSeconds) {
+    if (typeof unixSeconds !== 'number' || !isFinite(unixSeconds)) return '—';
+    var d = new Date(unixSeconds * 1000);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toLowerCase() + ', ' +
+           d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  }
+  function apiError(r, body) {
+    var detail = body && typeof body.error === 'string' ? body.error
+               : body && typeof body.message === 'string' ? body.message : '';
+    if (r.status === 401) { location.replace('/'); return 'signed out.'; }
+    if (r.status === 403) return 'not allowed from this origin.' + (detail ? ' ' + detail : '');
+    if (r.status === 503) return 'key storage is unavailable right now. try again shortly.';
+    if (r.status === 404) return 'key not found — it may already be revoked.';
+    if (r.status === 400) return detail || 'that name is not allowed, or you already have 16 keys.';
+    return 'request failed (http ' + r.status + ').' + (detail ? ' ' + detail : '');
+  }
+  // Session-only endpoints: cookie via credentials:include, no Authorization header.
+  function request(path, opts) {
+    opts = opts || {};
+    opts.credentials = 'include';
+    opts.cache = 'no-store';
+    opts.headers = Object.assign({ 'content-type': 'application/json' }, opts.headers || {});
+    return fetch(serverOrigin + path, opts).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (body) {
+        if (!r.ok) throw Error(apiError(r, body));
+        return body;
+      });
+    });
+  }
+
+  var keys = [];
+  function render() {
+    rows.textContent = '';
+    if (!keys.length) {
+      table.hidden = true;
+      empty.hidden = false;
+      return;
+    }
+    table.hidden = false;
+    empty.hidden = true;
+    keys.forEach(function (k) {
+      var row = document.createElement('div'); row.className = 'krow';
+      var nm = document.createElement('div'); nm.className = 'nm'; nm.textContent = k.name; row.appendChild(nm);
+      var mk = document.createElement('div'); mk.className = 'mk'; mk.textContent = k.masked; row.appendChild(mk);
+      var cr = document.createElement('div'); cr.className = 'dt num'; cr.textContent = fmt(k.created); row.appendChild(cr);
+      var lu = document.createElement('div'); lu.className = 'dt num' + (k.last_used === null ? ' never' : '');
+      lu.textContent = k.last_used === null ? 'never' : fmt(k.last_used); row.appendChild(lu);
+      var acts = document.createElement('div'); acts.className = 'acts';
+      var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn rv-btn'; btn.textContent = 'revoke';
+      var armed = false, disarmTimer = null;
+      btn.addEventListener('click', function () {
+        if (!armed) {
+          // Inline two-step arming: click once to arm, again to revoke. No popup dialogs.
+          armed = true;
+          btn.textContent = 'sure?';
+          btn.classList.add('arming');
+          disarmTimer = setTimeout(function () {
+            armed = false; btn.textContent = 'revoke'; btn.classList.remove('arming');
+          }, 4000);
+          return;
+        }
+        clearTimeout(disarmTimer);
+        btn.disabled = true; btn.textContent = 'revoking'; btn.classList.remove('arming');
+        request('/v1/keys/' + encodeURIComponent(k.id) + '/revoke', { method: 'POST', body: '{}' })
+          .then(function () {
+            keys = keys.filter(function (x) { return x.id !== k.id; });
+            render();
+            say('revoked "' + k.name + '".');
+          })
+          .catch(function (e) {
+            btn.disabled = false; btn.textContent = 'revoke'; armed = false;
+            say('could not revoke "' + k.name + '". ' + e.message, true);
+          });
+      });
+      acts.appendChild(btn); row.appendChild(acts);
+      rows.appendChild(row);
+    });
+  }
+
+  function load() {
+    return request('/v1/keys').then(function (body) {
+      keys = (body && Array.isArray(body.data)) ? body.data : [];
+      keys.sort(function (a, b) { return (b.created || 0) - (a.created || 0); });
+      render();
+      say(keys.length + ' key' + (keys.length === 1 ? '' : 's') + '.');
+    }).catch(function (e) {
+      say('could not load keys. ' + e.message, true);
+    });
+  }
+
+  form.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (createBtn.disabled) return;
+    var name = nameInput.value.trim();
+    if (!name) { say('give the key a name.', true); return; }
+    createBtn.disabled = true;
+    say('creating key...');
+    request('/v1/keys', { method: 'POST', body: JSON.stringify({ name: name }) })
+      .then(function (body) {
+        revealTitle.textContent = 'key "' + (body.name || name) + '" created';
+        revealKey.textContent = body.key || '';
+        reveal.hidden = false;
+        nameInput.value = '';
+        revealCopy.querySelector('span').textContent = 'copy';
+        say('copy the key below — it will not be shown again.');
+        return load();
+      })
+      .catch(function (e) {
+        // A failed POST may still have committed server-side; reconcile from GET, never auto-repeat.
+        say('could not confirm the key was created. ' + e.message + ' the list has been refreshed — if an unexpected key appears, revoke it and create a new one; a full key that was never shown cannot be recovered.', true);
+        return load();
+      })
+      .finally(function () { createBtn.disabled = false; });
+  });
+
+  revealCopy.addEventListener('click', function () {
+    navigator.clipboard.writeText(revealKey.textContent).then(function () {
+      revealCopy.querySelector('span').textContent = 'copied';
+      setTimeout(function () { revealCopy.querySelector('span').textContent = 'copy'; }, 1200);
+    }).catch(function () {
+      say('clipboard blocked — select the key text and copy it manually.', true);
+    });
+  });
+
+  load();
+})();
+</script>
+</body>
+</html>
