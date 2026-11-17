@@ -151,7 +151,7 @@ fn config(providers: Vec<Provider>, auto_shortlist: Vec<&str>) -> Config {
         daily_limit: 200,
         allowed_origin: String::new(),
         providers,
-        oauth: Default::default(),
+        oauth: Default::default(), spend: Default::default(),
         auto_shortlist: auto_shortlist.into_iter().map(|s| s.to_string()).collect(),
         upstream_budget: Duration::from_secs(300),
     }
@@ -813,3 +813,164 @@ fn sanitize_drops_reserved_duplicate_and_provider_named_entries() {
     assert_eq!(out[0].public, "coder-a");
     assert_eq!(out[0].context, Some(128_000), "verified metadata attaches by public name");
 }
+
+fn spend_cfg(up: &str) -> Config {
+    let mut cfg = config(vec![provider("p1", up, Status::Friends, vec![("coder-a", "p1/a", Some(10))])], vec!["coder-a"]);
+    cfg.spend.enabled = true;
+    cfg.spend.prices.insert("coder-a".into(), aqua::ModelPrice { input: 1_000_000_000, output: 1_000_000_000 });
+    cfg.spend.default_caps = aqua::SpendCaps { daily: 20_000, monthly: 40_000 };
+    cfg
+}
+
+#[test]
+fn spend_friend_cap_stops_at_boundary_but_owner_is_uncapped_and_usage_visible() {
+    let up = mock_upstream(|_| json_reply(serde_json::json!({"model":"m", "choices":[], "usage":{"prompt_tokens":10,"completion_tokens":10}})));
+    let srv = serve(spend_cfg(&up.url));
+    let agent = client();
+    assert_eq!(chat(&agent, &srv.base, "friendkey", pin_msg("coder-a")).status(), 200);
+    let mut denied = chat(&agent, &srv.base, "friendkey", pin_msg("coder-a"));
+    assert_eq!(denied.status(), 429);
+    assert_eq!(denied.body_mut().read_json::<serde_json::Value>().unwrap()["error"]["code"], "spend_cap_exceeded");
+    for _ in 0..3 { assert_eq!(chat(&agent, &srv.base, "ownerkey", pin_msg("coder-a")).status(), 200); }
+    let mut usage = agent.get(&format!("{}/v1/admin/usage", srv.base)).header("authorization", "Bearer adminsecret").call().unwrap();
+    assert_eq!(usage.status(), 200);
+    let data = usage.body_mut().read_json::<serde_json::Value>().unwrap();
+    assert!(data["users"]["luke"]["cap"].is_null());
+    assert_eq!(data["users"]["luke"]["day"]["models"]["coder-a"]["confirmed"], 60_000);
+    assert_eq!(agent.get(&format!("{}/v1/admin/usage", srv.base)).header("authorization", "Bearer friendkey").call().unwrap().status(), 401);
+}
+
+#[test]
+fn spend_expensive_tier_is_hidden_and_forbidden_for_friends_not_owner() {
+    let up = mock_upstream(|_| json_reply(chat_json("m", "ok")));
+    let mut cfg = spend_cfg(&up.url);
+    cfg.spend.prices.insert("coder-a".into(), aqua::ModelPrice { input: 1_000_000_000, output: 10_000_000_000 });
+    let srv = serve(cfg);
+    let agent = client();
+    assert_eq!(chat(&agent, &srv.base, "friendkey", pin_msg("coder-a")).status(), 403);
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", pin_msg("coder-a")).status(), 200);
+    let mut models = agent.get(&format!("{}/v1/models", srv.base)).header("authorization", "Bearer friendkey").call().unwrap();
+    let data = models.body_mut().read_json::<serde_json::Value>().unwrap();
+    assert!(!data["data"].as_array().unwrap().iter().any(|m|m["id"]=="coder-a"));
+}
+
+#[test]
+fn spend_missing_usage_keeps_hold_and_missing_context_fails_closed_for_friend() {
+    let up = mock_upstream(|_| json_reply(chat_json("m", "ok")));
+    let srv = serve(spend_cfg(&up.url));
+    let agent = client();
+    assert_eq!(chat(&agent, &srv.base, "friendkey", pin_msg("coder-a")).status(), 200);
+    assert_eq!(chat(&agent, &srv.base, "friendkey", pin_msg("coder-a")).status(), 429);
+    let mut cfg = spend_cfg(&up.url);
+    cfg.providers[0].models[0].context = None;
+    let srv2 = serve(cfg);
+    assert_eq!(chat(&agent, &srv2.base, "friendkey", pin_msg("coder-a")).status(), 503);
+    assert_eq!(chat(&agent, &srv2.base, "ownerkey", pin_msg("coder-a")).status(), 200);
+}
+
+#[test]
+fn spend_admin_can_persist_caps_and_friends_cannot_change_them() {
+    let up = mock_upstream(|_| json_reply(chat_json("m", "ok")));
+    let srv = serve(spend_cfg(&up.url));
+    let agent = client();
+    let endpoint = format!("{}/v1/admin/caps", srv.base);
+    let body = serde_json::json!({"name":"sam", "daily":"0", "monthly":"0"});
+    assert_eq!(agent.post(&endpoint).header("authorization", "Bearer friendkey").send_json(&body).unwrap().status(), 401);
+    assert_eq!(agent.post(&endpoint).header("authorization", "Bearer adminsecret").send_json(&body).unwrap().status(), 200);
+    assert_eq!(chat(&agent, &srv.base, "friendkey", pin_msg("coder-a")).status(), 429);
+    assert_eq!(chat(&agent, &srv.base, "ownerkey", pin_msg("coder-a")).status(), 200);
+}
+
+#[test]
+fn spend_denial_does_not_burn_request_quota() {
+    let up = mock_upstream(|_| json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}})));
+    let mut cfg = spend_cfg(&up.url);
+    cfg.daily_limit = 1;
+    cfg.spend.default_caps = aqua::SpendCaps { daily:0, monthly:0 };
+    let srv = serve(cfg);
+    let agent = client();
+    assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),429);
+    assert_eq!(up.hits.load(Ordering::SeqCst),0);
+    assert_eq!(agent.post(&format!("{}/v1/admin/caps",srv.base)).header("authorization","Bearer adminsecret").send_json(serde_json::json!({"name":"sam","daily":"2","monthly":"15"})).unwrap().status(),200);
+    assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),200);
+}
+
+#[test]
+fn spend_stream_requests_usage_and_settles_only_a_terminal_report() {
+    let up = mock_upstream(|rec| {
+        assert_eq!(rec.body["stream_options"]["include_usage"],true);
+        MockReply { status:200, headers:vec![("content-type".into(),"text/event-stream".into())], body:"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1}}\n\ndata: [DONE]\n\n".into() }
+    });
+    let srv=serve(spend_cfg(&up.url));
+    let agent=client();
+    let mut body=pin_msg("coder-a"); body["stream"]=serde_json::json!(true);
+    let mut res=chat(&agent,&srv.base,"friendkey",body);
+    assert!(res.body_mut().read_to_string().unwrap().contains("[DONE]"));
+    let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
+    assert_eq!(data["users"]["sam"]["day"]["models"]["coder-a"]["confirmed"],2000);
+    assert_eq!(data["users"]["sam"]["day"]["models"]["coder-a"]["held"],0);
+}
+
+#[test]
+fn spend_stream_truncated_after_partial_usage_retains_the_full_hold() {
+    let up=mock_upstream(|_|MockReply {status:200,headers:vec![("content-type".into(),"text/event-stream".into())],body:"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1}}\n\n".into()});
+    let srv=serve(spend_cfg(&up.url)); let agent=client();
+    let mut body=pin_msg("coder-a"); body["stream"]=serde_json::json!(true);
+    let _=chat(&agent,&srv.base,"friendkey",body).body_mut().read_to_string().unwrap();
+    let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
+    assert_eq!(data["users"]["sam"]["day"]["models"]["coder-a"]["held"],20000);
+    assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),429);
+}
+
+#[test]
+fn spend_parallel_http_requests_share_one_atomic_account_budget() {
+    let gate=Arc::new((Mutex::new(false),std::sync::Condvar::new())); let g=gate.clone();
+    let up=mock_upstream(move |_| { let(lock,cv)=&*g;let mut open=lock.lock().unwrap();while !*open {open=cv.wait(open).unwrap();} json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":10}})) });
+    let srv=serve(spend_cfg(&up.url)); let base=srv.base.clone();
+    let first=thread::spawn(move ||chat(&client(),&base,"friendkey",pin_msg("coder-a")).status());
+    let deadline=Instant::now()+Duration::from_secs(2);
+    while up.hits.load(Ordering::SeqCst)==0 { assert!(Instant::now()<deadline);thread::yield_now(); }
+    assert_eq!(chat(&client(),&srv.base,"friendkey",pin_msg("coder-a")).status(),429);
+    {let(lock,cv)=&*gate;*lock.lock().unwrap()=true;cv.notify_all();}
+    assert_eq!(first.join().unwrap(),200);
+    assert_eq!(up.hits.load(Ordering::SeqCst),1);
+}
+
+#[test]
+fn spend_http_cap_edit_and_usage_survive_server_restart() {
+    let up=mock_upstream(|_|json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":10}})));
+    let path=std::env::temp_dir().join(format!("aqua-http-ledger-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let mut cfg=spend_cfg(&up.url);cfg.spend.path=Some(path.clone());
+    {
+        let srv=serve(cfg.clone());let agent=client();
+        assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),200);
+        assert_eq!(agent.post(&format!("{}/v1/admin/caps",srv.base)).header("authorization","Bearer adminsecret").send_json(serde_json::json!({"name":"sam","daily":"0.00003","monthly":"0.00003"})).unwrap().status(),200);
+    }
+    let srv=serve(cfg);let agent=client();
+    assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),429);
+    let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
+    assert_eq!(data["users"]["sam"]["cap"]["daily"],30000);
+    assert_eq!(data["users"]["sam"]["day"]["models"]["coder-a"]["confirmed"],20000);
+    drop(srv);let _=std::fs::remove_file(path);
+}
+
+#[test]
+fn spend_owner_stays_uncapped_on_storage_failure_but_usage_gap_is_visible() {
+    let up=mock_upstream(|_|json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}})));
+    let dir=std::env::temp_dir().join(format!("aqua-storage-fault-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));std::fs::create_dir(&dir).unwrap();
+    let mut cfg=spend_cfg(&up.url);cfg.spend.path=Some(dir.join("state.json"));let srv=serve(cfg);
+    std::fs::remove_file(dir.join("state.lock")).unwrap();std::fs::remove_dir(&dir).unwrap();
+    let agent=client();assert_eq!(chat(&agent,&srv.base,"ownerkey",pin_msg("coder-a")).status(),200);
+    let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
+    assert_eq!(data["accounting_available"],false);
+    assert_eq!(data["unknown_owner_requests_since_startup"],1);
+    assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),503);
+}
+
+#[test]
+fn spend_upstream_server_error_is_ambiguous_and_keeps_the_hold() {
+    let up=mock_upstream(|_|MockReply{status:500,headers:vec![],body:"failure".into()});let srv=serve(spend_cfg(&up.url));let agent=client();
+    assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),503);
+    let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
+    assert_eq!(data["users"]["sam"]["day"]["models"]["coder-a"]["held"],20000);
+                                                                                       }
