@@ -31,8 +31,18 @@ data. Columns the backend does not expose yet (context size, pricing, quota) sho
 
 GitHub OAuth console login is implemented (see `docs/AUTH.md`): the backend
 serves these pages same-origin, the console reads `/auth/me` to show the signed-in
-identity with a sign-out action, and API keys still work without any login. When
-no OAuth session exists the console says "API key mode" instead of an identity.
+identity with a sign-out action. Console and playground require a verified owner
+or friend browser session before showing or initializing their interactive UI.
+Signed-out, failed, malformed or timed-out session checks redirect to public `/`.
+Saved API keys do not bypass this page gate. API-key controls remain available
+after sign-in because the existing inference API still requires bearer keys.
+Direct API clients keep the existing bearer-key behavior.
+
+Cloudflare Pages hosts static HTML: the browser gate is navigation/UI gating,
+not confidentiality for the HTML source. Data and inference remain protected by
+the backend. Backend-embedded console/playground routes additionally withhold the
+HTML and redirect unless the request has a valid session cookie. Static Pages
+HTML would need a separately configured edge session gateway to be private.
 
 ## Not done yet
 
