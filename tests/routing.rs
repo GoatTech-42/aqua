@@ -1080,3 +1080,93 @@ fn zai_busy_uses_only_exact_model_fallback_without_waiting_or_retrying() {
     assert_eq!(second.status(),200);assert_eq!(fallback.hits.load(Ordering::SeqCst),1);assert_eq!(up.hits.load(Ordering::SeqCst),1);
     assert_eq!(first.join().unwrap(),200);
 }
+
+
+
+#[test]
+fn wave2_cloudflare_unknown_token_bound_never_dispatches() {
+    let up=mock_upstream(|_|json_reply(chat_json("raw","ok")));
+    let srv=serve(config(vec![provider("cloudflare",&up.url,Status::Friends,vec![("glm","@cf/zai-org/glm-4.7-flash",None)])],vec![]));
+    let r=chat(&client(),&srv.base,"ownerkey",pin_msg("glm"));
+    assert_eq!(r.status(),503);
+    assert_eq!(up.hits.load(Ordering::SeqCst),0);
+}
+
+#[test]
+fn wave2_openrouter_paid_or_unlisted_route_never_dispatches() {
+    for model in ["paid/model","openrouter/free","other/model:free"] {
+        let up=mock_upstream(|_|json_reply(chat_json("raw","ok")));
+        let srv=serve(config(vec![provider("openrouter",&up.url,Status::Friends,vec![("candidate",model,None)])],vec![]));
+        let r=chat(&client(),&srv.base,"ownerkey",pin_msg("candidate"));
+        assert_eq!(r.status(),503);
+        assert_eq!(up.hits.load(Ordering::SeqCst),0);
+    }
+}
+
+#[test]
+fn wave2_openrouter_missing_current_remote_allowance_never_dispatches() {
+    let up=mock_upstream(|_|json_reply(chat_json("raw","ok")));
+    let srv=serve(config(vec![provider("openrouter",&up.url,Status::Friends,vec![("candidate","google/gemma-4-31b-it:free",None)])],vec![]));
+    assert_eq!(chat(&client(),&srv.base,"ownerkey",pin_msg("candidate")).status(),503);
+    assert_eq!(up.hits.load(Ordering::SeqCst),0);
+}
+
+fn wave2_config(up:&Mock,path:&std::path::Path)->Config {
+    let mut cfg=config(vec![provider("openrouter",&up.url,Status::Friends,vec![("candidate","google/gemma-4-31b-it:free",None)])],vec![]);
+    cfg.spend.path=Some(path.into());
+    cfg.spend.account_verified_day=String::from_utf8(std::process::Command::new("date").args(["-u","+%Y-%m-%d"]).output().unwrap().stdout).unwrap().trim().into();
+    cfg.spend.openrouter_allowance=4;
+    cfg
+}
+fn wave2_path()->std::path::PathBuf {
+    std::env::temp_dir().join(format!("aqua-account-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()))
+}
+#[test]
+fn wave2_shared_calls_survive_restart_and_errors_without_usage() {
+    let up=mock_upstream(|_|error_reply(400,vec![]));
+    let path=wave2_path();
+    for key in ["ownerkey","friendkey","ownerkey","ownerkey","ownerkey"] {
+        let srv=serve(wave2_config(&up,&path));
+        assert_eq!(chat(&client(),&srv.base,key,pin_msg("candidate")).status(),503);
+    }
+    assert_eq!(up.hits.load(Ordering::SeqCst),4);
+    let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+}
+#[test]
+fn wave2_free_route_forces_zero_price_defaults_and_rejects_output_bounds() {
+    let up=mock_upstream(|_|json_reply(chat_json("raw","ok")));let path=wave2_path();
+    let srv=serve(wave2_config(&up,&path));
+    assert_eq!(chat(&client(),&srv.base,"ownerkey",pin_msg("candidate")).status(),200);
+    let body=up.requests.lock().unwrap()[0].body.clone();
+    assert_eq!(body["provider"],serde_json::json!({"allow_fallbacks":false,"require_parameters":true,"max_price":{"prompt":0,"completion":0}}));
+    assert_eq!(body["max_tokens"],512);assert_eq!(body["n"],1);
+    for extra in [serde_json::json!({"max_tokens":1025}),serde_json::json!({"n":2}),serde_json::json!({"tools":[]})] {
+        let mut payload=pin_msg("candidate");payload.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        assert_eq!(chat(&client(),&srv.base,"ownerkey",payload).status(),503);
+    }
+    assert_eq!(up.hits.load(Ordering::SeqCst),1);
+    drop(srv);let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+}
+#[test]
+fn wave2_concurrent_last_slot_is_reserved_before_upstream_and_streams_count() {
+    let (tx,rx)=channel();let rx=Arc::new(Mutex::new(rx));let gate=rx.clone();
+    let up=mock_upstream(move |_| {gate.lock().unwrap().recv_timeout(Duration::from_secs(5)).unwrap();MockReply {status:200,headers:vec![("content-type".into(),"text/event-stream".into())],body:"data: {\"choices\":[]}\n\ndata: [DONE]\n\n".into()}});
+    let path=wave2_path();let mut cfg=wave2_config(&up,&path);cfg.spend.openrouter_allowance=1;
+    let srv=serve(cfg);let base=srv.base.clone();
+    let worker=thread::spawn(move|| {let mut payload=pin_msg("candidate");payload["stream"]=true.into();let mut r=chat(&client(),&base,"ownerkey",payload);let status=r.status().as_u16();let _=r.body_mut().read_to_string();status});
+    let deadline=Instant::now()+Duration::from_secs(3);while up.hits.load(Ordering::SeqCst)==0 {assert!(Instant::now()<deadline);thread::yield_now();}
+    assert_eq!(chat(&client(),&srv.base,"friendkey",pin_msg("candidate")).status(),503);
+    tx.send(()).unwrap();assert_eq!(worker.join().unwrap(),200);
+    assert_eq!(chat(&client(),&srv.base,"ownerkey",pin_msg("candidate")).status(),503);
+    assert_eq!(up.hits.load(Ordering::SeqCst),1);
+    drop(srv);let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+}
+#[test]
+fn wave2_stale_allowance_and_held_cloudflare_are_not_advertised() {
+    let up=mock_upstream(|_|json_reply(chat_json("raw","ok")));let path=wave2_path();
+    let mut cfg=wave2_config(&up,&path);cfg.spend.account_verified_day="2026-01-01".into();
+    cfg.providers.push(provider("cloudflare",&up.url,Status::Friends,vec![("glm","@cf/zai-org/glm-4.7-flash",None)]));
+    let srv=serve(cfg);let mut r=client().get(&format!("{}/v1/models",srv.base)).header("authorization","Bearer friendkey").call().unwrap();
+    let body=r.body_mut().read_json::<serde_json::Value>().unwrap();assert_eq!(body["data"],serde_json::json!([]));
+    assert_eq!(up.hits.load(Ordering::SeqCst),0);
+}

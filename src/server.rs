@@ -48,6 +48,7 @@ struct Shared {
     quotas: Mutex<HashMap<String, Quota>>,
     // Standard Z.AI account limit is one active inference, across all models.
     zai_in_flight: AtomicBool,
+    openrouter_in_flight: AtomicBool,
     auth_failures: Mutex<HashMap<String, (u32, Instant)>>,
     health: Mutex<HashMap<String, Cooldown>>,
     spend: Mutex<crate::spend::Store>,
@@ -97,6 +98,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         agent,
         quotas: Mutex::new(HashMap::new()),
         zai_in_flight: AtomicBool::new(false),
+        openrouter_in_flight: AtomicBool::new(false),
         auth_failures: Mutex::new(HashMap::new()),
         health: Mutex::new(HashMap::new()),
     });
@@ -487,7 +489,10 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 if p.status != Status::Friends && entry.role != Role::Owner {
                     continue;
                 }
+                if p.id=="cloudflare" {continue;}
+                if p.id=="openrouter" && (cfg.spend.account_verified_day!=chrono_day() || cfg.spend.openrouter_allowance==0 || !shared.spend.lock().unwrap().durable()) {continue;}
                 for m in &p.models {
+                    if p.id=="openrouter" && !OPENROUTER_FREE.contains(&m.upstream.as_str()) {continue;}
                     if entry.role != Role::Owner && cfg.spend.restricted(&m.public) { continue; }
                     if m.public == ALIAS || !seen.insert(m.public.clone()) {
                         continue;
@@ -787,17 +792,33 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         // Keep it for this whole attempt, including the full JSON/SSE body and
         // all early exits. Busy is not provider 429 evidence: no cooldown or
         // fabricated Retry-After, and exact-model fallback may still proceed.
-        let _provider_slot = if p.id == "zai" {
-            if shared.zai_in_flight.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_err() {
+        // Cloudflare stays closed until GLM full-input and total-output neuron
+        // bounds are independently verified. Catalog presence is insufficient.
+        if p.id=="cloudflare" { continue; }
+        let limited = if p.id=="openrouter" { Some(&shared.openrouter_in_flight) }
+            else if p.id=="zai" { Some(&shared.zai_in_flight) } else { None };
+        let _provider_slot = if let Some(slot)=limited {
+            if slot.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire).is_err() {
                 continue;
             }
-            Some(ProviderSlot(&shared.zai_in_flight))
+            Some(ProviderSlot(slot))
         } else { None };
         let mut up_body = serde_json::Map::new();
         for k in PARAM_WHITELIST {
             if let Some(v) = payload.get(*k) {
                 up_body.insert((*k).to_string(), v.clone());
             }
+        }
+        if p.id=="openrouter" {
+            if !OPENROUTER_FREE.contains(&m.upstream.as_str()) {continue;}
+            // Refuse multimodal/unknown input rather than guess token size.
+            if !bounded_text_messages(&payload) {continue;}
+            let output=payload.get("max_tokens").map(Value::as_u64).unwrap_or(Some(512));
+            let Some(output)=output.filter(|n|*n>0 && *n<=1024) else {continue;};
+            if payload.get("n").is_some_and(|n|n.as_u64()!=Some(1)) {continue;}
+            up_body.insert("max_tokens".into(),json!(output));
+            up_body.insert("n".into(),json!(1));
+            up_body.insert("provider".into(),json!({"allow_fallbacks":false,"require_parameters":true,"max_price":{"prompt":0,"completion":0}}));
         }
         up_body.insert("model".into(), json!(m.upstream));
         up_body.insert("stream".into(), json!(want_stream));
@@ -814,6 +835,13 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             .build()
             .into();
         let url = format!("{}/chat/completions", p.base_url.trim_end_matches('/'));
+        if p.id=="openrouter" {
+            let day=chrono_day();
+            if shared.config.spend.account_verified_day!=day || shared.config.spend.openrouter_allowance==0 {continue;}
+            let mut store=shared.spend.lock().unwrap();
+            if !store.durable() || store.change(|ledger|ledger.admit_account("openrouter",&day,&entry.name,entry.role==Role::Owner,
+                &m.upstream,1,shared.config.spend.openrouter_allowance,shared.config.spend.openrouter_allowance,3,10)).is_err() {continue;}
+        }
         let mut spend = match reserve_spend(shared,entry,m,&payload) {
             Ok(guard) => guard,
             Err((status,message,code)) => return write_json(stream,status,&spend_error(message,code),cors),
@@ -937,6 +965,22 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     } else {
         write_json(stream, 503, &err_body("no models available", "upstream_unavailable"), cors)
     }
+}
+
+const OPENROUTER_FREE: &[&str]=&[
+    "cohere/north-mini-code:free", "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "nvidia/nemotron-3.5-super-vl:free", "google/gemma-4-31b-it:free",
+];
+fn bounded_text_messages(payload: &Value)->bool {
+    // This byte limit is a conservative transport restriction, not a tokenizer.
+    // Cloudflare's neuron admission must not reuse it as a verified token bound.
+    if payload.get("tools").is_some() || payload.get("tool_choice").is_some() {return false;}
+    let Some(messages)=payload.get("messages").and_then(Value::as_array) else {return false;};
+    if messages.is_empty() || messages.len()>64 {return false;}
+    if messages.iter().any(|m| m.as_object().is_none_or(|m|m.keys().any(|k|!matches!(k.as_str(),"role"|"content")) )
+        || !matches!(m.get("role").and_then(Value::as_str),Some("system"|"user"|"assistant"))
+        || m.get("content").and_then(Value::as_str).is_none()) {return false;}
+    serde_json::to_vec(messages).is_ok_and(|b|b.len()<=8192)
 }
 
 // RAII release also covers invalid responses, network errors and client exits.
@@ -1106,6 +1150,7 @@ mod reviewer_regressions {
             agent: ureq::Agent::new_with_defaults(),
             quotas: Mutex::new(HashMap::new()),
             zai_in_flight: AtomicBool::new(false),
+            openrouter_in_flight: AtomicBool::new(false),
             auth_failures: Mutex::new(HashMap::new()),
             health: Mutex::new(HashMap::new()),
         }

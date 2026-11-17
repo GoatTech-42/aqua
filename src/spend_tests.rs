@@ -192,3 +192,38 @@ fn parent_directory_symlink_cannot_create_a_second_ledger_budget() {
     assert!(Store::open(Some(dir.join("alias/state.json"))).is_err());
     drop(first);let _=std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn account_reservations_share_owner_friend_and_neuron_budgets() {
+    let mut l=Ledger::default();
+    l.admit_account("cloudflare","2026-11-17","sam",false,"glm",8_000_000_000,10_000_000_000,8_000_000_000,5,60).unwrap();
+    assert!(l.admit_account("cloudflare","2026-11-17","jane",false,"glm",1,10_000_000_000,8_000_000_000,5,60).is_err());
+    l.admit_account("cloudflare","2026-11-17","luke",true,"glm",2_000_000_000,10_000_000_000,8_000_000_000,5,60).unwrap();
+    assert!(l.admit_account("cloudflare","2026-11-17","luke",true,"glm",1,10_000_000_000,8_000_000_000,5,60).is_err());
+    assert!(l.admit_account("cloudflare","2026-11-16","luke",true,"glm",1,10_000_000_000,8_000_000_000,5,60).is_err());
+    l.admit_account("cloudflare","2026-11-18","sam",false,"glm",1,10_000_000_000,8_000_000_000,5,60).unwrap();
+    assert_eq!(l.accounts["cloudflare"].total,1);
+}
+#[test]
+fn account_call_fairness_does_not_reset_on_model_switch() {
+    let mut l=Ledger::default();
+    for model in ["a","b","c"] {l.admit_account("openrouter","2026-11-17","sam",false,model,1,40,40,3,10).unwrap();}
+    assert!(l.admit_account("openrouter","2026-11-17","sam",false,"d",1,40,40,3,10).is_err());
+    assert_eq!(l.accounts["openrouter"].total,3);
+}
+#[test]
+fn account_admission_is_atomic_at_last_slot_under_concurrency() {
+    let store=std::sync::Arc::new(std::sync::Mutex::new(Store::open(None).unwrap()));
+    let mut workers=vec![];
+    for n in 0..16 {let store=store.clone();workers.push(std::thread::spawn(move||store.lock().unwrap().change(|l|l.admit_account("openrouter","2026-11-17",&format!("user{n}"),false,"free",1,1,1,3,10)).is_ok()));}
+    assert_eq!(workers.into_iter().filter_map(|w|w.join().ok()).filter(|ok|*ok).count(),1);
+    assert_eq!(store.lock().unwrap().ledger.accounts["openrouter"].total,1);
+}
+#[test]
+fn account_bounds_error_has_no_partial_mutation() {
+    let mut l=Ledger::default();
+    l.admit_account("cloudflare","2026-11-17","luke",true,"glm",u64::MAX,u64::MAX,0,5,60).unwrap();
+    assert!(l.admit_account("cloudflare","2026-11-17","luke",true,"glm",1,u64::MAX,0,5,60).is_err());
+    assert_eq!(l.accounts["cloudflare"].total,u64::MAX);
+    assert_eq!(l.accounts["cloudflare"].users["luke"],1);
+}
