@@ -28,7 +28,7 @@ html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
   --prose-max:88ch;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-html,body { background:var(--ground); }
+html,body { background:var(--ground); height:100%; }
 body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 ::selection { background:var(--accent); color:var(--accent-ink); }
 svg { display:block; }
@@ -43,7 +43,7 @@ svg { display:block; }
   * { scroll-behavior:auto !important; transition:none !important; animation-duration:0s !important; }
 }
 
-.app { display:grid; grid-template-columns:16rem 1fr; min-height:100vh; }
+.app { display:grid; grid-template-columns:16rem 1fr; height:100vh; height:100dvh; }
 
 /* ---- sidebar ---- */
 .side { background:#000; border-right:1px solid var(--rule); padding:1rem 0.75rem; display:flex; flex-direction:column; gap:2px; }
@@ -66,7 +66,8 @@ svg { display:block; }
 .userrow a:hover { color:var(--text); }
 
 /* ---- canvas ---- */
-.main { min-width:0; }
+.main { min-width:0; min-height:0; overflow-y:auto; }
+.side { overflow-y:auto; }
 .canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
 .titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
 h1 { font-size:1.75rem; font-weight:600; letter-spacing:-0.02em; }
@@ -175,12 +176,12 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
       </div>
       <div class="table aqua-in aqua-in-3">
         <div class="thead">
-          <span class="h">model</span><span class="h r">context</span><span class="h r">input /1m</span><span class="h r">output /1m</span><span class="h r">free quota</span><span class="h r">status</span>
+          <span class="h">model</span><span class="h r">context</span><span class="h r">maker input /1m</span><span class="h r">maker output /1m</span><span class="h r">free quota</span><span class="h r">status</span>
         </div>
         <div id="aqua-rows"></div>
       </div>
       <p class="stateline" id="aqua-status" role="status" aria-live="polite"></p>
-      <div class="foot"><span id="aqua-foot">context, pricing and quota are unknown until the backend reports them.</span><span><a href="/keys.html">api keys</a> · <a href="/playground.html">playground</a></span></div>
+      <div class="foot"><span id="aqua-foot">prices are estimated maker API list rates in virtual USD, not an Aqua charge. unknown facts stay blank.</span><span><a href="/keys.html">api keys</a> · <a href="/playground.html">playground</a></span></div>
     </div>
   </div>
 </div>
@@ -251,6 +252,16 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
     notice.hidden = false;
   }
 
+  function validMakerPrice(p) {
+    return p && p.status === 'verified' && p.currency === 'USD' && p.units_per_usd === 1000000000 &&
+      Number.isSafeInteger(p.input_nano_usd_per_million) && p.input_nano_usd_per_million >= 0 &&
+      Number.isSafeInteger(p.output_nano_usd_per_million) && p.output_nano_usd_per_million >= 0;
+  }
+  function makerDollars(nano) {
+    var whole = nano / 1000000000n;
+    var fraction = (nano % 1000000000n).toString().padStart(9, '0').replace(/0+$/, '');
+    return '$' + whole.toString() + (fraction ? '.' + fraction : '');
+  }
   var rows = document.getElementById('aqua-rows');
   var status = document.getElementById('aqua-status');
   function makeRow(title, sub, pillText, live) {
@@ -287,7 +298,26 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
       status.textContent = '';
       return;
     }
-    models.forEach(function (m) { rows.appendChild(makeRow(m.id, '', 'listed', true)); });
+    models.forEach(function (m) {
+      var row = makeRow(m.id, m.id === 'auto' ? 'picks a model and fails over through the configured shortlist' : '', 'listed', true);
+      var cells = row.querySelectorAll('.num');
+      var p = m.maker_pricing;
+      if (validMakerPrice(p)) {
+        // Keep two decimals for ordinary list rates, but never round a nonzero rate to zero.
+        [p.input_nano_usd_per_million, p.output_nano_usd_per_million].forEach(function (n, i) {
+          cells[i + 1].textContent = n >= 10000000 && n % 10000000 === 0 ? '$' + (n / 1000000000).toFixed(2) : makerDollars(BigInt(n));
+          cells[i + 1].title = (p.basis || 'maker list rate; virtual USD') + ' · checked ' + (p.checked_at || 'unknown');
+        });
+        if (typeof p.source_url === 'string' && p.source_url.startsWith('https://')) {
+          var link = document.createElement('a'); link.className = 'msub'; link.textContent = 'maker pricing';
+          link.href = p.source_url; link.target = '_blank'; link.rel = 'noopener noreferrer';
+          link.title = cells[1].title; row.querySelector('.c-id').appendChild(link);
+        }
+      } else {
+        cells[1].title = cells[2].title = p && p.reason || 'no verified maker price';
+      }
+      rows.appendChild(row);
+    });
     status.textContent = 'model names are real; which provider serves a model is never shown here.';
   }).catch(function (e) {
     document.getElementById('aqua-sync').textContent = 'not connected';
