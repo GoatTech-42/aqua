@@ -28,7 +28,7 @@ html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
   --prose-max:88ch;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-html,body { background:var(--ground); }
+html,body { background:var(--ground); height:100%; }
 body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 ::selection { background:var(--accent); color:var(--accent-ink); }
 svg { display:block; }
@@ -43,7 +43,7 @@ svg { display:block; }
   * { scroll-behavior:auto !important; transition:none !important; animation-duration:0s !important; }
 }
 
-.app { display:grid; grid-template-columns:16rem 1fr; min-height:100vh; }
+.app { display:grid; grid-template-columns:16rem 1fr; height:100vh; height:100dvh; }
 
 /* ---- sidebar ---- */
 .side { background:#000; border-right:1px solid var(--rule); padding:1rem 0.75rem; display:flex; flex-direction:column; gap:2px; }
@@ -66,7 +66,8 @@ svg { display:block; }
 .userrow a:hover { color:var(--text); }
 
 /* ---- canvas ---- */
-.main { min-width:0; }
+.main { min-width:0; min-height:0; overflow-y:auto; }
+.side { overflow-y:auto; }
 .canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
 .titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
 h1 { font-size:1.75rem; font-weight:600; letter-spacing:-0.02em; }
@@ -147,20 +148,22 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 
 
 /* ---- playground ---- */
-.pg { display:grid; grid-template-columns:minmax(0,1fr) 21rem; height:100vh; }
-.conv { display:flex; flex-direction:column; min-width:0; }
-.pghead { display:flex; align-items:baseline; gap:0.625rem; padding:1rem var(--pad-x); border-bottom:1px solid var(--rule); }
+.main { display:flex; flex-direction:column; overflow:hidden; }
+.phonebar { flex:none; }
+.pg { flex:1; display:grid; grid-template-columns:minmax(0,1fr) 21rem; min-height:0; }
+.conv { display:flex; flex-direction:column; min-width:0; min-height:0; }
+.pghead { flex:none; display:flex; flex-wrap:wrap; align-items:baseline; gap:0.625rem; padding:1rem var(--pad-x); border-bottom:1px solid var(--rule); }
 .pghead .m { font-weight:600; font-size:1.0625rem; }
 .pghead .s { color:var(--faint); font-size:0.875rem; }
-.pghead .pgsel { display:none; margin-left:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.875rem; padding:0.375rem 0.5rem; max-width:11rem; }
-.stream { flex:1; overflow-y:auto; padding:1.5rem var(--pad-x); display:flex; flex-direction:column; gap:1.375rem; }
+.pghead .pgsel { display:block; margin-left:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.875rem; padding:0.375rem 0.5rem; max-width:11rem; }
+.stream { flex:1; min-height:0; overflow-y:auto; padding:1.5rem var(--pad-x); display:flex; flex-direction:column; gap:1.375rem; }
 .msg { max-width:68ch; }
 .msg .who, .msg .route { font-family:var(--mono); font-size:0.72rem; margin-bottom:0.375rem; }
 .msg .who { color:var(--faint); }
 .msg .route { color:var(--accent); }
 .msg .route.err { color:#e3b341; }
 .msg .body { color:#e8e8e8; line-height:1.6; white-space:pre-wrap; }
-.composer { border-top:1px solid var(--rule); padding:1rem var(--pad-x); }
+.composer { flex:none; border-top:1px solid var(--rule); padding:1rem var(--pad-x); }
 .cbox { display:flex; gap:0.625rem; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); padding:0.375rem 0.375rem 0.375rem 0.875rem; }
 .cbox:focus-within { border-color:var(--control); }
 .cbox input { flex:1; background:none; border:0; outline:0; color:var(--text); font:inherit; min-width:0; }
@@ -182,10 +185,10 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .mrow.on { background:#161616; color:#fff; }
 .keynotice { margin:0 var(--pad-x); padding-top:1rem; font-size:0.875rem; color:#e3b341; }
 @media (max-width: 900px) {
-  .pg { grid-template-columns:1fr; height:auto; min-height:calc(100vh - 3.375rem); }
+  .pg { grid-template-columns:1fr; min-height:0; }
   .details { display:none; }
   .pghead .pgsel { display:block; }
-  .conv { min-height:calc(100vh - 3.375rem); }
+  .conv { min-height:0; }
 }
 </style>
 </head>
@@ -227,7 +230,8 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
         <div class="kv"><span class="k">model</span><span class="v" id="aqua-kv-model">—</span></div>
         <div class="kv"><span class="k">latency</span><span class="v" id="aqua-kv-latency">—</span></div>
         <div class="kv"><span class="k">tokens</span><span class="v" id="aqua-kv-tokens">—</span></div>
-        <div class="kv"><span class="k">cost</span><span class="v">—</span></div>
+        <div class="kv"><span class="k">maker est.</span><span class="v" id="aqua-kv-cost">—</span></div>
+        <p class="pgnote" id="aqua-cost-note">estimated maker API cost in virtual USD, not an Aqua charge. unknown prices stay blank.</p>
         <p class="pgnote">on the <b>auto</b> route a full upstream window fails over to the next model in the pool. same request, same code.</p>
         <p class="pgnote">apps authenticate with an <a href="/keys.html">api key</a>. the playground uses your browser sign-in.</p>
       </aside>
@@ -307,6 +311,17 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
     });
   }
 
+  function validMakerPrice(p) {
+    return p && p.status === 'verified' && p.currency === 'USD' && p.units_per_usd === 1000000000 &&
+      Number.isSafeInteger(p.input_nano_usd_per_million) && p.input_nano_usd_per_million >= 0 &&
+      Number.isSafeInteger(p.output_nano_usd_per_million) && p.output_nano_usd_per_million >= 0;
+  }
+  function makerDollars(nano) {
+    var whole = nano / 1000000000n;
+    var fraction = (nano % 1000000000n).toString().padStart(9, '0').replace(/0+$/, '');
+    return '$' + whole.toString() + (fraction ? '.' + fraction : '');
+  }
+  var modelPrices = Object.create(null);
   var model = 'auto';
   var history = [];
   var stream = document.getElementById('aqua-stream');
@@ -334,7 +349,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   }
 
   var sel = document.getElementById('aqua-pgsel');
-  sel.addEventListener('change', function () { setModel(sel.value, sel.value === 'auto' ? 'router default' : ''); });
+  sel.addEventListener('change', function () { setModel(sel.value, sel.value === 'auto' ? 'picks a model and fails over' : ''); });
 
   function loadModels() {
     request('/v1/models').then(function (r) { if (!r.ok) throw Error('http ' + r.status); return r.json(); }).then(function (j) {
@@ -342,17 +357,20 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
       var models = j.data || [];
       rail.textContent = '';
       sel.textContent = '';
-      var autoOpt = document.createElement('option'); autoOpt.value = 'auto'; autoOpt.textContent = 'auto'; sel.appendChild(autoOpt);
-      if (!models.length) { rail.innerHTML = '<span class="mrow">no models available</span>'; return; }
+      if (!models.length) { setModel('', 'no models available'); rail.innerHTML = '<span class="mrow">no models available</span>'; return; }
       models.forEach(function (m) {
+        modelPrices[m.id] = m.maker_pricing;
         var a = document.createElement('a');
         a.className = 'mrow' + (m.id === model ? ' on' : '');
         a.href = '#';
         a.textContent = m.id;
-        a.addEventListener('click', function (ev) { ev.preventDefault(); setModel(m.id); });
+        if (m.id === 'auto') { a.title = 'picks a model and fails over through the configured shortlist'; }
+        a.addEventListener('click', function (ev) { ev.preventDefault(); setModel(m.id, m.id === 'auto' ? 'picks a model and fails over' : ''); });
         rail.appendChild(a);
         var o = document.createElement('option'); o.value = m.id; o.textContent = m.id; sel.appendChild(o);
       });
+      if (!models.some(function (m) { return m.id === model; })) { model = models[0].id; }
+      setModel(model, model === 'auto' ? 'picks a model and fails over' : '');
     }).catch(function (e) {
       var rail = document.getElementById('aqua-rail');
       if (e.message !== 'signed out.') { rail.innerHTML = '<span class="mrow">could not load models</span>'; }
@@ -374,6 +392,8 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
     var text = input.value.trim();
     if (!text) { return; }
     inFlight = true;
+    document.getElementById('aqua-kv-cost').textContent = '—';
+    document.getElementById('aqua-cost-note').textContent = 'estimated maker API cost in virtual USD, not an Aqua charge. awaiting confirmed usage.';
     input.value = '';
     sendBtn.disabled = true;
     addMsg('you', text);
@@ -399,7 +419,23 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
         var reply = (choice && choice.message && choice.message.content) || '(empty reply)';
         var used = res.body.model || model;
         var usage = res.body.usage;
-        var route = used + ' · ' + dt + (usage ? (' · ' + usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '');
+        var p = modelPrices[used];
+        var cost = '—';
+        var note = 'estimated maker API cost in virtual USD, not an Aqua charge. ';
+        if (validMakerPrice(p) && usage && Number.isSafeInteger(usage.prompt_tokens) && usage.prompt_tokens >= 0 &&
+            Number.isSafeInteger(usage.completion_tokens) && usage.completion_tokens >= 0) {
+          // completion_tokens already includes any reported reasoning; do not add it again.
+          var nano = (BigInt(usage.prompt_tokens) * BigInt(p.input_nano_usd_per_million) +
+            BigInt(usage.completion_tokens) * BigInt(p.output_nano_usd_per_million) + 999999n) / 1000000n;
+          cost = makerDollars(nano);
+          note += (p.basis || 'maker list rate') + ' · checked ' + (p.checked_at || 'unknown');
+        } else {
+          note += validMakerPrice(p) ? 'confirmed token usage unavailable.' : (p && p.reason || 'no verified maker price.');
+        }
+        document.getElementById('aqua-kv-cost').textContent = cost;
+        document.getElementById('aqua-cost-note').textContent = note;
+        var route = used + ' · ' + dt + (usage ? (' · ' + usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '') +
+          ' · maker est. ' + cost + (cost !== '—' ? ' virtual USD' : '');
         pending.querySelector('.body').textContent = reply;
         pending.querySelector('.route').textContent = route;
         history.push({ role: 'assistant', content: reply });
