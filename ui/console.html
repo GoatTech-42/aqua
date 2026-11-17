@@ -5,270 +5,205 @@
 <noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aqua — Models</title>
+<title>Aqua — models</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* aqua shell - shared by landing, console, playground, keys (admin.html carries its own inline copy).
+   black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
+   deliberately larger UI (16px at <=1024, ~19.4px at 1920, 22px at 2560+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
 :root {
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
   --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
   --accent:#45d6e8; --accent-ink:#00272b;
-  --radius-card:10px; --radius-control:8px;
+  --radius-card:0.625rem; --radius-control:0.5rem;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
+  --pad-x:clamp(1.25rem, 3.4vw, 4.5rem);
+  --pad-top:clamp(1.5rem, 3vw, 3.5rem);
+  --canvas-max:88rem;
+  --prose-max:88ch;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
 html,body { background:var(--ground); }
-body { font-family:var(--font); color:var(--text); font-size:14px; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 ::selection { background:var(--accent); color:var(--accent-ink); }
 svg { display:block; }
 .num { font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; }
 
-.app { display:grid; grid-template-columns:240px 1fr; min-height:100vh; }
+/* brief entrance: opacity/transform only, once, no ambient motion */
+@keyframes aqua-in { from { opacity:0; transform:translateY(0.625rem); } to { opacity:1; transform:none; } }
+.aqua-in { animation:aqua-in .45s cubic-bezier(.22,.61,.36,1) both; }
+.aqua-in-1 { animation-delay:.05s; } .aqua-in-2 { animation-delay:.12s; } .aqua-in-3 { animation-delay:.19s; }
+@media (prefers-reduced-motion: reduce) {
+  .aqua-in, .aqua-in-1, .aqua-in-2, .aqua-in-3 { animation:none; }
+  * { scroll-behavior:auto !important; transition:none !important; animation-duration:0s !important; }
+}
+
+.app { display:grid; grid-template-columns:16rem 1fr; min-height:100vh; }
 
 /* ---- sidebar ---- */
-.side { background:#000; border-right:1px solid var(--rule); padding:16px 12px; display:flex; flex-direction:column; gap:2px; }
-.brand { display:flex; align-items:center; gap:10px; padding:4px 10px 18px; }
-.brand .wm { font-weight:600; font-size:16.5px; letter-spacing:-0.01em; }
-.newchat { display:flex; align-items:center; gap:8px; height:34px; padding:0 12px; margin-bottom:8px;
-  border:1px solid var(--control); border-radius:var(--radius-control); color:var(--text); font-size:13px; font-weight:500; background:transparent; }
-.navlabel { font-size:10.5px; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--faint); padding:18px 12px 7px; }
-.nav a { display:flex; align-items:center; gap:10px; height:34px; padding:0 12px; border-radius:8px; color:var(--muted); text-decoration:none; font-size:13.5px; font-weight:450; }
-.nav a svg { color:#7a7a7a; }
+.side { background:#000; border-right:1px solid var(--rule); padding:1rem 0.75rem; display:flex; flex-direction:column; gap:2px; }
+.brand { display:flex; align-items:center; gap:0.625rem; padding:0.25rem 0.625rem 1.125rem; text-decoration:none; color:var(--text); }
+.brand svg { width:1.375rem; height:1.375rem; }
+.brand .wm { font-weight:600; font-size:1.125rem; letter-spacing:-0.01em; }
+.navlabel { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
+.nav a { display:flex; align-items:center; gap:0.625rem; min-height:2.375rem; padding:0 0.75rem; border-radius:0.5rem; color:var(--muted); text-decoration:none; font-size:0.9375rem; font-weight:450; }
+.nav a svg { color:#7a7a7a; width:1.0625rem; height:1.0625rem; flex:none; }
 .nav a:hover { color:var(--text); }
 .nav a.on { background:#161616; color:#fff; font-weight:500; }
 .nav a.on svg { color:#fff; }
 .spacer { flex:1; }
-.userrow { display:flex; align-items:center; gap:10px; padding:12px 10px 4px; border-top:1px solid var(--rule); }
-.avatar { width:26px; height:26px; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:11px; font-weight:600; display:flex; align-items:center; justify-content:center; }
-.userrow .un { font-size:13px; font-weight:500; }
-.userrow .up { font-size:11.5px; color:var(--faint); }
-.userrow .cols { display:flex; flex-direction:column; line-height:1.3; }
+.userrow { display:flex; align-items:center; gap:0.625rem; padding:0.75rem 0.625rem 0.25rem; border-top:1px solid var(--rule); }
+.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:0.72rem; font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
+.userrow .un { font-size:0.875rem; font-weight:500; }
+.userrow .up { font-size:0.75rem; color:var(--faint); }
+.userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
+.userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; }
+.userrow a:hover { color:var(--text); }
 
 /* ---- canvas ---- */
-.canvas { padding:32px 36px 56px; max-width:1160px; }
-.titlerow { display:flex; align-items:flex-end; justify-content:space-between; }
-h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
-.stamp { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--faint); }
-.finding { margin-top:7px; font-size:13.5px; color:var(--muted); }
-.finding b { color:var(--text); font-weight:500; }
+.main { min-width:0; }
+.canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
+.titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
+h1 { font-size:1.75rem; font-weight:600; letter-spacing:-0.02em; }
+h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
+.sub { margin-top:0.4375rem; font-size:0.9375rem; color:var(--muted); max-width:var(--prose-max); }
+.stamp { display:flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; color:var(--faint); }
+.stamp svg { width:0.875rem; height:0.875rem; }
 
-.endpoint { margin-top:24px; padding:16px 18px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); display:flex; align-items:center; gap:18px; }
-.endpoint .lab { font-size:13.5px; font-weight:600; flex:none; letter-spacing:-0.005em; }
-.endpoint .labsub { font-size:12.5px; color:var(--faint); font-weight:400; margin-top:2px; }
-.urlbar { margin-left:auto; display:flex; align-items:stretch; height:38px; flex:none; }
-.urlbar .u { display:flex; align-items:center; gap:8px; padding:0 14px; background:#000; border:1px solid var(--control); border-right:none;
-  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:12.5px; color:#c8eff5; }
-.urlbar .cp { display:flex; align-items:center; gap:6px; padding:0 14px; background:#fff; color:#000;
-  border-radius:0 var(--radius-control) var(--radius-control) 0; font-size:12.5px; font-weight:500; }
+.btn { display:inline-flex; align-items:center; gap:0.4375rem; min-height:2.375rem; padding:0 0.9375rem; border-radius:var(--radius-control);
+  font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; border:1px solid var(--control); background:transparent; color:var(--text); white-space:nowrap;
+  transition:border-color .15s ease, filter .15s ease; }
+.btn svg { width:0.875rem; height:0.875rem; }
+.btn:hover { border-color:var(--text); }
+.btn:disabled { color:var(--muted); cursor:wait; }
+.btn:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+.btn-solid { background:#fff; color:#000; border-color:#fff; }
+.btn-solid:hover { border-color:#fff; filter:brightness(0.9); }
 
-.tabsrow { display:flex; align-items:flex-end; justify-content:space-between; margin-top:28px; border-bottom:1px solid var(--rule); }
-.tabs { display:flex; gap:24px; }
-.tab { height:38px; display:flex; align-items:center; font-size:13.5px; color:var(--muted); text-decoration:none; border-bottom:2px solid transparent; margin-bottom:-1px; }
-.tab:hover { color:var(--text); }
-.tab.on { color:var(--text); font-weight:500; border-bottom-color:var(--accent); }
-.search { display:flex; align-items:center; gap:8px; height:34px; width:256px; margin-bottom:7px; padding:0 11px;
-  background:var(--surface); border:1px solid var(--control); border-radius:var(--radius-control); color:var(--faint); font-size:13px; }
-.search .kbd { margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--faint); border:1px solid var(--control); border-radius:4px; padding:1px 5px; }
+.stateline { margin-top:1rem; font-size:0.875rem; color:var(--muted); min-height:1.125rem; }
+.stateline.err { color:#e3b341; }
 
-.table { margin-top:6px; }
-.thead, .row { display:grid; grid-template-columns:minmax(0,1fr) 80px 96px 96px 124px 118px; align-items:center; }
-.thead { height:40px; font-size:11px; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--faint); }
-.thead .h.r { text-align:right; }
-.thead .h:first-child { padding-left:2px; }
-.row { min-height:58px; border-top:1px solid var(--rule); padding:8px 0; }
-.row:hover { background:#070707; }
-.row .c { padding-right:8px; }
-.row .c.num { text-align:right; padding-right:2px; font-size:13.5px; }
-.row .c.quota { color:var(--muted); }
-.c-status { display:flex; justify-content:flex-end; }
-.mname { font-family:var(--mono); font-size:12.5px; font-weight:600; }
-.msub { font-size:12px; color:var(--faint); margin-top:3px; }
-.pill { display:inline-flex; align-items:center; gap:6px; height:23px; padding:0 10px; border-radius:999px; font-size:11.5px; font-weight:500; white-space:nowrap; }
-.pill::before { content:""; width:5px; height:5px; border-radius:50%; background:currentColor; }
-.pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
-.pill-warn { background:#211a0c; border:1px solid #3a2e15; color:#e3b341; }
-.foot { margin-top:20px; font-size:12px; color:var(--faint); display:flex; justify-content:space-between; gap:12px; }
+.empty { margin-top:0.875rem; padding:1.75rem 1.125rem; border:1px dashed var(--control); border-radius:var(--radius-card); color:var(--faint); font-size:0.9375rem; text-align:center; }
+.empty[hidden] { display:none; }
+
+.foot { margin-top:1.5rem; font-size:0.8125rem; color:var(--faint); display:flex; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; }
 .foot a { color:var(--muted); text-decoration:none; }
 .foot a:hover { color:var(--text); }
+
+/* ---- endpoint card ---- */
+.endpoint { margin-top:1.5rem; padding:1.125rem 1.25rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card);
+  display:flex; align-items:center; gap:1.125rem; flex-wrap:wrap; }
+.endpoint .lab { font-size:0.9375rem; font-weight:600; flex:none; letter-spacing:-0.005em; }
+.endpoint .labsub { font-size:0.8125rem; color:var(--faint); font-weight:400; margin-top:2px; }
+.urlbar { margin-left:auto; display:flex; align-items:stretch; min-height:2.375rem; flex:none; max-width:100%; min-width:0; }
+.urlbar .u { display:flex; align-items:center; gap:0.5rem; padding:0 0.9375rem; background:#000; border:1px solid var(--control); border-right:none;
+  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#c8eff5;
+  min-width:0; overflow:hidden; white-space:nowrap; }
+.urlbar .cp { display:inline-flex; align-items:center; gap:0.375rem; padding:0 0.9375rem; background:#fff; color:#000; border:1px solid #fff;
+  border-radius:0 var(--radius-control) var(--radius-control) 0; font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; }
+.urlbar .cp svg { width:0.875rem; height:0.875rem; }
+
+/* ---- model table ---- */
+.table { margin-top:0.875rem; overflow-x:auto; }
+.thead, .mrow { display:grid; grid-template-columns:minmax(14rem,1.6fr) 7rem 8.125rem 8.125rem 8.125rem 7rem; align-items:center; gap:0.875rem; }
+.thead { min-height:2.5rem; font-size:0.72rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--faint); }
+.thead .h.r { text-align:right; }
+.mrow { min-height:3.5rem; border-top:1px solid var(--rule); padding:0.5rem 0; }
+.mrow:hover { background:#070707; }
+.mrow .c { padding-right:0.5rem; min-width:0; }
+.mrow .c.num { text-align:right; padding-right:2px; font-size:0.9375rem; color:var(--muted); }
+.mname { font-family:var(--mono); font-size:0.875rem; font-weight:600; overflow-wrap:anywhere; }
+.msub { font-size:0.8125rem; color:var(--faint); margin-top:3px; }
+.c-status { display:flex; justify-content:flex-end; }
+.pill { display:inline-flex; align-items:center; gap:0.375rem; min-height:1.4375rem; padding:0 0.625rem; border-radius:999px; font-size:0.75rem; font-weight:500; white-space:nowrap; }
+.pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
+.pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
+.pill-warn { background:#211a0c; border:1px solid #3a2e15; color:#e3b341; }
 
 .phonebar { display:none; }
 
 @media (max-width: 760px) {
   .app { grid-template-columns:1fr; }
   .side { display:none; }
-  .phonebar { display:flex; align-items:center; gap:12px; height:54px; padding:0 18px; border-bottom:1px solid var(--rule); background:#000; }
-  .phonebar .pb-wm { display:flex; align-items:center; gap:9px; font-weight:600; font-size:15.5px; }
-  .phonebar .pb-right { margin-left:auto; display:flex; align-items:center; gap:16px; color:var(--muted); }
-  .canvas { padding:20px 18px 36px; }
-  h1 { font-size:21px; }
-  .stamp span.st { display:none; }
-  .endpoint { flex-direction:column; align-items:flex-start; gap:12px; }
+  .phonebar { display:flex; align-items:center; gap:0.75rem; min-height:3.375rem; padding:0 1.125rem; border-bottom:1px solid var(--rule); background:#000; }
+  .phonebar .pb-wm { display:flex; align-items:center; gap:0.5625rem; font-weight:600; font-size:1rem; }
+  .phonebar .pb-wm svg { width:1.125rem; height:1.125rem; }
+  .canvas { padding:1.25rem 1.125rem 2.5rem; }
+  h1 { font-size:1.375rem; }
+  .endpoint { flex-direction:column; align-items:flex-start; gap:0.75rem; }
   .urlbar { margin-left:0; width:100%; }
-  .urlbar .u { flex:1; overflow:hidden; white-space:nowrap; }
-  .tabsrow { margin-top:20px; }
-  .tabs { gap:18px; overflow:hidden; }
-  .search { display:none; }
+  .urlbar .u { flex:1; }
   .thead { display:none; }
-  .row { grid-template-columns:minmax(0,1fr) auto; row-gap:3px; padding:12px 0; }
-  .row:hover { background:transparent; }
-  .row .c.num { display:none; }
-  .c-status { grid-column:2; grid-row:1 / span 2; align-self:center; }
-  .row .qline { display:block; }
-}
-.row .qline { display:none; font-size:12px; color:var(--faint); grid-column:1; margin-top:2px; }
-
-/* Contain intrinsic endpoint/table widths without changing the shell's scale. */
-.main { min-width:0; }
-.endpoint { flex-wrap:wrap; }
-.urlbar { max-width:100%; min-width:0; }
-.urlbar .u { min-width:0; overflow:hidden; white-space:nowrap; }
-.table { overflow-x:auto; }
-.foot { flex-wrap:wrap; }
-/* The existing canvas owns the frame; one full-width section, no new shell. */
-.usage-panel { margin-top:24px; padding:20px; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); }
-.usage-panel[hidden] { display:none; }
-.usage-title { display:flex; align-items:center; justify-content:space-between; gap:16px; }
-.usage-panel h2 { font-size:18px; font-weight:600; }
-.usage-panel h3 { font-size:14px; font-weight:600; }
-.usage-note { font-size:13px; color:var(--muted); margin-top:8px; max-width:80ch; }
-.usage-panel button,.usage-panel input { font:inherit; min-height:38px; border:1px solid var(--control); border-radius:var(--radius-control); }
-.usage-panel button { color:var(--text); background:transparent; padding:0 12px; cursor:pointer; }
-.usage-panel button:hover { border-color:var(--text); }
-.usage-panel button:disabled { color:var(--muted); cursor:wait; }
-.usage-panel :focus-visible { outline:2px solid var(--text); outline-offset:3px; }
-.usage-account { padding:16px 0; border-bottom:1px solid var(--line); }
-.usage-account-head { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px 16px; }
-.usage-account-name { font-weight:600; overflow-wrap:anywhere; }
-.usage-account-totals { font-variant-numeric:tabular-nums; }
-.usage-models { margin-top:8px; color:var(--muted); font-size:12px; }
-.usage-models summary { cursor:pointer; min-height:28px; }
-.usage-model-row { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:12px; padding:4px 0; font-variant-numeric:tabular-nums; }
-.usage-model-row span:first-child { overflow-wrap:anywhere; }
-.usage-model-row span:last-child { text-align:right; }
-.cap-form { margin-top:20px; }
-/* Four columns sum to the section's inner width; minmax keeps the identity flexible. */
-.cap-fields { display:grid; grid-template-columns:minmax(120px,1fr) minmax(90px,.6fr) minmax(90px,.6fr) auto; align-items:end; gap:12px; margin-top:16px; }
-.cap-fields label { display:flex; flex-direction:column; gap:8px; font-size:13px; min-width:0; }
-.cap-fields input { background:var(--ground); color:var(--text); width:100%; padding:8px 10px; }
-#aqua-cap-save { background:var(--text); color:var(--ground); }
-@media(max-width:1000px) { .cap-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media(max-width:760px) {
- .usage-panel { padding:16px; }
- .usage-panel button,.usage-panel input { min-height:44px; }
- .usage-account-head { flex-direction:column; gap:6px; }
- .usage-account-totals { font-size:14px; }
- .usage-model-row { grid-template-columns:1fr; gap:2px; padding:6px 0; }
- .usage-model-row span:last-child { text-align:left; }
- .cap-fields { grid-template-columns:1fr; }
+  .mrow { grid-template-columns:minmax(0,1fr) auto; row-gap:3px; padding:0.75rem 0; }
+  .mrow:hover { background:transparent; }
+  .mrow .c.num { display:none; }
+  .c-status { grid-column:2; grid-row:1; align-self:center; }
 }
 </style>
 </head>
 <body>
 <div class="app">
   <aside class="side">
-    <div class="brand"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></div>
+    <a class="brand" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
     <div class="nav">
-      <div class="navlabel">Gateway</div>
-      <a href="/console.html" class="on"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>Models</span></a>
-      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>Playground</span></a>
+      <div class="navlabel">gateway</div>
+      <a href="/console.html" class="on"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="#" id="aqua-admin-link" hidden><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>admin</span></a>
     </div>
     <div class="spacer"></div>
-    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none;margin-left:auto;font-size:12px;color:var(--faint);text-decoration:none">sign out</a></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
   </aside>
   <div class="main">
-    <div class="phonebar"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="pb-right"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></span></div>
+    <div class="phonebar"><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span></div>
     <div class="canvas">
-      <div class="titlerow">
-        <h1>Models</h1>
-        <div class="stamp"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span class="st" id="aqua-sync">not connected</span></div>
+      <div class="titlerow aqua-in">
+        <h1>models</h1>
+        <div class="stamp"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span class="st" id="aqua-sync">connecting</span></div>
       </div>
-      <p class="finding" id="aqua-finding">Connect this console to your Aqua deployment to see the model pool.</p>
-      <div class="endpoint">
-        <div class="lab">One endpoint<div class="labsub">OpenAI-compatible. Swap the base URL, keep your code.</div></div>
-        <div class="urlbar"><span class="u" id="aqua-base"></span><span class="cp" id="aqua-copy" style="cursor:pointer"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy</span></div>
+      <p class="sub aqua-in aqua-in-1" id="aqua-finding">every model your account can use, behind one endpoint. facts the backend does not report stay unknown.</p>
+      <p class="stateline err" id="aqua-keynotice" hidden></p>
+      <div class="endpoint aqua-in aqua-in-2">
+        <div class="lab">one endpoint<div class="labsub">openai-compatible. swap the base url, keep your code.</div></div>
+        <div class="urlbar"><span class="u" id="aqua-base"></span><button type="button" class="cp" id="aqua-copy"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span>copy</span></button></div>
       </div>
-
-<section class="usage-panel" id="aqua-usage" hidden aria-labelledby="aqua-usage-title">
-  <div class="usage-title"><h2 id="aqua-usage-title">Usage &amp; limits</h2><button type="button" id="aqua-usage-refresh">Refresh</button></div>
-  <p class="usage-note">Virtual USD at model list prices, not a bill. Your owner account is uncapped. Daily and monthly windows use UTC.</p>
-  <p class="usage-note" id="aqua-usage-status" role="status" aria-live="polite">Loading usage...</p>
-  <div id="aqua-usage-accounts"></div>
-  <form id="aqua-cap-form" class="cap-form">
-    <h3>Friend limits</h3>
-    <p class="usage-note" id="aqua-cap-defaults">Loading default friend limits...</p>
-    <div class="cap-fields">
-      <label>Account name<input id="aqua-cap-name" name="name" required maxlength="128" autocomplete="off" list="aqua-cap-accounts"></label>
-      <datalist id="aqua-cap-accounts"></datalist>
-      <label>Daily virtual USD<input id="aqua-cap-daily" name="daily" required inputmode="decimal" value="2" pattern="[0-9]+(\.[0-9]{1,9})?"></label>
-      <label>Monthly virtual USD<input id="aqua-cap-monthly" name="monthly" required inputmode="decimal" value="15" pattern="[0-9]+(\.[0-9]{1,9})?"></label>
-      <button type="submit" id="aqua-cap-save">Save limits</button>
-    </div>
-    <p class="usage-note" id="aqua-cap-message" role="status" aria-live="polite"></p>
-  </form>
-</section>
-      <div class="tabsrow">
-        <div class="tabs">
-          <a class="tab on" href="/console.html">All models</a>
-        </div>
-      </div>
-      <div class="table">
+      <div class="table aqua-in aqua-in-3">
         <div class="thead">
-          <span class="h">Model</span><span class="h r">Context</span><span class="h r">Input /1M</span><span class="h r">Output /1M</span><span class="h r">Free quota</span><span class="h r">Status</span>
+          <span class="h">model</span><span class="h r">context</span><span class="h r">input /1m</span><span class="h r">output /1m</span><span class="h r">free quota</span><span class="h r">status</span>
         </div>
-
         <div id="aqua-rows"></div>
       </div>
-      <div class="foot"><span id="aqua-foot">Pricing and quota are not exposed by the backend yet.</span><span><a href="#" onclick="AQUA.askKey();return false">Set API key</a> · <a href="#" onclick="AQUA.askBase();return false">Set base URL</a> · <a href="/login/github" data-aqua-signin>Sign in</a></span></div>
+      <p class="stateline" id="aqua-status" role="status" aria-live="polite"></p>
+      <div class="foot"><span id="aqua-foot">context, pricing and quota are unknown until the backend reports them.</span><span><a href="/keys.html">api keys</a> · <a href="/playground.html">playground</a></span></div>
     </div>
   </div>
 </div>
 
 <script>
-(function () {
-  // Split deployment: Pages serves the console at aqua.goattech.us, the API lives at
-  // aqua-api.goattech.us. Served same-origin (local dev, or the API host directly) the
-  // API is the origin itself.
+(async function () {
+  // Split deployment: Pages serves the console, the API lives on its own host.
+  // Served same-origin (local dev, or the API host directly) the API is the origin itself.
   var storedBase = localStorage.getItem('aqua_api_base');
-  // Migrate only the retired production default on the production Pages host.
-  // Preserve localhost, custom endpoints, paths and unrelated site storage.
   if (location.hostname === 'aqua.goattech.us' &&
       (storedBase === 'https://api.aqua.goattech.us/v1' || storedBase === 'https://api.aqua.goattech.us/v1/')) {
     storedBase = 'https://aqua-api.goattech.us/v1';
     localStorage.setItem('aqua_api_base', storedBase);
   }
   var base = storedBase || (location.hostname === 'aqua.goattech.us' ? 'https://aqua-api.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua-api.goattech.us/v1'));
-  function getKey() { return localStorage.getItem('aqua_key') || ''; }
-  function setBase(v) { localStorage.setItem('aqua_api_base', v); base = v; }
-  window.AQUA = { baseUrl: function () { return base; }, key: getKey, setBase: setBase };
-  function api(path, opts) {
-    opts = opts || {};
-    opts.headers = Object.assign({ 'authorization': 'Bearer ' + getKey(), 'content-type': 'application/json' }, opts.headers || {});
-    return fetch(base + path, opts);
-  }
-  window.AQUA.api = api;
-  window.AQUA.askKey = function () {
-    var k = window.prompt('Aqua API key (stored only in this browser):', getKey());
-    if (k !== null) { localStorage.setItem('aqua_key', k.trim()); location.reload(); }
-  };
-  window.AQUA.askBase = function () {
-    var b = window.prompt('Aqua base URL:', base);
-    if (b !== null) { setBase(b.trim().replace(/\/+$/, '')); location.reload(); }
-  };
-})();
-</script>
+  var serverOrigin = base.replace(/\/v1$/, '');
 
-<script>
-(async function () {
-  // A saved API key never substitutes for a signed-in browser session.
-  // Pages HTML is static; this is a navigation gate, not source confidentiality.
+  // Fail-closed session gate: static HTML, navigation gate, not source confidentiality.
   var me;
   var sessionAbort = new AbortController();
   var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
   try {
-    var sessionResponse = await fetch(AQUA.baseUrl().replace(/\/v1$/, '') + '/auth/me', {
+    var sessionResponse = await fetch(serverOrigin + '/auth/me', {
       credentials: 'include', cache: 'no-store', signal: sessionAbort.signal
     });
     if (!sessionResponse.ok) throw Error('not signed in');
@@ -282,155 +217,84 @@ h1 { font-size:23px; font-weight:600; letter-spacing:-0.02em; }
     clearTimeout(sessionTimeout);
   }
   document.documentElement.removeAttribute('data-session-pending');
-  // Hide before history capture; restore must recheck the session before reveal.
   addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
   addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
 
-  var base = AQUA.baseUrl();
-  var serverOrigin = base.replace(/\/v1$/, '');
-  document.querySelectorAll('[data-aqua-signin]').forEach(function (a) {
-    a.setAttribute('href', serverOrigin + '/login/github');
-  });
-  document.getElementById('aqua-base').textContent = base;
-  var rows = document.getElementById('aqua-rows');
-  function stateRow(title, sub) {
-    rows.textContent = '';
-    rows.appendChild(makeRow(title, sub, 'offline', false));
-  }
-  function makeRow(title, sub, pillText, live) {
-    var row = document.createElement('div'); row.className = 'row';
-    var cid = document.createElement('div'); cid.className = 'c-id';
-    var mname = document.createElement('div'); mname.className = 'mname'; mname.textContent = title;
-    var msub = document.createElement('div'); msub.className = 'msub'; msub.textContent = sub;
-    cid.appendChild(mname); cid.appendChild(msub); row.appendChild(cid);
-    for (var i = 0; i < 4; i++) {
-      var c = document.createElement('div'); c.className = i === 3 ? 'c num quota' : 'c num'; c.textContent = '—'; row.appendChild(c);
-    }
-    var st = document.createElement('div'); st.className = 'c c-status';
-    var pill = document.createElement('span'); pill.className = live ? 'pill pill-live' : 'pill'; pill.textContent = pillText;
-    st.appendChild(pill); row.appendChild(st);
-    return row;
-  }
-
-  function ownerUsage() {
-    var panel=document.getElementById('aqua-usage');
-    var status=document.getElementById('aqua-usage-status');
-    var accounts=document.getElementById('aqua-usage-accounts');
-    var refresh=document.getElementById('aqua-usage-refresh');
-    var form=document.getElementById('aqua-cap-form');
-    var name=document.getElementById('aqua-cap-name');
-    var daily=document.getElementById('aqua-cap-daily');
-    var monthly=document.getElementById('aqua-cap-monthly');
-    var message=document.getElementById('aqua-cap-message');
-    var save=document.getElementById('aqua-cap-save');
-    var current=null;
-    panel.hidden=false;
-    function element(tag,cls,text) {
-      var node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;
-    }
-    function money(value) {
-      if(!Number.isSafeInteger(value)||value<0)return 'Unavailable';
-      if(value>0&&value<1000)return '<$0.000001';
-      return '$'+(value/1e9).toLocaleString('en-US',{minimumFractionDigits:6,maximumFractionDigits:6});
-    }
-    function total(window,field) {
-      return Object.values(window.models||{}).reduce(function(sum,m){return sum+m[field];},0);
-    }
-    function request(path,options) {
-      options=options||{};options.credentials='include';
-      return fetch(serverOrigin+path,options).then(function(r){
-        if(!r.ok)throw Error(r.status===401?'Owner sign-in required.':r.status===403?'Request not allowed from this origin.':'Request failed (HTTP '+r.status+').');
-        return r.json();
-      });
-    }
-    function load() {
-      refresh.disabled=true;
-      return request('/v1/admin/usage').then(function(data){
-        if(!current){daily.value=String(data.default_friend_caps.daily/1e9);monthly.value=String(data.default_friend_caps.monthly/1e9);}
-        document.getElementById('aqua-cap-defaults').textContent='Defaults: '+money(data.default_friend_caps.daily)+' per day and '+money(data.default_friend_caps.monthly)+" per month. Saving changes only this account's virtual USD limits.";
-        current=data;accounts.textContent='';
-        var options=document.getElementById('aqua-cap-accounts');options.textContent='';
-        var names=Object.keys(data.users||{});
-        if(!names.length)accounts.appendChild(element('p','usage-note','No usage recorded. New friend accounts use the default limits.'));
-        names.sort(function(a,b){return (data.users[a].cap===null?-1:0)-(data.users[b].cap===null?-1:0)||a.localeCompare(b);}).forEach(function(account){
-          var user=data.users[account],owner=user.cap===null;
-          var row=element('div','usage-account');
-          var head=element('div','usage-account-head');head.appendChild(element('span','usage-account-name',account+(owner?' - Uncapped':'')));
-          head.appendChild(element('span','usage-account-totals','Today '+money(total(user.day,'confirmed'))+' / Month '+money(total(user.month,'confirmed'))));row.appendChild(head);
-          if(!owner){
-            row.appendChild(element('p','usage-note','Limits: '+money(user.cap.daily)+' daily / '+money(user.cap.monthly)+' monthly'));
-            var option=element('option','',account);option.value=account;options.appendChild(option);
-          }
-          var dayHeld=total(user.day,'held'),monthHeld=total(user.month,'held');
-          if(dayHeld||monthHeld)row.appendChild(element('p','usage-note','Reserved: '+money(dayHeld)+' today / '+money(monthHeld)+' this month. Includes in-flight or unreported usage.'));
-          if(user.unknown_requests)row.appendChild(element('p','usage-note',user.unknown_requests+' request(s) with unknown usage across recorded history. Totals are incomplete.'));
-          if(user.accounting_error)row.appendChild(element('p','usage-note','Accounting bound exceeded. Friend access is blocked until repaired.'));
-          var models=Array.from(new Set(Object.keys(user.day.models||{}).concat(Object.keys(user.month.models||{}))));
-          if(models.length){
-            var details=element('details','usage-models');details.appendChild(element('summary','','Usage by model'));
-            models.sort().forEach(function(model){
-              var day=user.day.models[model]||{confirmed:0},month=user.month.models[model]||{confirmed:0};
-              var line=element('div','usage-model-row');line.appendChild(element('span','',model));line.appendChild(element('span','','Today '+money(day.confirmed)+' / Month '+money(month.confirmed)));details.appendChild(line);
-            });row.appendChild(details);
-          }
-          accounts.appendChild(row);
-        });
-        var gaps=data.unknown_owner_requests_since_startup||0;
-        if(!data.accounting_available||data.configuration_error||gaps){status.textContent='Accounting unavailable or incomplete. Owner requests remain uncapped; '+gaps+' owner request(s) were not recorded since startup. Do not treat these totals as complete.';}
-        else status.textContent='Updated '+new Date().toLocaleTimeString()+'. Confirmed usage only; reservations are shown separately.';
-      }).catch(function(e){status.textContent='Usage unavailable. '+e.message+' Any figures still shown are from the last successful refresh.';}).finally(function(){refresh.disabled=false;});
-    }
-    name.addEventListener('change',function(){
-      var user=current&&current.users&&current.users[name.value];
-      if(user&&user.cap){daily.value=(user.cap.daily/1e9).toFixed(9).replace(/\.?0+$/,'');monthly.value=(user.cap.monthly/1e9).toFixed(9).replace(/\.?0+$/,'');}
-    });
-    form.addEventListener('submit',function(e){
-      e.preventDefault();if(save.disabled)return;
-      var account=name.value.trim(),user=current&&current.users&&current.users[account];
-      if(user&&user.cap===null){message.textContent='Owner usage is uncapped. Choose a friend account.';return;}
-      save.disabled=true;message.textContent='Saving limits...';
-      request('/v1/admin/caps',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name:account,daily:daily.value,monthly:monthly.value})}).then(function(){message.textContent='Saved limits for '+account+'.';return load();}).catch(function(e){message.textContent='Limits were not saved. '+e.message;}).finally(function(){save.disabled=false;});
-    });
-    refresh.addEventListener('click',load);
-    load();
-  }
-  // Identity is the validated session used by the page gate above.
-  if (me.role === 'owner') ownerUsage();
   document.getElementById('aqua-user').textContent = me.login;
   document.getElementById('aqua-usersub').textContent = me.role;
   document.getElementById('aqua-avatar').textContent = me.login.charAt(0).toUpperCase();
+  if (me.role === 'owner') {
+    var adminLink = document.getElementById('aqua-admin-link');
+    adminLink.href = serverOrigin + '/admin';
+    adminLink.hidden = false;
+  }
   var so = document.getElementById('aqua-signout');
   so.style.display = '';
   so.addEventListener('click', function (ev) {
     ev.preventDefault();
     fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
   });
+  document.getElementById('aqua-base').textContent = base;
   document.getElementById('aqua-copy').addEventListener('click', function () {
+    var label = document.querySelector('#aqua-copy span');
     navigator.clipboard.writeText(base).then(function () {
-      document.getElementById('aqua-copy').lastChild.textContent = 'Copied';
-      setTimeout(function () { document.getElementById('aqua-copy').lastChild.textContent = 'Copy'; }, 1200);
+      label.textContent = 'copied';
+      setTimeout(function () { label.textContent = 'copy'; }, 1200);
     });
   });
-  if (!AQUA.key()) {
-    stateRow('No API key set', 'Use "Set API key" below to connect');
-    return;
+
+  // Sign-in replaces saved browser keys: clear any legacy key once and say so inline.
+  if (localStorage.getItem('aqua_key') !== null) {
+    localStorage.removeItem('aqua_key');
+    var notice = document.getElementById('aqua-keynotice');
+    notice.textContent = 'sign-in replaces saved keys — make a key on the api keys page for apps.';
+    notice.hidden = false;
   }
-  AQUA.api('/models').then(function (r) {
-    if (!r.ok) { throw new Error('HTTP ' + r.status); }
+
+  var rows = document.getElementById('aqua-rows');
+  var status = document.getElementById('aqua-status');
+  function makeRow(title, sub, pillText, live) {
+    var row = document.createElement('div'); row.className = 'mrow';
+    var cid = document.createElement('div'); cid.className = 'c c-id';
+    var mname = document.createElement('div'); mname.className = 'mname'; mname.textContent = title;
+    cid.appendChild(mname);
+    if (sub) { var msub = document.createElement('div'); msub.className = 'msub'; msub.textContent = sub; cid.appendChild(msub); }
+    row.appendChild(cid);
+    for (var i = 0; i < 4; i++) {
+      var c = document.createElement('div'); c.className = 'c num'; c.textContent = '—'; row.appendChild(c);
+    }
+    var st = document.createElement('div'); st.className = 'c c-status';
+    var pill = document.createElement('span'); pill.className = live ? 'pill pill-live' : 'pill pill-warn'; pill.textContent = pillText;
+    st.appendChild(pill); row.appendChild(st);
+    return row;
+  }
+
+  // Session cookie only; saved browser keys are legacy and were cleared above.
+  function listModels() {
+    return fetch(base + '/models', { credentials: 'include', cache: 'no-store', headers: { 'content-type': 'application/json' } });
+  }
+
+  listModels().then(function (r) {
+    if (!r.ok) { throw new Error('http ' + r.status); }
     return r.json();
   }).then(function (j) {
     var models = (j.data || []);
     document.getElementById('aqua-sync').textContent = 'connected just now';
-    document.getElementById('aqua-finding').textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + ' visible to this key.';
-    if (!models.length) { stateRow('Pool is empty', 'The backend returned no models'); return; }
+    document.getElementById('aqua-finding').textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + ' available to your account, behind one endpoint.';
     rows.textContent = '';
-    models.forEach(function (m) {
-      rows.appendChild(makeRow(m.id, '', 'listed', true));
-    });
+    if (!models.length) {
+      rows.appendChild(makeRow('pool is empty', 'the backend returned no models', 'offline', false));
+      status.textContent = '';
+      return;
+    }
+    models.forEach(function (m) { rows.appendChild(makeRow(m.id, '', 'listed', true)); });
+    status.textContent = 'model names are real; which provider serves a model is never shown here.';
   }).catch(function (e) {
     document.getElementById('aqua-sync').textContent = 'not connected';
-    document.getElementById('aqua-finding').textContent = 'Could not reach the deployment at ' + base + ' (' + e.message + '). Check the base URL and API key.';
-    stateRow('Backend not reachable', base);
+    document.getElementById('aqua-finding').textContent = 'could not reach the api at ' + base + ' (' + e.message + ').';
+    rows.textContent = '';
+    rows.appendChild(makeRow('backend not reachable', base, 'offline', false));
+    status.textContent = 'check that the deployment is up, then reload.';
   });
 })();
 </script>
