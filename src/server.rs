@@ -1276,4 +1276,4 @@ fn spend_admin(stream: &mut TcpStream, shared: &Shared, req: &Request, token: &s
         return write_json(stream,200,&json!({"name":name,"cap":cap,"units_per_usd":crate::spend::USD}),cors);
     }
     write_json(stream,404,&err_body("not found","invalid_request"),cors)
-            }
+}
