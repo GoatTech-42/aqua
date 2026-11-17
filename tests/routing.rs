@@ -974,3 +974,109 @@ fn spend_upstream_server_error_is_ambiguous_and_keeps_the_hold() {
     let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
     assert_eq!(data["users"]["sam"]["day"]["models"]["coder-a"]["held"],20000);
 }
+
+// Intake adapter limits must be account-wide and last through response consumption.
+#[test]
+fn zai_parallel_models_share_one_slot_and_release_after_json() {
+    let (entered_tx, entered_rx) = channel();
+    let (release_tx, release_rx) = channel();
+    let release_rx = Mutex::new(Some(release_rx));
+    let first = AtomicBool::new(true);
+    let up = mock_upstream(move |_| {
+        if first.swap(false, Ordering::SeqCst) {
+            entered_tx.send(()).unwrap();
+            release_rx.lock().unwrap().take().unwrap().recv_timeout(Duration::from_secs(5)).unwrap();
+        }
+        json_reply(chat_json("glm-4.7-flash", "ok"))
+    });
+    let mut cfg=config(vec![provider("zai", &up.url, Status::Personal, vec![("glm-4.7-flash", "glm-4.7-flash", None), ("glm-4.5-flash", "glm-4.5-flash", None)])],vec![]);
+    cfg.daily_limit=2; // first + third succeed; local busy must refund request quota.
+    let srv = serve(cfg);
+    let base=srv.base.clone();
+    let first=thread::spawn(move || chat(&client(),&base,"ownerkey",pin_msg("glm-4.7-flash")).status());
+    entered_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let second=chat(&client(),&srv.base,"ownerkey",pin_msg("glm-4.5-flash"));
+    release_tx.send(()).unwrap();
+    assert_eq!(second.status(),503,"busy account must not receive a parallel request for another model");
+    assert!(second.headers().get("retry-after").is_none(),"local busy state supplies no made-up Retry-After");
+    assert_eq!(first.join().unwrap(),200);
+    assert_eq!(chat(&client(),&srv.base,"ownerkey",pin_msg("glm-4.7-flash")).status(),200);
+    assert_eq!(up.hits.load(Ordering::SeqCst),2,"blocked request must not reach the provider");
+}
+
+#[test]
+fn zai_stream_slot_lasts_until_upstream_body_finishes() {
+    let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+    let url=format!("http://{}",listener.local_addr().unwrap());
+    let (entered_tx,entered_rx)=channel();
+    let (release_tx,release_rx)=channel();
+    let release_rx=Arc::new(Mutex::new(Some(release_rx)));
+    let hits=Arc::new(AtomicUsize::new(0));let h=hits.clone();
+    thread::spawn(move || {
+        for stream in listener.incoming() {
+            let mut stream=stream.unwrap();let h=h.clone();let entered_tx=entered_tx.clone();let gate=release_rx.clone();
+            thread::spawn(move || {
+                read_request(&mut stream);
+                if h.fetch_add(1,Ordering::SeqCst)==0 {
+                    stream.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\n").unwrap();stream.flush().unwrap();
+                    entered_tx.send(()).unwrap();
+                    gate.lock().unwrap().take().unwrap().recv_timeout(Duration::from_secs(5)).unwrap();
+                    stream.write_all(b"data: [DONE]\n\n").unwrap();
+                } else {
+                    let body=chat_json("glm-4.7-flash","ok").to_string();
+                    write!(stream,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",body.len(),body).unwrap();
+                }
+            });
+        }
+    });
+    let srv=serve(config(vec![provider("zai",&url,Status::Personal,vec![("glm-4.7-flash","glm-4.7-flash",None)])],vec![]));
+    let mut payload=pin_msg("glm-4.7-flash");payload["stream"]=true.into();
+    let mut first=chat(&client(),&srv.base,"ownerkey",payload);assert_eq!(first.status(),200);
+    entered_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let second=chat(&client(),&srv.base,"ownerkey",pin_msg("glm-4.7-flash"));
+    release_tx.send(()).unwrap();
+    assert_eq!(second.status(),503,"headers alone must not release the slot");
+    assert!(first.body_mut().read_to_string().unwrap().contains("[DONE]"));
+    assert_eq!(chat(&client(),&srv.base,"ownerkey",pin_msg("glm-4.7-flash")).status(),200);
+    assert_eq!(hits.load(Ordering::SeqCst),2);
+}
+
+#[test]
+fn zai_failed_attempt_releases_slot_for_next_request() {
+    let first=AtomicBool::new(true);
+    let up=mock_upstream(move |_| if first.swap(false,Ordering::SeqCst){error_reply(500,vec![])}else{json_reply(chat_json("glm-4.7-flash","ok"))});
+    let srv=serve(config(vec![provider("zai",&up.url,Status::Personal,vec![("glm-4.7-flash","glm-4.7-flash",None)])],vec![]));
+    assert_eq!(chat(&client(),&srv.base,"ownerkey",pin_msg("glm-4.7-flash")).status(),503);
+    assert_eq!(chat(&client(),&srv.base,"ownerkey",pin_msg("glm-4.7-flash")).status(),200);
+}
+
+#[test]
+fn intake_model_sanitizer_rejects_unqualified_and_paid_routes() {
+    let model=|public:&str,upstream:&str|ModelEntry{public:public.into(),upstream:upstream.into(),context:None};
+    let meta=HashMap::new();
+    let zai=aqua::sanitize_models("zai",vec![model("glm-4.7-flash","glm-4.7-flash"),model("glm-4.5-flash","glm-4.5-flash"),model("glm-4.7-flashx","glm-4.7-flashx"),model("glm-5.3-flash","glm-5.3-flash")],&meta);
+    assert_eq!(zai.len(),2,"only the exact free standard API models may be configured");
+    let orca=aqua::sanitize_models("orcarouter",vec![model("deepseek-v4.1-flash","deepseek/deepseek-v4.1-flash-free"),model("paid","deepseek/deepseek-v4.1-flash"),model("untested","tencent/hy4-preview-free")],&meta);
+    assert_eq!(orca.len(),1);
+    let infer=aqua::sanitize_models("inferbase",vec![model("deepseek-v4-flash:fp8","deepseek-v4-flash"),model("other","deepseek-v4-pro")],&meta);
+    assert_eq!(infer.len(),1);assert_eq!(infer[0].public,"deepseek-v4-flash:fp8","returned build stays distinct from unsuffixed model");
+}
+
+#[test]
+fn zai_busy_uses_only_exact_model_fallback_without_waiting_or_retrying() {
+    let (entered_tx,entered_rx)=channel();let (release_tx,release_rx)=channel();
+    let release_rx=Mutex::new(Some(release_rx));let first=AtomicBool::new(true);
+    let up=mock_upstream(move |_| {
+        if first.swap(false,Ordering::SeqCst) {
+            entered_tx.send(()).unwrap();release_rx.lock().unwrap().take().unwrap().recv_timeout(Duration::from_secs(5)).unwrap();
+        }
+        json_reply(chat_json("glm-4.7-flash","ok"))
+    });
+    let fallback=mock_upstream(|_|json_reply(chat_json("same-model","ok")));
+    let srv=serve(config(vec![provider("zai",&up.url,Status::Personal,vec![("glm-4.7-flash","glm-4.7-flash",None)]),provider("fallback",&fallback.url,Status::Personal,vec![("glm-4.7-flash","same-model",None)])],vec![]));
+    let base=srv.base.clone();let first=thread::spawn(move ||chat(&client(),&base,"ownerkey",pin_msg("glm-4.7-flash")).status());
+    entered_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let second=chat(&client(),&srv.base,"ownerkey",pin_msg("glm-4.7-flash"));release_tx.send(()).unwrap();
+    assert_eq!(second.status(),200);assert_eq!(fallback.hits.load(Ordering::SeqCst),1);assert_eq!(up.hits.load(Ordering::SeqCst),1);
+    assert_eq!(first.join().unwrap(),200);
+}
