@@ -249,11 +249,11 @@ Illustrative mappings, not an active environment file:
 
     ORCAROUTER_MODELS="deepseek-v4.1-flash=deepseek/deepseek-v4.1-flash-free"
     ZAI_MODELS="glm-4.7-flash=glm-4.7-flash"
-    INFERBASE_MODELS="deepseek-v4-flash:fp8=deepseek-v4-flash"
+    INFERBASE_MODELS="deepseek-v4-flash=deepseek-v4-flash"
 
-Inferbase returned `deepseek-v4-flash:fp8` in its qualified test. Preserve this
-build in its public canonical name; do not silently merge it with an unsuffixed
-DeepSeek binding. An Orca free suffix is a route requirement, not permission to
+Inferbase returned `deepseek-v4-flash:fp8` in its qualified test. The public name
+is `deepseek-v4-flash` at Luke's request, but the fp8 build remains this binding's
+internal identity. Do not pool it with V4.1 or assume another V4 build is identical. An Orca free suffix is a route requirement, not permission to
 remove a model's version. Verify identity before joining any canonical pool.
 
 Z.AI has a fixed local concurrency limit of **one active inference across all
@@ -350,3 +350,30 @@ For owner-development-only AMD Radeon, NVIDIA NIM and Logfare, retain
 `AQUA_STATUS_LOGFARE=personal`. The existing status filter excludes their
 provider bindings from friend catalog, direct routing and auto candidates.
 This does not grant production use or override provider terms. Gonka stays off.
+
+
+## Maker-price display and public model names
+
+`GET /v1/models` includes display-only `maker_pricing` metadata from a reviewed
+registry, with source URL, checked date and estimate basis. These are the model
+maker's official API rates, not serving-provider rates, Aqua charges or savings.
+Uncached standard online list rates are used; peak rates are used where time
+bands exist. Free maker API tiers are shown as zero only where documented.
+No published paid token tariff or unresolved build identity stays unavailable.
+The browser calculates a virtual USD estimate from confirmed prompt/completion
+token counts. Reasoning already included in completion tokens is not added again.
+The registry never changes virtual accounting, friend access, caps, provider
+allowances or ledger data. Historical usage is not repriced. Prices are a dated
+snapshot, not a claim that a maker will keep its rate or offer this route forever.
+
+Runtime mappings for this release use one `deepseek-v4.1-flash` public binding
+for Zro and OrcaRouter. Luke accepted advertised same base weights for pooling;
+exact serving build/quantization equality was not independently proved. Existing
+provider eligibility and same-model failover rules still apply. Both routes stay
+personal/owner-only under the current runtime packet. The hidden legacy request
+name `deepseek-v4.1-flash-route-b` resolves to that canonical pool. The old
+`deepseek-v4-flash:fp8` request name resolves only to `deepseek-v4-flash`.
+Update the runtime bindings with this source release; no counter or ledger reset.
+Keep maker-price metadata unavailable for generic DeepSeek aliases until the
+exact official API snapshot is grounded. A self-identification answer is not
+model provenance.
