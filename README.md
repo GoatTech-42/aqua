@@ -171,3 +171,59 @@ anything else -> same origin), with the localStorage override kept for testing.
 
     cargo test   # 46 tests incl. hostile-upstream redaction probes
     cargo run    # serve
+
+## Virtual USD caps
+
+This is usage accounting, not billing. Aqua never buys provider credits. Friends
+start at $2/day and $15/month in virtual USD; the owner is tracked but uncapped.
+Daily and monthly windows reset at UTC midnight. Prices are list-price benchmarks,
+not a promise of what a provider charges. Default input/output USD per million
+tokens, checked 2026-11-16:
+
+| Model | Input | Output | Source |
+| --- | ---: | ---: | --- |
+| glm-5.3 | 1.40 | 4.40 | https://docs.z.ai/guides/overview/pricing |
+| glm-5.3-flash | 0.15 | 0.50 | https://docs.z.ai/guides/overview/pricing |
+| glm-4.7-flash | 0 | 0 | https://docs.z.ai/guides/overview/pricing |
+| deepseek-v4.1-flash-1017 | 0.30 | 1.20 | https://api-docs.deepseek.com/quick_start/pricing/ |
+| qwen-3.8-27b | 0.50 | 3.00 | http://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen3-8-27b |
+
+DeepSeek uses peak, uncached list prices for that dated identity only. Qwen uses
+the maker's international price. Unknown models use a conservative 10/30 estimate
+and are owner-only by default. Output prices of $10/million or more default to
+owner-only. These settings do not claim that hypothetical future models exist.
+
+Configuration:
+
+- `AQUA_SPEND_STATE_PATH`: persistent local JSON ledger, default `aqua-spend.json`.
+  Requires Rust 1.89+ for its exclusive OS file lock. One server process per ledger.
+  Back up the ledger; deleting it resets usage. A missing parent directory, corrupt
+  ledger or competing process prevents startup. Never put it on ephemeral storage.
+- `AQUA_SPEND_DEFAULT_CAP=2/15`: daily/monthly virtual USD for friends.
+- `AQUA_SPEND_CAPS=sam=2/15,alex=1/10`: initial per-account caps.
+- `AQUA_MODEL_PRICES=custom-model=0.15/0.50`: input/output USD per million.
+- `AQUA_MODEL_ACCESS=custom-model=admin`: restrict explicitly. `all` explicitly
+  permits friends, still subject to provider eligibility and caps.
+
+The admin API has `GET /v1/admin/usage` and `POST /v1/admin/caps` with JSON
+`{"name":"sam","daily":"2","monthly":"15"}`. Decimal amounts are strings.
+Use the admin bearer key or an owner browser session. Cookie mutations require an
+explicit approved Origin and reject cross-site fetches. Owner caps cannot be set.
+Names match configured account names, not API tokens. Cap edits persist in the
+ledger and take precedence over the initial environment settings.
+
+Before every friend dispatch, Aqua durably reserves a verified context window of
+input plus a full output window per completion (n=1..8). Missing verified context
+metadata fails closed. Large windows can require a cap larger than one request's
+actual cost: no token-estimation shortcut weakens the cap. Successful JSON usage
+or a completed SSE usage report replaces the reservation with reported cost.
+Missing usage, truncated streams and ambiguous network failures keep the full
+hold. Explicit request/auth/model/rate rejections (400, 401, 403, 404, 422, 429)
+release it; ambiguous server failures do not. Concurrent requests share the same
+account budget. A report above the reserved bound is recorded and blocks further
+friend dispatches for that account until the ledger/bound is repaired offline.
+Persistence failure also fails closed for friends. Owner requests stay uncapped;
+check `accounting_available` and `unknown_requests` before treating totals as
+complete. `unknown_owner_requests_since_startup` counts owner admissions skipped
+because storage failed, and resets on restart. Audit logs are needed across such
+outages. Owner usage cannot be reconstructed when an upstream omits usage.
