@@ -40,7 +40,7 @@ a maintainer transition).
   is https. No tokens or GitHub data are stored beyond the login + role.
 - `GET /auth/me` → `{login, role}` or 401. `POST /auth/logout` revokes and clears.
 - The production deployment is split: Pages serves the console at
-  `aqua.goattech.us`, the backend answers at `api.aqua.goattech.us`. The session
+  `aqua.goattech.us`, the backend answers at `aqua-api.goattech.us`. The session
   cookie is host-only (no `Domain` attribute), `HttpOnly`, `SameSite=Lax`,
   `Secure`: it never leaves the API host, and because both hosts share one
   registrable domain it still rides credentialed cross-origin fetches
