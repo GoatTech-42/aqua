@@ -24,6 +24,7 @@ fn cfg_with(oauth: OAuthConfig) -> aqua::Config {
         allowed_origin: String::new(),
         providers: vec![],
         oauth,
+        spend: Default::default(),
         auto_shortlist: vec![],
         upstream_budget: Duration::from_secs(300),
     }

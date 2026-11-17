@@ -10,3 +10,7 @@ pub use config::{
     Provider, Role, Status, AUTO_ALIAS,
 };
 pub use server::{bind, bind_addr, Server};
+
+mod spend;
+
+pub use spend::{Settings as SpendSettings, Price as ModelPrice, Caps as SpendCaps};

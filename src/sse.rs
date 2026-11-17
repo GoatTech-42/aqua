@@ -10,11 +10,15 @@ pub const MAX_PENDING: usize = 256 * 1024;
 pub struct SseRewriter {
     buf: Vec<u8>,
     alias: String,
+    usage: Option<(u64, u64)>,
+    done: bool,
+    terminal_snapshot: bool,
+    after_done: bool,
 }
 
 impl SseRewriter {
     pub fn new(alias: &str) -> Self {
-        SseRewriter { buf: Vec::new(), alias: alias.to_string() }
+        SseRewriter { buf: Vec::new(), alias: alias.to_string(), usage: None, done: false, terminal_snapshot: false, after_done: false }
     }
 
     // Incremental per-event cap: the buffer never exceeds MAX_PENDING + 1,
@@ -42,7 +46,11 @@ impl SseRewriter {
         self.buf.len() <= MAX_PENDING
     }
 
-    fn handle_event(&self, event: &[u8], out: &mut Vec<u8>) {
+    pub fn usage(&self) -> Option<(u64, u64)> {
+        if self.done && self.terminal_snapshot && !self.after_done && self.buf.iter().all(u8::is_ascii_whitespace) { self.usage } else { None }
+    }
+
+    fn handle_event(&mut self, event: &[u8], out: &mut Vec<u8>) {
         let text = String::from_utf8_lossy(event);
         let mut data_lines: Vec<String> = Vec::new();
         for line in text.split('\n') {
@@ -56,7 +64,9 @@ impl SseRewriter {
             return;
         }
         let payload = data_lines.join("\n");
+        if self.done { self.after_done = true; return; }
         if payload.trim() == "[DONE]" {
+            self.done = true;
             out.extend_from_slice(b"data: [DONE]\n\n");
             return;
         }
@@ -68,7 +78,15 @@ impl SseRewriter {
                 .filter_map(|d| serde_json::from_str::<serde_json::Value>(d).ok())
                 .collect(),
         };
+        self.terminal_snapshot = false;
         for json in frames {
+            self.terminal_snapshot = false;
+            if let Some((input, output)) = crate::spend::usage(&json) {
+                let old = self.usage.unwrap_or((0, 0));
+                self.usage = Some((old.0.max(input), old.1.max(output)));
+                // OpenAI's final include_usage chunk has no content choices.
+                self.terminal_snapshot = json.get("choices").map(|v| v.as_array().map(Vec::is_empty).unwrap_or(false)).unwrap_or(true);
+            }
             let rewritten = redact_chunk(&json, &self.alias);
             out.extend_from_slice(b"data: ");
             out.extend_from_slice(rewritten.to_string().as_bytes());
@@ -201,5 +219,65 @@ mod tests {
         assert!(r.buf.is_empty(), "complete events drain the buffer");
         let text = String::from_utf8_lossy(&out);
         assert_eq!(text.matches("data: {").count(), 100);
+    }
+}
+
+#[cfg(test)]
+mod usage_tests {
+    use super::*;
+    #[test]
+    fn usage_is_cumulative_not_double_counted_and_bad_usage_is_unknown() {
+        let mut rewriter = SseRewriter::new("m");
+        let mut out = Vec::new();
+        for _ in 0..2 {
+            assert!(rewriter.push(b"data: {\"usage\":{\"prompt_tokens\":20,\"completion_tokens\":10}}\n\n", &mut out));
+        }
+        assert_eq!(rewriter.usage(), None, "partial usage cannot release a hold");
+        rewriter.push(b"data: [DONE]\n\n", &mut out);
+        assert_eq!(rewriter.usage(), Some((20, 10)));
+        let mut bad = SseRewriter::new("m");
+        bad.push(b"data: {\"usage\":{\"prompt_tokens\":-1,\"completion_tokens\":10}}\n\n", &mut out);
+        assert_eq!(bad.usage(), None);
+    }
+}
+
+#[cfg(test)]
+mod reviewer_terminal_usage {
+    use super::*;
+    #[test]
+    fn reviewer_usage_before_unaccounted_content_is_not_terminal() {
+        let mut r=SseRewriter::new("m"); let mut out=vec![];
+        assert!(r.push(b"data: {\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1},\"choices\":[]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"more content after usage\"}}]}\n\ndata: [DONE]\n\n",&mut out));
+        assert_eq!(r.usage(),None,"an early usage snapshot released the full hold after later unaccounted output");
+    }
+    #[test]
+    fn reviewer_usage_after_done_is_not_a_completed_report() {
+        let mut r=SseRewriter::new("m"); let mut out=vec![];
+        assert!(r.push(b"data: [DONE]\n\ndata: {\"usage\":{\"prompt_tokens\":1,\"completion_tokens\":1}}\n\n",&mut out));
+        assert_eq!(r.usage(),None,"usage parsed after the terminal marker was accepted");
+    }
+}
+
+#[cfg(test)]
+mod terminal_snapshot_edges {
+    use super::*;
+    #[test]
+    fn malformed_terminal_snapshot_and_content_after_done_keep_the_hold() {
+        for tail in [
+            "data: {\"usage\":{\"prompt_tokens\":-1,\"completion_tokens\":1}}\n\ndata: [DONE]\n\n",
+            "data: not-json\n\ndata: [DONE]\n\n",
+            "data: [DONE]\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"late\"}}]}\n\n",
+            "data: [DONE]\n\ndata: trailing-partial",
+        ] {
+            let mut r=SseRewriter::new("m");let mut out=vec![];
+            r.push(b"data: {\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3}}\n\n",&mut out);
+            r.push(tail.as_bytes(),&mut out);assert_eq!(r.usage(),None,"{tail}");
+        }
+    }
+    #[test]
+    fn later_final_snapshot_covers_content_without_double_counting() {
+        let mut r=SseRewriter::new("m");let mut out=vec![];
+        r.push(b"data: {\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"more\"}}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":5}}\n\ndata: [DONE]\n\n",&mut out);
+        assert_eq!(r.usage(),Some((2,5)));
     }
 }
