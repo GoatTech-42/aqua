@@ -213,7 +213,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
         <p class="keynotice" id="aqua-keynotice" hidden></p>
         <div class="pghead"><span class="m" id="aqua-route">auto</span><span class="s" id="aqua-routesub">router default</span><select class="pgsel" id="aqua-pgsel" aria-label="model"></select></div>
         <div class="stream" id="aqua-stream">
-          <div class="msg"><div class="body">pick a model on the left and ask something.</div></div>
+          <div class="msg"><div class="body">pick a model and ask something.</div></div>
         </div>
         <div class="composer">
           <div class="cbox">
@@ -368,9 +368,12 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 
   var input = document.getElementById('aqua-input');
   var sendBtn = document.getElementById('aqua-send');
+  var inFlight = false;
   function send() {
+    if (inFlight) { return; }
     var text = input.value.trim();
     if (!text) { return; }
+    inFlight = true;
     input.value = '';
     sendBtn.disabled = true;
     addMsg('you', text);
@@ -405,12 +408,12 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
         document.getElementById('aqua-kv-tokens').textContent = usage ? (usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '—';
       }).catch(function (e) {
         if (e.message === 'signed out.') { return; }
-        pending.querySelector('.body').textContent = 'could not reach the api (' + e.message + '). your message was not retried — send it again yourself if it did not go through.';
+        pending.querySelector('.body').textContent = 'could not confirm a reply (' + e.message + '). this may already have used tokens, and was not retried.';
         var rl = pending.querySelector('.route');
-        rl.textContent = 'offline';
+        rl.textContent = 'not confirmed';
         rl.classList.add('err');
         history.pop();
-      }).finally(function () { sendBtn.disabled = false; input.focus(); });
+      }).finally(function () { inFlight = false; sendBtn.disabled = false; input.focus(); });
   }
   sendBtn.addEventListener('click', send);
   input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { send(); } });
