@@ -58,6 +58,7 @@ h1 .dot { color:var(--accent); }
 .how:hover { color:var(--text); border-color:var(--text); }
 
 /* product scene: one labeled request, one streamed answer */
+.hero>*{min-width:0}
 .scene { background:var(--surface); border:1px solid var(--line); border-radius:0.875rem; overflow:hidden; }
 .scene .bar { display:flex; align-items:center; gap:0.5rem; padding:0.75rem 1rem; border-bottom:1px solid var(--rule); }
 .scene .bar i { width:0.625rem; height:0.625rem; border-radius:50%; background:#1f1f1f; border:1px solid #2b2b2b; }
@@ -131,6 +132,7 @@ h1 .dot { color:var(--accent); }
 authorization: bearer aqua_sk_…
 {
   "model": "dsv4.1-flash",
+  "stream": true,
   "messages": [{"role": "user", "content": "explain sql joins in one line"}]
 }</pre>
     <pre class="ans"><span class="lbl">200 — streamed</span>
@@ -163,7 +165,13 @@ a shared key, so related data reads as one result.<span class="caret"></span></p
 <script>
 (function () {
   var storedBase = localStorage.getItem('aqua_api_base');
-  var base = storedBase || (location.hostname === 'aqua.goattech.us' ? 'https://aqua-api.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua-api.goattech.us/v1'));
+  // Migrate only the retired production default on the production Pages host.
+  if (location.hostname === 'aqua.goattech.us' &&
+      (storedBase === 'https://api.aqua.goattech.us/v1' || storedBase === 'https://api.aqua.goattech.us/v1/')) {
+    storedBase = 'https://aqua-api.goattech.us/v1';
+    localStorage.setItem('aqua_api_base', storedBase);
+  }
+  var base = (storedBase || (location.hostname === 'aqua.goattech.us' ? 'https://aqua-api.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua-api.goattech.us/v1'))).replace(/\/+$/, '');
   var serverOrigin = base.replace(/\/v1$/, '');
   document.getElementById('aqua-base').textContent = base;
   [document.getElementById('aqua-top-signin'), document.getElementById('aqua-hero-signin')].forEach(function (a) {
