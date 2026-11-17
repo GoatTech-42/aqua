@@ -169,13 +169,19 @@ fn logout_clears_cookie() {
 }
 
 #[test]
-fn static_pages_are_served_and_api_still_closed() {
+fn landing_is_public_interactive_pages_redirect_and_api_stays_key_gated() {
     let r = aqua::bind(cfg_with(OAuthConfig::default())).unwrap();
     let base = format!("http://127.0.0.1:{}", r.port());
-    for path in ["/", "/landing.html", "/console.html", "/playground.html"] {
+    for path in ["/", "/landing.html"] {
         let resp = raw(&base, &format!("GET {} HTTP/1.1\r\nhost: x\r\n\r\n", path));
         assert!(resp.starts_with("HTTP/1.1 200"), "{} must be served", path);
         assert!(resp.contains("content-type: text/html"));
+    }
+    for path in ["/console.html", "/playground.html", "/console", "/playground"] {
+        let resp = raw(&base, &format!("GET {} HTTP/1.1\r\nhost: x\r\n\r\n", path));
+        assert!(resp.starts_with("HTTP/1.1 302"), "{} must redirect without a session", path);
+        assert!(resp.contains("location: /\r\n"));
+        assert!(!resp.contains("<!doctype html>"), "interactive HTML withheld on embedded routes");
     }
     let resp = raw(&base, "GET /v1/models HTTP/1.1\r\nhost: x\r\n\r\n");
     assert!(resp.starts_with("HTTP/1.1 401"), "API stays key-gated alongside public pages");
