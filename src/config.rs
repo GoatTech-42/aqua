@@ -115,6 +115,27 @@ const REGISTRY: &[RegistryEntry] = &[
         models_env: Some("ZRO_MODELS"),
     },
     RegistryEntry {
+        id: "orcarouter",
+        base_url: "https://api.orcarouter.ai/v1",
+        base_url_env: None,
+        key_env: "ORCAROUTER_API_KEY",
+        models_env: Some("ORCAROUTER_MODELS"),
+    },
+    RegistryEntry {
+        id: "zai",
+        base_url: "https://api.z.ai/api/paas/v4",
+        base_url_env: None,
+        key_env: "ZAI_API_KEY",
+        models_env: Some("ZAI_MODELS"),
+    },
+    RegistryEntry {
+        id: "inferbase",
+        base_url: "https://api.inferbase.ai/v1",
+        base_url_env: None,
+        key_env: "INFERBASE_API_KEY",
+        models_env: Some("INFERBASE_MODELS"),
+    },
+    RegistryEntry {
         id: "logfare",
         base_url: "https://logfare.ai/v1",
         base_url_env: None,
@@ -213,6 +234,15 @@ pub fn sanitize_models(
         if m.public.trim().is_empty() || m.upstream.trim().is_empty() {
             continue;
         }
+        // Intake adapters are exact-model allowlists, not general catalogs.
+        // Never turn an operator typo into a paid or unqualified fallback.
+        let allowed = match provider_id {
+            "orcarouter" => m.upstream == "deepseek/deepseek-v4.1-flash-free",
+            "zai" => matches!(m.upstream.as_str(), "glm-4.7-flash" | "glm-4.5-flash"),
+            "inferbase" => m.upstream == "deepseek-v4-flash",
+            _ => true,
+        };
+        if !allowed { continue; }
         // the reserved alias must never be a concrete upstream binding
         if m.public.eq_ignore_ascii_case(AUTO_ALIAS) {
             continue;
@@ -310,5 +340,22 @@ pub fn from_env() -> Config {
                 }
             })
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod intake_registry_tests {
+    use super::*;
+    #[test]
+    fn new_adapters_have_exact_nonsecret_wiring() {
+        for (id, base, key, models) in [
+            ("orcarouter", "https://api.orcarouter.ai/v1", "ORCAROUTER_API_KEY", "ORCAROUTER_MODELS"),
+            ("zai", "https://api.z.ai/api/paas/v4", "ZAI_API_KEY", "ZAI_MODELS"),
+            ("inferbase", "https://api.inferbase.ai/v1", "INFERBASE_API_KEY", "INFERBASE_MODELS"),
+        ] {
+            let row=REGISTRY.iter().find(|p|p.id==id).unwrap();
+            assert_eq!(row.base_url,base);assert_eq!(row.key_env,key);assert_eq!(row.models_env,Some(models));
+            assert_eq!(row.base_url_env,None);
+        }
     }
 }
