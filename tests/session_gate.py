@@ -3,7 +3,7 @@ import http.server,json,pathlib,subprocess,tempfile,threading,unittest
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 class GateTest(unittest.TestCase):
     def test_session_gate(self):
-        for page in ['console.html','playground.html']:
+        for page in ['console.html','playground.html','settings.html']:
             for mode in ['owner','friend','history','denied','network','malformed','pending','timeout']:
                 with self.subTest(page=page,mode=mode):self.run_case(page,mode)
     def run_case(self,page,mode):
