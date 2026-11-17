@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-html { font-size: clamp(16px, 0.72vw + 8.65px, 22px); }
+html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
 :root {
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
@@ -117,7 +117,7 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
 <body>
 <div class="shell">
   <div class="topbar">
-    <a class="brand" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <a class="brand" href="https://aqua.goattech.us/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
     <span class="crumb">/ admin</span>
     <div class="right">
       <span class="who" id="aqua-who">checking sign-in</span>
@@ -167,7 +167,7 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
       </form>
     </section>
 
-    <div class="foot"><a href="/">landing</a><a href="/console.html">console</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a></div>
+    <div class="foot"><a href="https://aqua.goattech.us/">landing</a><a href="https://aqua.goattech.us/console.html">console</a><a href="https://aqua.goattech.us/playground.html">playground</a><a href="https://aqua.goattech.us/keys.html">api keys</a></div>
   </div>
 </div>
 
@@ -235,8 +235,14 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
   }
   function money(value) {
     if (!Number.isSafeInteger(value) || value < 0) return 'unavailable';
-    if (value > 0 && value < 1000) return '<$0.000001';
-    return '$' + (value / 1e9).toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+    var usd = value / 1e9;
+    if (usd === 0) return '$0.00';
+    if (usd >= 0.01) return '$' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // tiny nonzero: up to 4 significant digits, trailing zeros trimmed
+    var s = usd.toPrecision(4);
+    if (s.indexOf('e') !== -1) s = usd.toFixed(9);
+    if (s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '.0');
+    return '$' + s;
   }
 
   /* ---- providers ---- */
@@ -349,9 +355,11 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
         uStatus.textContent = 'updated ' + new Date().toLocaleTimeString().toLowerCase() + '. confirmed usage only; reservations are shown separately.';
         uStatus.className = 'stateline';
       }
+      return true;
     }).catch(function (e) {
       uStatus.textContent = 'usage unavailable. ' + e.message + ' any figures still shown are from the last successful refresh.';
       uStatus.className = 'stateline err';
+      return false;
     }).finally(function () { uRefresh.disabled = false; });
   }
   capName.addEventListener('change', function () {
@@ -373,9 +381,13 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
       .then(function () { capMessage.textContent = 'saved limits for ' + account + '.'; return loadUsage(); })
       .catch(function (e) {
         // A failed POST may still have committed server-side; reconcile from GET, never auto-repeat.
-        capMessage.textContent = 'could not confirm the save. ' + e.message + ' the figures below were refreshed — check them before saving again.';
+        capMessage.textContent = 'could not confirm the save. ' + e.message + ' refreshing the figures to check...';
         capMessage.className = 'stateline err';
-        return loadUsage();
+        return loadUsage().then(function (ok) {
+          capMessage.textContent = ok
+            ? 'could not confirm the save. the figures were refreshed — check them before saving again.'
+            : 'could not confirm the save, and refreshing the figures failed — reload the page and check before saving again.';
+        });
       })
       .finally(function () { capSave.disabled = false; });
   });
