@@ -113,7 +113,7 @@ not enforce account billing limits.
     # console login (GitHub OAuth; optional - API keys work without it)
     AQUA_GITHUB_CLIENT_ID=<oauth app client id>
     AQUA_GITHUB_CLIENT_SECRET=<oauth app secret>
-    AQUA_PUBLIC_URL=https://api.aqua.goattech.us   # this backend's own public URL (OAuth callback host)
+    AQUA_PUBLIC_URL=https://aqua-api.goattech.us   # this backend's own public URL (OAuth callback host)
     AQUA_CONSOLE_URL=https://aqua.goattech.us      # where the browser lands after login (Pages)
     AQUA_GITHUB_OWNERS=goattech-42               # GitHub logins, lowercase, comma-sep
     AQUA_GITHUB_FRIENDS=sam,alex
@@ -158,7 +158,7 @@ Prompts and responses are never logged.
 
 Split hosting, per the owner's ask: static console on Cloudflare Pages at
 `https://aqua.goattech.us`, this Rust backend on his own server at
-`https://api.aqua.goattech.us` (Cloudflare-proxied record -> Cosmos -> container).
+`https://aqua-api.goattech.us` (Cloudflare-proxied record -> Cosmos -> container).
 Same registrable domain, so the host-only `SameSite=Lax` session cookie flows on
 credentialed cross-origin fetches; CORS answers exactly one origin with
 `access-control-allow-credentials: true`, and cookie-authenticated mutations
