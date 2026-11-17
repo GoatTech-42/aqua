@@ -62,6 +62,8 @@ pub struct Ledger {
     pub caps: BTreeMap<String, Caps>,
     #[serde(default)]
     pub accounts: BTreeMap<String, AccountUsage>,
+    #[serde(default)]
+    pub preferences: BTreeMap<String, crate::preferences::Preferences>,
     next_id: u64,
     reservations: BTreeMap<u64, Reservation>,
 }
@@ -78,6 +80,11 @@ pub struct AccountUsage {
 }
 
 impl Ledger {
+    pub fn set_preferences(&mut self,user:&str,p:crate::preferences::Preferences)->Result<(), &'static str> {
+        if user.is_empty() || user.len()>128 || !p.valid() {return Err("invalid settings");}
+        if !self.preferences.contains_key(user) && self.preferences.len()>=1024 {return Err("settings accounts full");}
+        self.preferences.insert(user.into(),p);Ok(())
+    }
     pub fn admit_account(&mut self, account: &str, day: &str, user: &str, owner: bool,
         model: &str, amount: u64, total_cap: u64, friend_cap: u64, user_cap: u64, model_cap: u64)
         -> Result<(), &'static str> {
