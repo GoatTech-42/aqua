@@ -1170,3 +1170,90 @@ fn wave2_stale_allowance_and_held_cloudflare_are_not_advertised() {
     let body=r.body_mut().read_json::<serde_json::Value>().unwrap();assert_eq!(body["data"],serde_json::json!([]));
     assert_eq!(up.hits.load(Ordering::SeqCst),0);
 }
+
+// These break if display prices are omitted, guessed for unknown models, or use
+// the internal accounting fallback instead of a sourced maker tariff.
+#[test]
+fn catalog_exposes_sourced_maker_prices_without_route_identity() {
+    let up = mock_upstream(|_| panic!("catalog must not invoke upstream"));
+    let srv = serve(config(vec![provider("private-lane", &up.url, Status::Friends, vec![
+        ("glm-4.7-flash", "secret-route", None),
+        ("deepseek-v4.1-flash-1017", "secret-snapshot", None),
+        ("unknown-model", "secret-unknown", None),
+    ])], vec![]));
+    let mut res = client().get(&format!("{}/v1/models",srv.base)).header("authorization","Bearer ownerkey").call().unwrap();
+    let body=res.body_mut().read_json::<serde_json::Value>().unwrap();
+    let rows=body["data"].as_array().unwrap();
+    let free=&rows[0]["maker_pricing"];
+    assert_eq!(free["status"],"verified");
+    assert_eq!(free["input_nano_usd_per_million"],0);
+    assert_eq!(free["output_nano_usd_per_million"],0);
+    assert_eq!(free["source_url"],"https://docs.z.ai/guides/overview/pricing");
+    let ds=&rows[1]["maker_pricing"];
+    assert_eq!(ds["input_nano_usd_per_million"],300000000u64);
+    assert_eq!(ds["output_nano_usd_per_million"],1200000000u64);
+    assert_eq!(ds["basis"],"standard online, uncached input, peak list rate; virtual USD");
+    let unknown=&rows[2]["maker_pricing"];
+    assert_eq!(unknown["status"],"unavailable");
+    assert!(unknown.get("input_nano_usd_per_million").is_none());
+    let raw=body.to_string();
+    assert!(!raw.contains("secret-route") && !raw.contains("private-lane"));
+    assert_eq!(up.hits.load(Ordering::SeqCst),0);
+}
+
+#[test]
+fn maker_prices_do_not_guess_snapshot_or_quantized_variant() {
+    let srv=serve(config(vec![provider("private-lane","http://127.0.0.1:1",Status::Friends,vec![
+        ("deepseek-v4.1-flash","x",None),("deepseek-v4-flash","y",None),
+        ("deepseek-v4-flash:fp8","z",None),("nemotron-3-ultra-550b-a55b","n",None),
+    ])],vec![]));
+    let mut res=client().get(&format!("{}/v1/models",srv.base)).header("authorization","Bearer ownerkey").call().unwrap();
+    for row in res.body_mut().read_json::<serde_json::Value>().unwrap()["data"].as_array().unwrap() {
+        assert_eq!(row["maker_pricing"]["status"],"unavailable", "must not guess price for {}",row["id"]);
+        assert!(row["maker_pricing"].get("input_nano_usd_per_million").is_none());
+    }
+}
+
+#[test]
+fn legacy_flash_alias_uses_one_canonical_pool_and_response_name() {
+    let bad=mock_upstream(|_|error_reply(500,vec![]));
+    let good=mock_upstream(|_|json_reply(chat_json("vendor-build","OK")));
+    let srv=serve(config(vec![
+        provider("zro",&bad.url,Status::Personal,vec![("deepseek-v4.1-flash","deepseek-v4.1-flash",None)]),
+        provider("orcarouter",&good.url,Status::Personal,vec![("deepseek-v4.1-flash","deepseek/deepseek-v4.1-flash-free",None)]),
+    ],vec![]));
+    let agent=client();
+    let mut list=agent.get(&format!("{}/v1/models",srv.base)).header("authorization","Bearer ownerkey").call().unwrap();
+    let body=list.body_mut().read_json::<serde_json::Value>().unwrap();
+    assert_eq!(body["data"].as_array().unwrap().len(),1);
+    assert_eq!(body["data"][0]["id"],"deepseek-v4.1-flash");
+    let mut res=chat(&agent,&srv.base,"ownerkey",pin_msg("deepseek-v4.1-flash-route-b"));
+    assert_eq!(res.status(),200);
+    assert_eq!(res.body_mut().read_json::<serde_json::Value>().unwrap()["model"],"deepseek-v4.1-flash");
+    assert_eq!(bad.hits.load(Ordering::SeqCst),1);
+    assert_eq!(good.requests.lock().unwrap()[0].body["model"],"deepseek/deepseek-v4.1-flash-free");
+    assert_ne!(chat(&agent,&srv.base,"friendkey",pin_msg("deepseek-v4.1-flash-route-b")).status(),200);
+    assert_eq!(good.hits.load(Ordering::SeqCst),1,"legacy alias cannot expand personal access");
+}
+
+#[test]
+fn legacy_fp8_name_resolves_to_v4_not_v41() {
+    let up=mock_upstream(|_|json_reply(chat_json("deepseek-v4-flash:fp8","OK")));
+    let srv=serve(config(vec![provider("inferbase",&up.url,Status::Personal,vec![("deepseek-v4-flash","deepseek-v4-flash",None)])],vec![]));
+    let mut res=chat(&client(),&srv.base,"ownerkey",pin_msg("deepseek-v4-flash:fp8"));
+    assert_eq!(res.status(),200);
+    assert_eq!(res.body_mut().read_json::<serde_json::Value>().unwrap()["model"],"deepseek-v4-flash");
+    assert_eq!(up.requests.lock().unwrap()[0].body["model"],"deepseek-v4-flash");
+}
+
+#[test]
+fn legacy_flash_streams_use_canonical_name_without_provider_leak() {
+    let up=mock_upstream(|_|MockReply { status:200,headers:vec![("content-type".into(),"text/event-stream".into())],
+        body:"data: {\"model\":\"vendor-private\",\"choices\":[{\"delta\":{\"content\":\"OK\"}}]}\n\ndata: [DONE]\n\n".into() });
+    let srv=serve(config(vec![provider("orcarouter",&up.url,Status::Personal,vec![("deepseek-v4.1-flash","deepseek/deepseek-v4.1-flash-free",None)])],vec![]));
+    let mut payload=pin_msg("deepseek-v4.1-flash-route-b"); payload["stream"]=true.into();
+    let mut res=chat(&client(),&srv.base,"ownerkey",payload);assert_eq!(res.status(),200);
+    let body=res.body_mut().read_to_string().unwrap();
+    assert!(body.contains("deepseek-v4.1-flash"));
+    assert!(!body.contains("vendor-private") && !body.contains("route-b") && !body.contains("orcarouter"));
+}
