@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en" data-session-pending>
+<head>
+<style>html[data-session-pending] { visibility:hidden; }</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aqua — admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+html { font-size: clamp(16px, 0.72vw + 8.65px, 22px); }
+:root {
+  color-scheme: dark;
+  --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
+  --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
+  --accent:#45d6e8; --accent-ink:#00272b;
+  --radius-card:0.625rem; --radius-control:0.5rem;
+  --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+html,body { background:var(--ground); }
+body { font-family:var(--font); color:var(--text); font-size:0.875rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+::selection { background:var(--accent); color:var(--accent-ink); }
+svg { display:block; }
+.num { font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; }
+
+.shell { max-width:88rem; margin:0 auto; padding:1.5rem 2.25rem 4rem; }
+.topbar { display:flex; align-items:center; gap:0.75rem; padding:0.5rem 0 1.5rem; border-bottom:1px solid var(--rule); }
+.brand { display:flex; align-items:center; gap:0.625rem; text-decoration:none; color:var(--text); }
+.brand .wm { font-weight:600; font-size:1.0313rem; letter-spacing:-0.01em; }
+.topbar .crumb { color:var(--faint); font-size:0.8125rem; }
+.topbar .right { margin-left:auto; display:flex; align-items:center; gap:0.875rem; }
+.avatar { width:1.625rem; height:1.625rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:0.6875rem; font-weight:600; display:flex; align-items:center; justify-content:center; }
+.who { font-size:0.8125rem; color:var(--muted); }
+.topbar a.so { font-size:0.75rem; color:var(--faint); text-decoration:none; }
+.topbar a.so:hover { color:var(--text); }
+
+h1 { font-size:1.4375rem; font-weight:600; letter-spacing:-0.02em; margin-top:1.75rem; }
+.sub { margin-top:0.375rem; font-size:0.8438rem; color:var(--muted); max-width:80ch; }
+
+section { margin-top:2rem; }
+.sectitle { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
+.btn { display:inline-flex; align-items:center; gap:0.4375rem; height:2.125rem; padding:0 0.8125rem; border-radius:var(--radius-control);
+  font:inherit; font-size:0.7813rem; font-weight:500; cursor:pointer; border:1px solid var(--control); background:transparent; color:var(--text); white-space:nowrap; }
+.btn:hover { border-color:var(--text); }
+.btn:disabled { color:var(--muted); cursor:wait; }
+.btn:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+.btn-solid { background:#fff; color:#000; border-color:#fff; }
+
+.note { font-size:0.8125rem; color:var(--muted); margin-top:0.625rem; max-width:88ch; }
+.note.err { color:#e3b341; }
+.stateline { font-size:0.8125rem; color:var(--muted); margin-top:0.625rem; min-height:1.125rem; }
+.stateline.err { color:#e3b341; }
+
+/* providers */
+.ptable { margin-top:0.75rem; overflow-x:auto; }
+.phead, .prow { display:grid; grid-template-columns:minmax(8.75rem,1.2fr) 6.875rem 6.875rem minmax(0,2fr); align-items:start; gap:0.875rem; }
+.phead { height:2.375rem; align-items:center; font-size:0.6875rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--faint); }
+.prow { border-top:1px solid var(--rule); padding:0.75rem 0; }
+.prow:hover { background:#070707; }
+.prow .pid { font-family:var(--mono); font-size:0.7813rem; font-weight:600; overflow-wrap:anywhere; }
+.pill { display:inline-flex; align-items:center; gap:0.375rem; height:1.4375rem; padding:0 0.625rem; border-radius:62.4375rem; font-size:0.7188rem; font-weight:500; white-space:nowrap; }
+.pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
+.pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
+.pill-warn { background:#211a0c; border:1px solid #3a2e15; color:#e3b341; }
+.conf { font-size:0.7813rem; color:var(--muted); }
+.pmodels { display:flex; flex-direction:column; gap:0.25rem; }
+.pm { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:0.5rem; font-family:var(--mono); font-size:0.7188rem; align-items:baseline; }
+.pm .pub { color:var(--text); overflow-wrap:anywhere; }
+.pm .arr { color:var(--faint); }
+.pm .ups { color:var(--faint); overflow-wrap:anywhere; }
+.empty { margin-top:0.75rem; padding:1.5rem 1.125rem; border:1px dashed var(--control); border-radius:var(--radius-card); color:var(--faint); font-size:0.8438rem; text-align:center; }
+.empty[hidden] { display:none; }
+
+/* usage */
+.uaccount { padding:0.875rem 0; border-bottom:1px solid var(--line); }
+.uhead { display:flex; flex-wrap:wrap; justify-content:space-between; gap:0.375rem 1rem; }
+.uname { font-weight:600; overflow-wrap:anywhere; }
+.utotals { font-variant-numeric:tabular-nums; color:var(--muted); }
+.umodels { margin-top:0.5rem; color:var(--muted); font-size:0.75rem; }
+.umodels summary { cursor:pointer; min-height:1.75rem; }
+.umrow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0.75rem; padding:3px 0; font-variant-numeric:tabular-nums; }
+.umrow span:first-child { overflow-wrap:anywhere; }
+.umrow span:last-child { text-align:right; }
+
+/* caps */
+.cap-fields { display:grid; grid-template-columns:minmax(8.75rem,1fr) minmax(6.875rem,.6fr) minmax(6.875rem,.6fr) auto; align-items:end; gap:0.75rem; margin-top:0.875rem; }
+.cap-fields label { display:flex; flex-direction:column; gap:0.4375rem; font-size:0.7813rem; color:var(--muted); min-width:0; }
+.cap-fields input { background:var(--ground); color:var(--text); width:100%; padding:0.5rem 0.625rem; height:2.375rem;
+  border:1px solid var(--control); border-radius:var(--radius-control); font:inherit; font-size:0.8125rem; }
+.cap-fields input:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+
+.foot { margin-top:2.25rem; padding-top:1rem; border-top:1px solid var(--rule); font-size:0.75rem; color:var(--faint); display:flex; gap:1rem; flex-wrap:wrap; }
+.foot a { color:var(--muted); text-decoration:none; }
+.foot a:hover { color:var(--text); }
+
+.denied { margin-top:4rem; text-align:center; }
+.denied h1 { margin-top:1.125rem; }
+.denied .sub { margin-left:auto; margin-right:auto; }
+
+@media(max-width:1000px) { .cap-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:760px) {
+  .shell { padding:1.125rem 1.125rem 2.75rem; }
+  h1 { font-size:1.3125rem; }
+  .phead { display:none; }
+  .prow { grid-template-columns:minmax(0,1fr) auto; row-gap:0.25rem; }
+  .prow .pmodels { grid-column:1 / -1; margin-top:0.375rem; }
+  .cap-fields { grid-template-columns:1fr; }
+  .cap-fields input, .cap-fields .btn { min-height:2.75rem; height:auto; }
+  .uhead { flex-direction:column; gap:0.25rem; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <a class="brand" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <span class="crumb">/ admin</span>
+    <div class="right">
+      <span class="who" id="aqua-who">checking sign-in</span>
+      <div class="avatar" id="aqua-avatar">?</div>
+      <a href="#" class="so" id="aqua-signout" style="display:none">sign out</a>
+    </div>
+  </div>
+
+  <div id="aqua-denied" class="denied" hidden>
+    <h1>owner only</h1>
+    <p class="sub">this page needs the owner account. sign in again or go back.</p>
+  </div>
+
+  <div id="aqua-body" hidden>
+    <h1>admin</h1>
+    <p class="sub">providers, usage and friend limits. provider identities stay on this page — friends only see model names.</p>
+
+    <section aria-labelledby="t-providers">
+      <div class="sectitle"><h2 id="t-providers">providers</h2><button type="button" class="btn" id="aqua-p-refresh">refresh</button></div>
+      <p class="stateline" id="aqua-p-status" role="status" aria-live="polite">loading providers...</p>
+      <div class="ptable" id="aqua-p-table" hidden>
+        <div class="phead"><span>provider</span><span>status</span><span>configured</span><span>models (public → upstream)</span></div>
+        <div id="aqua-p-rows"></div>
+      </div>
+      <div class="empty" id="aqua-p-empty" hidden>no providers configured yet.</div>
+    </section>
+
+    <section aria-labelledby="t-usage">
+      <div class="sectitle"><h2 id="t-usage">usage</h2><button type="button" class="btn" id="aqua-u-refresh">refresh</button></div>
+      <p class="note">virtual usd at model list prices, not a bill. the owner account is uncapped. daily and monthly windows use utc.</p>
+      <p class="stateline" id="aqua-u-status" role="status" aria-live="polite">loading usage...</p>
+      <div id="aqua-u-accounts"></div>
+    </section>
+
+    <section aria-labelledby="t-caps">
+      <div class="sectitle"><h2 id="t-caps">friend limits</h2></div>
+      <p class="note" id="aqua-cap-defaults">loading default friend limits...</p>
+      <form id="aqua-cap-form">
+        <div class="cap-fields">
+          <label>account name<input id="aqua-cap-name" name="name" required maxlength="128" autocomplete="off" list="aqua-cap-accounts"></label>
+          <datalist id="aqua-cap-accounts"></datalist>
+          <label>daily virtual usd<input id="aqua-cap-daily" name="daily" required inputmode="decimal" pattern="[0-9]+(\.[0-9]{1,9})?"></label>
+          <label>monthly virtual usd<input id="aqua-cap-monthly" name="monthly" required inputmode="decimal" pattern="[0-9]+(\.[0-9]{1,9})?"></label>
+          <button type="submit" class="btn btn-solid" id="aqua-cap-save">save limits</button>
+        </div>
+        <p class="stateline" id="aqua-cap-message" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+
+    <div class="foot"><a href="/">landing</a><a href="/console.html">console</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a></div>
+  </div>
+</div>
+
+<script>
+(async function () {
+  // Served by the API backend itself: every call is same-origin, session cookie only.
+  var me;
+  var sessionAbort = new AbortController();
+  var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
+  try {
+    var r = await fetch('/auth/me', { credentials: 'include', cache: 'no-store', signal: sessionAbort.signal });
+    if (!r.ok) throw Error('not signed in');
+    me = await r.json();
+    if (!me || typeof me.login !== 'string' || !me.login) throw Error('invalid session');
+  } catch (_) {
+    showDenied('not signed in. use github sign-in from the landing page first.');
+    return;
+  } finally {
+    clearTimeout(sessionTimeout);
+  }
+  if (me.role !== 'owner') { showDenied('signed in as ' + me.login + ' (' + me.role + ').'); return; }
+
+  document.documentElement.removeAttribute('data-session-pending');
+  addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
+  addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
+
+  document.getElementById('aqua-who').textContent = me.login + ' · ' + me.role;
+  document.getElementById('aqua-avatar').textContent = me.login.charAt(0).toUpperCase();
+  document.getElementById('aqua-body').hidden = false;
+  var so = document.getElementById('aqua-signout');
+  so.style.display = '';
+  so.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    fetch('/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
+  });
+
+  function showDenied(why) {
+    document.documentElement.removeAttribute('data-session-pending');
+    document.getElementById('aqua-denied').hidden = false;
+    document.getElementById('aqua-body').hidden = true;
+    document.getElementById('aqua-who').textContent = why;
+  }
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n;
+  }
+  function request(path, opts) {
+    opts = opts || {};
+    opts.credentials = 'include';
+    opts.cache = 'no-store';
+    if (opts.body && !opts.headers) opts.headers = { 'content-type': 'application/json' };
+    return fetch(path, opts).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (body) {
+        if (!r.ok) {
+          var detail = body && typeof body.error === 'string' ? body.error
+                     : body && typeof body.message === 'string' ? body.message : '';
+          if (r.status === 401) throw Error('session expired — reload to sign in again.');
+          if (r.status === 403) throw Error('not allowed.' + (detail ? ' ' + detail : ''));
+          if (r.status === 503) throw Error('storage is unavailable right now. try again shortly.');
+          throw Error('request failed (http ' + r.status + ').' + (detail ? ' ' + detail : ''));
+        }
+        return body;
+      });
+    });
+  }
+  function money(value) {
+    if (!Number.isSafeInteger(value) || value < 0) return 'unavailable';
+    if (value > 0 && value < 1000) return '<$0.000001';
+    return '$' + (value / 1e9).toLocaleString('en-US', { minimumFractionDigits: 6, maximumFractionDigits: 6 });
+  }
+
+  /* ---- providers ---- */
+  var pStatus = document.getElementById('aqua-p-status');
+  var pTable = document.getElementById('aqua-p-table');
+  var pRows = document.getElementById('aqua-p-rows');
+  var pEmpty = document.getElementById('aqua-p-empty');
+  var pRefresh = document.getElementById('aqua-p-refresh');
+  function loadProviders() {
+    pRefresh.disabled = true;
+    return request('/v1/admin/providers').then(function (body) {
+      var providers = (body && Array.isArray(body.providers)) ? body.providers : [];
+      pRows.textContent = '';
+      if (!providers.length) { pTable.hidden = true; pEmpty.hidden = false; }
+      else {
+        pTable.hidden = false; pEmpty.hidden = true;
+        providers.forEach(function (p) {
+          var row = el('div', 'prow');
+          row.appendChild(el('div', 'pid', p.id));
+          var st = el('div'); var ok = String(p.status).toLowerCase() === 'ok' || String(p.status).toLowerCase() === 'live' || String(p.status).toLowerCase() === 'ready';
+          st.appendChild(el('span', 'pill ' + (ok ? 'pill-live' : 'pill-warn'), String(p.status))); row.appendChild(st);
+          row.appendChild(el('div', 'conf', p.configured ? 'yes' : 'no'));
+          var models = el('div', 'pmodels');
+          (Array.isArray(p.models) ? p.models : []).forEach(function (m) {
+            var line = el('div', 'pm');
+            line.appendChild(el('span', 'pub', m.public));
+            line.appendChild(el('span', 'arr', '→'));
+            line.appendChild(el('span', 'ups', m.upstream));
+            models.appendChild(line);
+          });
+          if (!models.children.length) models.appendChild(el('span', 'conf', 'no models listed'));
+          row.appendChild(models);
+          pRows.appendChild(row);
+        });
+      }
+      pStatus.textContent = providers.length + ' provider' + (providers.length === 1 ? '' : 's') + '. updated ' + new Date().toLocaleTimeString().toLowerCase() + '.';
+      pStatus.className = 'stateline';
+    }).catch(function (e) {
+      pStatus.textContent = 'could not load providers. ' + e.message;
+      pStatus.className = 'stateline err';
+    }).finally(function () { pRefresh.disabled = false; });
+  }
+  pRefresh.addEventListener('click', loadProviders);
+
+  /* ---- usage + caps ---- */
+  var uStatus = document.getElementById('aqua-u-status');
+  var uAccounts = document.getElementById('aqua-u-accounts');
+  var uRefresh = document.getElementById('aqua-u-refresh');
+  var capForm = document.getElementById('aqua-cap-form');
+  var capName = document.getElementById('aqua-cap-name');
+  var capDaily = document.getElementById('aqua-cap-daily');
+  var capMonthly = document.getElementById('aqua-cap-monthly');
+  var capDefaults = document.getElementById('aqua-cap-defaults');
+  var capMessage = document.getElementById('aqua-cap-message');
+  var capSave = document.getElementById('aqua-cap-save');
+  var current = null;
+  function total(win, field) {
+    return Object.values((win && win.models) || {}).reduce(function (sum, m) { return sum + (m[field] || 0); }, 0);
+  }
+  function loadUsage() {
+    uRefresh.disabled = true;
+    return request('/v1/admin/usage').then(function (data) {
+      if (!current) {
+        capDaily.value = String(data.default_friend_caps.daily / 1e9);
+        capMonthly.value = String(data.default_friend_caps.monthly / 1e9);
+      }
+      capDefaults.textContent = 'defaults: ' + money(data.default_friend_caps.daily) + ' per day and ' + money(data.default_friend_caps.monthly) + ' per month. saving changes only this account\'s limits.';
+      current = data;
+      uAccounts.textContent = '';
+      var options = document.getElementById('aqua-cap-accounts'); options.textContent = '';
+      var names = Object.keys(data.users || {});
+      if (!names.length) uAccounts.appendChild(el('p', 'note', 'no usage recorded. new friend accounts use the default limits.'));
+      names.sort(function (a, b) {
+        return ((data.users[a].cap === null ? -1 : 0) - (data.users[b].cap === null ? -1 : 0)) || a.localeCompare(b);
+      }).forEach(function (account) {
+        var user = data.users[account], owner = user.cap === null;
+        var row = el('div', 'uaccount');
+        var head = el('div', 'uhead');
+        head.appendChild(el('span', 'uname', account + (owner ? ' — uncapped' : '')));
+        head.appendChild(el('span', 'utotals', 'today ' + money(total(user.day, 'confirmed')) + ' / month ' + money(total(user.month, 'confirmed'))));
+        row.appendChild(head);
+        if (!owner) {
+          row.appendChild(el('p', 'note', 'limits: ' + money(user.cap.daily) + ' daily / ' + money(user.cap.monthly) + ' monthly'));
+          var option = el('option', '', account); option.value = account; options.appendChild(option);
+        }
+        var dayHeld = total(user.day, 'held'), monthHeld = total(user.month, 'held');
+        if (dayHeld || monthHeld) row.appendChild(el('p', 'note', 'reserved: ' + money(dayHeld) + ' today / ' + money(monthHeld) + ' this month. includes in-flight or unreported usage.'));
+        if (user.unknown_requests) row.appendChild(el('p', 'note err', user.unknown_requests + ' request(s) with unknown usage across recorded history. totals are incomplete.'));
+        if (user.accounting_error) row.appendChild(el('p', 'note err', 'accounting bound exceeded. friend access is blocked until repaired.'));
+        var models = Array.from(new Set(Object.keys((user.day && user.day.models) || {}).concat(Object.keys((user.month && user.month.models) || {}))));
+        if (models.length) {
+          var details = el('details', 'umodels'); details.appendChild(el('summary', '', 'usage by model'));
+          models.sort().forEach(function (model) {
+            var day = (user.day.models && user.day.models[model]) || { confirmed: 0 };
+            var month = (user.month.models && user.month.models[model]) || { confirmed: 0 };
+            var line = el('div', 'umrow');
+            line.appendChild(el('span', '', model));
+            line.appendChild(el('span', '', 'today ' + money(day.confirmed) + ' / month ' + money(month.confirmed)));
+            details.appendChild(line);
+          });
+          row.appendChild(details);
+        }
+        uAccounts.appendChild(row);
+      });
+      var gaps = data.unknown_owner_requests_since_startup || 0;
+      if (!data.accounting_available || data.configuration_error || gaps) {
+        uStatus.textContent = 'accounting unavailable or incomplete. owner requests remain uncapped; ' + gaps + ' owner request(s) were not recorded since startup. do not treat these totals as complete.';
+        uStatus.className = 'stateline err';
+      } else {
+        uStatus.textContent = 'updated ' + new Date().toLocaleTimeString().toLowerCase() + '. confirmed usage only; reservations are shown separately.';
+        uStatus.className = 'stateline';
+      }
+    }).catch(function (e) {
+      uStatus.textContent = 'usage unavailable. ' + e.message + ' any figures still shown are from the last successful refresh.';
+      uStatus.className = 'stateline err';
+    }).finally(function () { uRefresh.disabled = false; });
+  }
+  capName.addEventListener('change', function () {
+    var user = current && current.users && current.users[capName.value];
+    if (user && user.cap) {
+      capDaily.value = (user.cap.daily / 1e9).toFixed(9).replace(/\.?0+$/, '');
+      capMonthly.value = (user.cap.monthly / 1e9).toFixed(9).replace(/\.?0+$/, '');
+    }
+  });
+  capForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    if (capSave.disabled) return;
+    var account = capName.value.trim();
+    var user = current && current.users && current.users[account];
+    if (user && user.cap === null) { capMessage.textContent = 'owner usage is uncapped. choose a friend account.'; capMessage.className = 'stateline err'; return; }
+    capSave.disabled = true;
+    capMessage.textContent = 'saving limits...'; capMessage.className = 'stateline';
+    request('/v1/admin/caps', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: account, daily: capDaily.value, monthly: capMonthly.value }) })
+      .then(function () { capMessage.textContent = 'saved limits for ' + account + '.'; return loadUsage(); })
+      .catch(function (e) {
+        // A failed POST may still have committed server-side; reconcile from GET, never auto-repeat.
+        capMessage.textContent = 'could not confirm the save. ' + e.message + ' the figures below were refreshed — check them before saving again.';
+        capMessage.className = 'stateline err';
+        return loadUsage();
+      })
+      .finally(function () { capSave.disabled = false; });
+  });
+  uRefresh.addEventListener('click', loadUsage);
+
+  loadProviders();
+  loadUsage();
+})();
+</script>
+</body>
+</html>
