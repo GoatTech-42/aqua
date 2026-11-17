@@ -72,3 +72,20 @@ for the Pages console hostnames only; it is not the account system.
   Console login currently proves identity only; key issuance stays manual.
 - No per-friend usage display until the backend exposes it.
 - Sessions are in-memory: a restart signs everyone out. Acceptable for beta.
+
+
+## Interactive page session gate
+
+The public landing stays accessible without sign-in. Console and playground wait
+for a fresh credentialed `/auth/me` response and a recognized owner/friend role
+before revealing or initializing interactive controls. Failed, missing, invalid
+or ten-second timed-out checks redirect to `/`. A saved API key is not a browser
+login. Key controls stay behind sign-in; API requests remain bearer-key gated.
+History-cache restoration reloads to check the session again. Sign-out returns
+to landing. Backend-embedded page routes also require a valid session cookie.
+
+Pages HTML remains a downloadable static asset, so this gate does not promise
+source confidentiality. It blocks normal unsigned browser navigation and keeps
+controls hidden while checking; actual data, usage and inference authorization
+still live on the backend. An edge gateway would be needed to withhold the
+static Pages HTML itself. No edge/deployment setting is changed by this PR.
