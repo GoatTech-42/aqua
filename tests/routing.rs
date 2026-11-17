@@ -1257,3 +1257,88 @@ fn legacy_flash_streams_use_canonical_name_without_provider_leak() {
     assert!(body.contains("deepseek-v4.1-flash"));
     assert!(!body.contains("vendor-private") && !body.contains("route-b") && !body.contains("orcarouter"));
 }
+
+#[test]
+fn owner_trial_adapters_fail_closed_without_exact_model_allowlist() {
+    for id in ["nim","radeon","logfare"] {
+        let up=mock_upstream(|_|json_reply(chat_json("private-build","must not dispatch")));
+        let srv=serve(config(vec![provider(id,&up.url,Status::Personal,vec![("candidate","private-build",None)])],vec!["candidate"]));
+        let mut res=client().get(&format!("{}/v1/models",srv.base)).header("authorization","Bearer ownerkey").call().unwrap();
+        let body=res.body_mut().read_json::<serde_json::Value>().unwrap();
+        assert!(!body["data"].as_array().unwrap().iter().any(|m|m["id"]=="candidate"),"{id} unknown model must not be advertised");
+        assert_ne!(chat(&client(),&srv.base,"ownerkey",pin_msg("candidate")).status(),200);
+        assert_ne!(chat(&client(),&srv.base,"ownerkey",pin_msg("auto")).status(),200);
+        assert_eq!(up.hits.load(Ordering::SeqCst),0,"{id} absent exact allowlist must not dispatch");
+    }
+}
+
+#[test]
+fn owner_trial_adapters_never_inherit_friend_access_from_status() {
+    for id in ["nim","radeon","logfare"] {
+        let up=mock_upstream(|_|json_reply(chat_json("private-build","must not dispatch")));
+        let srv=serve(config(vec![provider(id,&up.url,Status::Friends,vec![("candidate","private-build",None)])],vec![]));
+        assert_ne!(chat(&client(),&srv.base,"friendkey",pin_msg("candidate")).status(),200);
+        assert_eq!(up.hits.load(Ordering::SeqCst),0,"{id} friend misconfiguration must stay closed");
+    }
+}
+
+#[test]
+fn strict_zdr_setting_filters_unknown_routes_for_pin_auto_and_catalog() {
+    let up=mock_upstream(|_|json_reply(chat_json("private","must not dispatch")));
+    let mut cfg=config(vec![provider("unverified-route",&up.url,Status::Friends,vec![("candidate","private",None)])],vec!["candidate"]);cfg.spend.path=Some(wave2_path());let srv=serve(cfg);
+    let agent=client();
+    let mut saved=agent.post(&format!("{}/v1/settings",srv.base)).header("authorization","Bearer ownerkey")
+        .send_json(serde_json::json!({"zdr_only":true,"default_model":"auto","show_cost":false})).unwrap();
+    assert_eq!(saved.status(),200);
+    assert_eq!(saved.body_mut().read_json::<serde_json::Value>().unwrap()["zdr_only"],true);
+    assert_ne!(chat(&agent,&srv.base,"ownerkey",pin_msg("candidate")).status(),200);
+    assert_ne!(chat(&agent,&srv.base,"ownerkey",pin_msg("auto")).status(),200);
+    let mut list=agent.get(&format!("{}/v1/models",srv.base)).header("authorization","Bearer ownerkey").call().unwrap();
+    let rows=list.body_mut().read_json::<serde_json::Value>().unwrap();
+    assert!(!rows["data"].as_array().unwrap().iter().any(|m|m["id"]=="candidate"));
+    assert_eq!(up.hits.load(Ordering::SeqCst),0);
+    assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("candidate")).status(),200,"another account's settings are isolated");
+}
+
+#[test]
+fn trial_routes_allow_only_owner_exact_text_and_two_calls_per_account_minute() {
+    for (id,upstream) in [("logfare","qwen-3.8-27b"),("radeon","MiMo-V2.6-Flash"),("nim","minimaxai/minimax-m3.1-flash")] {
+        let up=mock_upstream(|_|json_reply(chat_json("private","OK")));
+        let srv=serve(config(vec![provider(id,&up.url,Status::Friends,vec![("one",upstream,None),("two",upstream,None)])],vec![]));let agent=client();
+        assert_ne!(chat(&agent,&srv.base,"friendkey",pin_msg("one")).status(),200);
+        let mut bad=pin_msg("one");bad["tools"]=serde_json::json!([]);assert_ne!(chat(&agent,&srv.base,"ownerkey",bad).status(),200);
+        let mut bad=pin_msg("one");bad["messages"]=serde_json::json!([{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.invalid"}}]}]);assert_ne!(chat(&agent,&srv.base,"ownerkey",bad).status(),200);
+        assert_eq!(up.hits.load(Ordering::SeqCst),0);
+        let mut first=chat(&agent,&srv.base,"ownerkey",pin_msg("one"));assert_eq!(first.status(),200);let _=first.body_mut().read_to_string();
+        // Header receipt can precede the server dropping its completed-body permit.
+        let limit=Instant::now()+Duration::from_secs(2);
+        loop {let mut second=chat(&agent,&srv.base,"ownerkey",pin_msg("two"));if second.status()==200 {let _=second.body_mut().read_to_string();break;}assert!(Instant::now()<limit,"completed-body permit did not release");thread::yield_now();}
+        assert_ne!(chat(&agent,&srv.base,"ownerkey",pin_msg("one")).status(),200);
+        assert_eq!(up.hits.load(Ordering::SeqCst),2,"{id} RPM shared across models");
+    }
+}
+
+#[test]
+fn trial_account_concurrency_permit_lasts_through_complete_sse_body() {
+    let (entered_tx,entered_rx)=channel();let (release_tx,release_rx)=channel();let gate=Arc::new(Mutex::new(Some(release_rx)));let entered=Arc::new(Mutex::new(Some(entered_tx)));
+    let listener=TcpListener::bind("127.0.0.1:0").unwrap();let url=format!("http://{}",listener.local_addr().unwrap());
+    thread::spawn(move||{let(mut socket,_)=listener.accept().unwrap();read_request(&mut socket);socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\ndata: {\"choices\":[]}\n\n").unwrap();socket.flush().unwrap();entered.lock().unwrap().take().unwrap().send(()).unwrap();gate.lock().unwrap().take().unwrap().recv_timeout(Duration::from_secs(5)).unwrap();socket.write_all(b"data: [DONE]\n\n").unwrap();});
+    let srv=serve(config(vec![provider("logfare",&url,Status::Personal,vec![("one","qwen-3.8-27b",None)])],vec![]));let base=srv.base.clone();
+    let first=thread::spawn(move||{let mut payload=pin_msg("one");payload["stream"]=true.into();let mut response=chat(&client(),&base,"ownerkey",payload);let status=response.status().as_u16();let _=response.body_mut().read_to_string();status});
+    entered_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    assert_ne!(chat(&client(),&srv.base,"ownerkey",pin_msg("one")).status(),200);
+    release_tx.send(()).unwrap();assert_eq!(first.join().unwrap(),200);
+}
+
+#[test]
+fn trial_rejects_oversize_multiple_choices_and_does_not_follow_redirects() {
+    let next=mock_upstream(|_|json_reply(chat_json("private","must not follow")));
+    let target=format!("{}/chat/completions",next.url);
+    let first=mock_upstream(move |_|MockReply{status:307,headers:vec![("location".into(),target.clone())],body:String::new()});
+    let srv=serve(config(vec![provider("logfare",&first.url,Status::Personal,vec![("one","qwen-3.8-27b",None)])],vec![]));let agent=client();
+    let mut bad=pin_msg("one");bad["n"]=2.into();assert_ne!(chat(&agent,&srv.base,"ownerkey",bad).status(),200);
+    let mut bad=pin_msg("one");bad["messages"]=serde_json::json!([{"role":"user","content":"a".repeat(9000)}]);assert_ne!(chat(&agent,&srv.base,"ownerkey",bad).status(),200);
+    assert_eq!(first.hits.load(Ordering::SeqCst),0);
+    assert_ne!(chat(&agent,&srv.base,"ownerkey",pin_msg("one")).status(),200);
+    assert_eq!(first.hits.load(Ordering::SeqCst),1);assert_eq!(next.hits.load(Ordering::SeqCst),0);
+}
