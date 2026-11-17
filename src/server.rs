@@ -551,6 +551,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                         continue;
                     }
                     let mut v = json!({ "id": m.public, "object": "model", "created": 0, "owned_by": "aqua" });
+                    v["maker_pricing"] = crate::maker_pricing::metadata(&m.public);
                     if let Some(c) = m.context {
                         v["context"] = json!(c);
                     }
@@ -728,6 +729,13 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     }
     let want_stream = payload.get("stream") == Some(&Value::Bool(true));
     let requested = payload.get("model").and_then(Value::as_str).unwrap_or(ALIAS);
+    // Hidden legacy request names use the canonical model before access and spend checks.
+    // The reviewed runtime mappings must supply these canonical public bindings.
+    let requested = match requested {
+        "deepseek-v4.1-flash-route-b" => "deepseek-v4.1-flash",
+        "deepseek-v4-flash:fp8" => "deepseek-v4-flash",
+        other => other,
+    };
     let eligible = |p: &&crate::config::Provider| {
         p.status != Status::Off
             && !p.api_key.is_empty()
@@ -1560,4 +1568,4 @@ fn spend_admin(stream: &mut TcpStream, shared: &Shared, req: &Request, token: &s
         return write_json(stream,200,&json!({"name":name,"cap":cap,"units_per_usd":crate::spend::USD}),cors);
     }
     write_json(stream,404,&err_body("not found","invalid_request"),cors)
-  }
+}

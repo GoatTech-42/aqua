@@ -28,7 +28,7 @@ html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
   --prose-max:88ch;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-html,body { background:var(--ground); }
+html,body { background:var(--ground); height:100%; }
 body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 ::selection { background:var(--accent); color:var(--accent-ink); }
 svg { display:block; }
@@ -43,7 +43,8 @@ svg { display:block; }
   * { scroll-behavior:auto !important; transition:none !important; animation-duration:0s !important; }
 }
 
-.app { display:grid; grid-template-columns:16rem 1fr; min-height:100vh; }
+/* app shell locks to the viewport: only inner regions scroll, never the page */
+.app { display:grid; grid-template-columns:16rem 1fr; height:100vh; height:100dvh; }
 
 /* ---- sidebar ---- */
 .side { background:#000; border-right:1px solid var(--rule); padding:1rem 0.75rem; display:flex; flex-direction:column; gap:2px; }
@@ -66,7 +67,8 @@ svg { display:block; }
 .userrow a:hover { color:var(--text); }
 
 /* ---- canvas ---- */
-.main { min-width:0; }
+.main { min-width:0; min-height:0; overflow-y:auto; }
+.side { overflow-y:auto; }
 .canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
 .titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
 h1 { font-size:1.75rem; font-weight:600; letter-spacing:-0.02em; }
@@ -144,6 +146,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   .mrow .c.num { display:none; }
   .c-status { grid-column:2; grid-row:1; align-self:center; }
 }
+
 </style>
 <style>
 /* keys page specifics (shell comes from aqua.css) */

@@ -1,3 +1,4 @@
+mod maker_pricing;
 mod keys;
 pub mod auth;
 pub mod config;
