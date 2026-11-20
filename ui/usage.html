@@ -1,0 +1,809 @@
+<!doctype html>
+<html lang="en" data-session-pending>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>aqua - usage</title>
+<style>
+/* self-hosted fonts (v3.4 rebuild): no third-party requests; same families and weights as before */
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+html[data-session-pending] body{visibility:hidden}
+:root{--ground:#000;--surface:#0b0b0b;--line:#1d1d1d;--text:#fff;--muted:#a8a8a8;--faint:#7c7c7c;--aqua:#2fd4bf;--aqua-ink:#03251f;--warn:#e3b341;--accent:#2fd4bf}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{font-size:clamp(16px,0.75vw + 8.32px,36px);background:var(--ground);color-scheme:dark}
+body{margin:0;background:var(--ground);color:var(--text);font-family:'Instrument Sans',system-ui,sans-serif;line-height:1.45;height:100vh;overflow:hidden}
+.mono,.num{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+svg.i{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.app{display:grid;grid-template-columns:16rem 1fr;height:100vh}
+.side{background:#000;border-right:1px solid var(--line);padding:1rem .75rem;display:flex;flex-direction:column;gap:2px;min-height:0;overflow-y:auto;scrollbar-width:none}
+.side::-webkit-scrollbar,.main::-webkit-scrollbar{display:none}
+.brand{display:flex;align-items:center;gap:.625rem;padding:.25rem .625rem 1.125rem;text-decoration:none;color:var(--text)}
+.brand svg{width:1.375rem;height:1.375rem;stroke:var(--accent)}
+.brand .wm{font-weight:500;font-size:1.125rem;letter-spacing:-.01em}
+.navlabel{font-size:max(0.72rem, 12px);font-weight:600;letter-spacing:.09em;color:var(--faint);padding:1.125rem .75rem .4375rem}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:.625rem;min-height:2.375rem;padding:0 .75rem;border-radius:.5rem;color:var(--muted);text-decoration:none;font-size:.9375rem;font-weight:450}
+.nav a svg{color:#7a7a7a;width:1.0625rem;height:1.0625rem;flex:none}
+.nav a:hover{color:var(--text)}
+.nav a.on{background:#161616;color:var(--accent);font-weight:500}
+.nav a.on svg{color:var(--accent)}
+.spacer{flex:1}
+.userrow{display:flex;align-items:center;gap:.75rem;padding:.875rem .625rem 0;border-top:1px solid var(--line)}
+.avatar{width:1.75rem;height:1.75rem;border-radius:50%;background:#1c1c1c;border:1px solid #2a2a2a;color:#fff;font-size:max(0.72rem, 12px);font-weight:600;display:flex;align-items:center;justify-content:center;flex:none}
+.userrow .cols{display:flex;flex-direction:column;line-height:1.3;min-width:0}
+.userrow .un{font-size:.875rem;font-weight:500}
+.userrow .up{font-size:.75rem;color:var(--faint)}
+.userrow a{margin-left:auto;font-size:.78rem;color:var(--faint);text-decoration:none;display:inline-flex;align-items:center;min-height:1.5rem}
+.userrow a:hover{color:var(--text)}
+.userrow button{margin-left:auto;font-family:inherit;font-size:.78rem;color:var(--faint);background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;min-height:1.5rem}
+.userrow button:hover{color:var(--text)}
+.skiplink{position:absolute;left:-9999px;top:.5rem;z-index:200;background:var(--ground);color:var(--accent);font-size:.85rem;padding:.4rem .75rem;border:1px solid var(--line);border-radius:.5rem;text-decoration:none}
+.skiplink:focus{left:.5rem}
+.main:focus{outline:none}
+.chartdata{margin-top:.5rem;font-size:.8125rem;color:var(--muted)}
+.chartdata summary{cursor:pointer;min-height:1.75rem;color:var(--faint)}
+.cdrows{padding:.375rem 0 .25rem;display:grid;gap:.125rem}
+.cdrows div{overflow-wrap:anywhere}
+.main{overflow:auto;scrollbar-width:none;padding:2rem 2.6rem 3rem;min-width:0}
+.wrap{max-width:74rem}
+.head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
+h1{font-size:2rem;font-weight:500;margin:0 0 .4rem;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 1.6rem;font-size:1rem}
+.refresh{display:flex;align-items:center;gap:.5rem;color:var(--faint);font-size:.85rem;background:none;border:0;font-family:inherit;cursor:pointer;padding:.3rem 0}
+.refresh:hover{color:var(--text)}
+h2{font-size:1.05rem;font-weight:500;margin:2.2rem 0 .3rem}
+.note{color:var(--muted);font-size:.9rem;margin:0 0 .9rem}
+.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.8rem}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:.7rem;padding:1rem 1.1rem;min-width:0}
+.card .k{color:var(--faint);font-size:.78rem;letter-spacing:.04em}
+.card .v{font-size:1.7rem;margin-top:.3rem;white-space:normal;overflow-wrap:break-word}
+.card .v .unk{font-size:1.25rem}
+.card .s{color:var(--faint);font-size:.78rem;margin-top:.25rem}
+.stateline{margin:0 0 1rem;font-size:.92rem;color:var(--muted)}
+.stateline:empty{display:none}
+.banner{border:1px solid #3a3320;background:#14110a;border-radius:.6rem;padding:.8rem 1rem;margin:0 0 .8rem;color:#e9dca7;font-size:.9rem;display:flex;gap:.7rem;align-items:flex-start}
+.banner svg{stroke:var(--warn);margin-top:.15rem}
+.banner.bad{border-color:#4a2222;background:#140a0a;color:#f0b4b4}.banner.bad svg{stroke:#e66}
+table{width:100%;border-collapse:collapse}
+th{text-align:right;font-weight:500;font-size:max(0.72rem, 12px);letter-spacing:.06em;color:var(--faint);padding:.7rem .6rem;border-bottom:1px solid var(--line)}
+th:first-child,td:first-child{text-align:left;padding-left:0}
+td.model,td.num,.num{white-space:nowrap}
+td{padding:.8rem .6rem;border-bottom:1px solid var(--line);text-align:right;font-size:.95rem}
+td.model{font-family:'JetBrains Mono',monospace;font-size:.92rem}
+td .bar{display:block;height:2px;background:#1a1a1a;margin-top:.45rem;border-radius:1px;overflow:hidden}
+td .bar i{display:block;height:100%;background:var(--text);opacity:.85}
+td.dim,.dim{color:var(--faint)}
+#spendtable td:last-child{white-space:normal;min-width:8rem}
+#mettable td.model{white-space:nowrap;min-width:7rem}
+#mettable th,#mettable td{padding-left:.4rem;padding-right:.4rem}
+.gaps{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:.7rem}
+.gap{border:1px dashed #2a2a2a;border-radius:.6rem;padding:.7rem .9rem;color:var(--muted);font-size:.88rem}
+.gap b{display:block;font-weight:500;color:var(--text);margin-bottom:.15rem}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:.5rem;overflow:hidden}
+.seg button{background:none;border:0;color:var(--muted);font:inherit;font-size:.82rem;padding:.4rem .8rem;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+.seg button[aria-pressed=true]{background:#161616;color:var(--text)}
+.tools{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .8rem}
+select{background:var(--surface);color:var(--text);border:1px solid #767676;border-radius:.5rem;font:inherit;font-size:.82rem;padding:.38rem .6rem}
+.chart{background:var(--surface);border:1px solid var(--line);border-radius:.7rem;padding:.9rem 1rem 1rem}
+.chart svg{width:100%;height:auto;display:block}
+.chart .ax{fill:var(--faint);font-size:12.5px;font-family:'JetBrains Mono',monospace}
+.legend{display:flex;flex-wrap:wrap;gap:.35rem 1.2rem;color:var(--faint);font-size:.78rem;margin-top:.5rem}
+.legend span::before{content:'';display:inline-block;width:.7rem;height:.7rem;margin-right:.4rem;vertical-align:-.05rem;border-radius:2px}
+.legend .l1::before{background:#fff}.legend .l2::before{background:#6b6b6b}.legend .l4::before{background:repeating-linear-gradient(45deg,#ddd 0 2px,#666 2px 4px)}.legend .l3::before{background:repeating-linear-gradient(45deg,#333 0 2px,#111 2px 4px)}
+.unk{color:var(--muted);font-style:italic}
+.cls{display:block;color:var(--faint);font-size:max(0.72rem, 12px);max-width:16rem;margin-left:auto;white-space:normal;line-height:1.35}
+.denied{max-width:34rem;margin:18vh auto;text-align:center;color:var(--muted)}
+.denied h1{font-size:1.5rem}
+.aqua-in{animation:in .4s ease-out both}
+@keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.phonebar{display:none}
+.phonebar .pb-nav { margin-left:auto; position:relative; }
+.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
+.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
+.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
+.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
+.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
+.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.thint{display:none;color:var(--faint);font-size:.78rem;margin:.4rem 0 .2rem}
+.tscroll{overflow-x:auto}
+@media (max-width:900px){
+ .app{grid-template-columns:1fr;grid-template-rows:auto 1fr}.side{display:none}
+ .phonebar{display:flex;align-items:center;gap:.75rem;min-height:3.375rem;padding:0 1.125rem;border-bottom:1px solid var(--line);background:#000}
+ .phonebar .pb-wm{display:flex;align-items:center;gap:.5625rem;font-weight:600;font-size:1rem}
+ .phonebar .pb-wm svg{width:1.125rem;height:1.125rem;stroke:var(--accent)}
+ .phonebar .dim{color:var(--faint);font-size:.85rem}
+ .main{padding:1.2rem 1rem 2rem}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.card .v{font-size:1.35rem}.gaps{grid-template-columns:1fr}
+ .tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -1rem;padding:0 1rem;background:linear-gradient(90deg,var(--ground),transparent) left/1.4rem 100% no-repeat local,linear-gradient(270deg,rgba(255,255,255,.12),transparent) right/1.4rem 100% no-repeat scroll}
+ .tscroll table{min-width:44rem}.tscroll .cls{max-width:none;white-space:nowrap;margin-left:0;text-align:right}.tscroll td{padding-top:.55rem;padding-bottom:.55rem}.thint{display:block}
+}
+</style>
+</head>
+<body>
+<a class="skiplink" href="#main">skip to content</a>
+<div class="app" id="app" hidden>
+ <div class="phonebar"><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">usage</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a><a href="/usage.html" aria-current="page">usage</a><a href="/routing.html">routing</a><a href="/settings.html">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
+ <aside class="side">
+  <a class="brand" href="/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+  <div class="navlabel">gateway</div>
+  <nav class="nav">
+   <a href="/console.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+   <a href="/playground.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+   <a href="/keys.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+   <a href="/usage.html" class="on" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+   <a href="/routing.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+   <a href="/settings.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+  </nav>
+  <div class="spacer"></div>
+  <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">-</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
+ </aside>
+ <main class="main" id="main" tabindex="-1"><div id="aqua-denied" class="denied" hidden><h1>sign in first</h1><p class="sub" id="deniedmsg">this page needs your account. <a id="aqua-denied-signin" href="/login/github">sign in with github</a> to continue.</p></div><div class="wrap aqua-in">
+  <div class="head"><div><h1>usage</h1><p class="sub" id="sub">request activity and virtual usage estimates, as the gateway metered them.</p></div>
+   <button class="refresh" id="refresh" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span id="stamp">loading</span></button></div>
+  <p class="stateline" id="state" role="status" aria-live="polite"></p>
+  <h2>traffic</h2>
+  <p class="note" id="metnote">requests the gateway served, from request metering.</p>
+  <p class="stateline" id="metstate" role="status" aria-live="polite"></p>
+  <div id="metbanners"></div>
+  <div class="cards" id="metcards"></div>
+  <div class="tools" id="mettools" hidden>
+   <div class="seg" id="group" role="group" aria-label="group by"><button type="button" data-g="route" aria-pressed="true">route</button><button type="button" data-g="model" aria-pressed="false">model</button><button type="button" data-g="provider" aria-pressed="false">provider</button></div>
+  </div>
+  <p class="thint" id="thint1">swipe the table sideways for more columns</p><div class="tscroll" tabindex="0" role="region" aria-label="requests table, scrollable sideways"><table id="mettable" hidden><thead><tr id="methead"></tr></thead><tbody id="metrows"></tbody></table></div>
+  <div id="chartwrap" hidden>
+   <h2>by hour</h2>
+   <div class="tools"><div class="seg" id="metric" role="group" aria-label="metric"><button type="button" data-m="requests" aria-pressed="true">requests</button><button type="button" data-m="errors" aria-pressed="false">errors</button><button type="button" data-m="tokens_out" aria-pressed="false">tokens out</button></div><select id="filter" aria-label="route filter"></select></div>
+   <div class="chart"><svg id="chart" viewBox="0 0 960 230" role="img" aria-label="hourly chart"></svg>
+   <div class="legend"><span class="l1">value</span><span class="l2">provider faults</span><span class="l3">unknown, truncated or before metering</span><span class="l4">partial: some requests had no token count</span></div></div>
+   <details class="chartdata" id="chartdata" hidden><summary>hourly numbers as text</summary><div class="cdrows" id="cdrows"></div></details>
+  </div>
+  <h2 id="sph">virtual usage estimate</h2>
+  <p class="stateline" id="spv" hidden>not a bill. vUSD values estimate token usage at the gateway&#39;s ledger rates. provider charges are not shown here.</p>
+  <div id="banners"></div>
+  <div class="cards" id="cards"></div>
+  <p class="note" id="periodnote" style="margin-top:1rem" hidden></p>
+  <p class="thint">swipe the table sideways for more columns</p><div class="tscroll" tabindex="0" role="region" aria-label="virtual usage table, scrollable sideways"><table id="spendtable" hidden><thead><tr><th>model</th><th>today · vUSD</th><th>this month · vUSD</th><th>reserved · vUSD</th><th>ledger rate</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <p class="stateline" id="empty" style="margin-top:1rem"></p>
+  <div id="gapswrap" hidden><h2>not measured yet</h2>
+  <p class="note" id="gapsnote"></p>
+  <div class="gaps" id="gaps"></div></div>
+ </div></main>
+</div>
+<script>
+(function(){
+var $=function(id){return document.getElementById(id)};
+function clear(){document.documentElement.removeAttribute('data-session-pending')}
+function deny(msg){document.querySelector('#app .wrap').hidden=true;$('app').hidden=false;$('aqua-denied').hidden=false;if(msg)$('deniedmsg').textContent=msg;$('aqua-user').textContent=msg||'not signed in.';$('aqua-usersub').textContent='';clear()}
+function isNum(x){return typeof x==='number'&&isFinite(x)}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+var UNK='<span class="unk">unknown</span>';
+function has(o,k){return o!==null&&typeof o==='object'&&Object.prototype.hasOwnProperty.call(o,k)}
+function money(units,per){
+  if(!isNum(units)||!isNum(per)||per<=0)return UNK;
+  var v=units/per; if(v===0)return 'vUSD 0.00';
+  if(v>=0.01)return 'vUSD '+v.toFixed(2);
+  var d=Math.min(20,Math.max(2,Math.ceil(-Math.log10(v))+3));var t=v.toFixed(d).replace(/0+$/,'');if(/\.$/.test(t))t+='00';
+  return 'vUSD '+t;
+}
+function kfmt(n){if(!isNum(n))return 'unknown';if(n>=1e9)return (n/1e9).toFixed(n>=1e10?0:1).replace(/\.0$/,'')+'B';if(n>=1e6)return (n/1e6).toFixed(n>=1e7?0:1).replace(/\.0$/,'')+'M';if(n>=1e3)return (n/1e3).toFixed(n>=1e4?0:1).replace(/\.0$/,'')+'k';return String(Math.round(n))}
+function kcell(n){return isNum(n)?kfmt(n):UNK}
+function ms(v,over){
+  if(!isNum(v))return UNK;
+  var txt=v>=1000?(v/1000).toFixed(1)+' s':Math.round(v)+' ms';
+  if(v>=64000){
+    if(over===true)return '<span title="capped: the true value is above 64 s, not an exact measurement">over 64 s</span><span class="cls">capped</span>';
+    if(over===false)return 'about 64 s<span class="cls">approximate</span>';
+    return 'about 64 s<span class="cls">unconfirmed, overflow flag missing</span>';
+  }
+  return txt+(over===true?'<span class="cls">approximate</span>':'');
+}
+function pct(n){return isNum(n)?(Math.round(n*10)/10)+'%':UNK}
+// small-n floors: percentages and percentiles are misleading on a handful of points.
+// below the floor the exact counts stand instead of a rate, and percentiles say so.
+var RATE_MIN=20,LAT_MIN=20;
+function faultCell(fl,at){
+  if(!isNum(at)||at<=0||!isNum(fl))return UNK;
+  if(at<RATE_MIN)return '<span class="unk" title="too few attempts for a stable rate. the counts are exact">'+kfmt(fl)+' of '+kfmt(at)+'</span>';
+  return pct(100*fl/at);
+}
+function latCell(v,over,at){
+  return isNum(at)&&at<LAT_MIN?'<span class="unk" title="too few attempts for a stable estimate">few samples</span>':ms(v,over);
+}
+function nm(x){return x===null||x===undefined||x===''?'unknown':String(x)}
+function pv(p){return p===null||p===undefined?'none':String(p)}
+// retired ledger keys display-merge into the canonical model (amounts summed).
+var MODEL_ALIAS={'deepseek-v4.1-flash-route-b':'deepseek-v4.1-flash','deepseek-v4.1-flash-1017':'deepseek-v4.1-flash'};
+function canon(m){return typeof m==='string'&&MODEL_ALIAS[m]?MODEL_ALIAS[m]:m}
+function aquaResolveApiBase() {
+  // Split deployment: Pages serves the UI, the API lives on its own host.
+  // Default: production Pages host talks to the production API; every other host
+  // (local dev, fixtures, *.pages.dev previews) stays same-origin so sign-in fails
+  // closed where cross-site credentialed sign-in is unsupported.
+  // Stored overrides are allowlisted: the production API or this exact origin,
+  // both https-checked for cross-origin; anything else is dropped.
+  var PROD_HOST = 'aqua.goattech.us';
+  var PROD_API = 'https://aqua-api.goattech.us/v1';
+  var OLD_ALIAS = 'https://api.aqua.goattech.us/v1';
+  var sameOrigin = /^https?:$/.test(location.protocol) ? location.origin + '/v1' : '/v1';
+  var stored = localStorage.getItem('aqua_api_base');
+  if (stored) {
+    var s = String(stored).replace(/\/+$/, '');
+    if (s === OLD_ALIAS) { localStorage.setItem('aqua_api_base', PROD_API); return PROD_API; }
+    if (s === PROD_API || s === sameOrigin) return s;
+    localStorage.removeItem('aqua_api_base');
+  }
+  return location.hostname === PROD_HOST ? PROD_API : sameOrigin;
+}
+var base = aquaResolveApiBase();
+var serverOrigin = base.replace(/\/v1$/, '');
+document.getElementById('aqua-denied-signin').setAttribute('href', serverOrigin + '/login/github');
+function apiUrl(u){ return u.indexOf('/v1') === 0 ? base + u.slice(3) : serverOrigin + u; }
+function fetchJSON(url,ms){
+  var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},ms||10000);
+  return fetch(apiUrl(url),{credentials:'include',cache:'no-store',signal:ctl.signal}).then(function(r){clearTimeout(t);return r.json().catch(function(){return {}}).then(function(b){return {status:r.status,body:b}})},function(e){clearTimeout(t);throw e});
+}
+function banner(kind,text){
+  return '<div class="banner'+(kind==='bad'?' bad':'')+'"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17.5v.01"/></svg><div>'+esc(text)+'</div></div>';
+}
+function stamp(){return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}).toLowerCase()}
+
+/* ---------- spend (/v1/admin/usage) ---------- */
+function priceText(p,per){
+  var cvt=function(v){return money(v,per)};
+  if(p===null||p===undefined)return 'not set';
+  if(typeof p==='string')return esc(p);
+  if(isNum(p))return cvt(p)+' <span class="dim">per 1M tokens</span>';
+  if(typeof p==='object'){
+    var parts=[],numeric=false;
+    Object.keys(p).forEach(function(k){var v=p[k];if(isNum(v)){numeric=true;parts.push(esc(k.replace(/_/g,' '))+' '+cvt(v))}else if(typeof v==='string')parts.push(esc(k.replace(/_/g,' '))+' '+esc(v))});
+    return parts.length?parts.join(' · ')+(numeric?' <span class="dim">per 1M tokens</span>':''):'unknown';
+  }
+  return 'unknown';
+}
+function spendCell(v,per){
+  // no entry for a period means the gateway reported nothing for it: not recorded, not zero.
+  // null means the gateway could not measure it, which stays unknown with the reason on hover.
+  if(v===undefined)return '<td class="num dim">not recorded</td>';
+  if(v===null)return '<td class="num"><span class="unk" title="the gateway could not measure this period for this model (missing token count)">unknown</span></td>';
+  return '<td class="num">'+money(v,per)+'</td>';
+}
+function clearSpend(){$('cards').innerHTML='';$('banners').innerHTML='';$('rows').innerHTML='';$('empty').textContent='';$('spendtable').hidden=true;$('periodnote').hidden=true;$('sph').hidden=true;$('spv').hidden=true}
+function addTotal(t,v){if(t.bad)return;if(isNum(v))t.v+=v;else t.bad=true}
+function render(u){
+  $('sph').hidden=false;
+  $('spv').hidden=false;
+  var per=u.units_per_usd,users=(u.users&&typeof u.users==='object')?u.users:Object.create(null),names=Object.keys(users);
+  var banners='',day=Object.create(null),month=Object.create(null),held=Object.create(null),dayP='',monP='',unknown=0,unknownBad=false,acctErr=false;
+  var dayT={v:0,bad:!names.length},monT={v:0,bad:!names.length},heldT={v:0,bad:!names.length};
+  if(u.accounting_available===false)banners+=banner('bad','metering is unavailable, so these numbers are not shown. check the gateway before trusting any figure.');
+  if(u.configuration_error)banners+=banner('bad','the gateway reports a configuration error: '+(typeof u.configuration_error==='string'?u.configuration_error:'see server logs')+'.');
+  names.forEach(function(n){
+    var x=users[n]||{};
+    if(x.accounting_error)acctErr=true;
+    if(x.unknown_requests===undefined||x.unknown_requests===null){}else if(isNum(x.unknown_requests))unknown+=x.unknown_requests;else unknownBad=true;
+    ['day','month'].forEach(function(w){
+      var tgt=w==='day'?day:month,tot=w==='day'?dayT:monT,blk=x[w];
+      if(!blk||typeof blk!=='object'||!blk.models||typeof blk.models!=='object'){tot.bad=true;return}
+      if(w==='day')dayP=dayP||(typeof blk.period==='string'?blk.period:'');else monP=monP||(typeof blk.period==='string'?blk.period:'');
+      Object.keys(blk.models).forEach(function(m0){
+        var m=canon(m0),c=blk.models[m0]||{};
+        if(isNum(c.confirmed)){tgt[m]=(tgt[m]===null?null:(tgt[m]||0)+c.confirmed)}else{tgt[m]=null}
+        addTotal(tot,c.confirmed);
+        if(w==='day'){if(isNum(c.held)){held[m]=held[m]===null?null:(held[m]||0)+c.held}else held[m]=null;addTotal(heldT,c.held)}
+      });
+    });
+  });
+  var unkOwner=u.unknown_owner_requests_since_startup;if(!isNum(unkOwner)){if(unkOwner!==undefined&&unkOwner!==null)unknownBad=true;unkOwner=0}
+  if(acctErr)banners+=banner('bad','accounting hit an error for at least one account. virtual estimates below may be missing entries.');
+  if(unknownBad)banners+=banner('warn','the gateway sent an unreadable count of requests without token counts. virtual valuation may be missing or understated.');
+  if(unknown||unkOwner){var uu=unknown+unkOwner;banners+=banner('warn',uu+' request'+(uu===1?'':'s')+' came back without a token count from the upstream. their virtual valuation may be missing or understated.')}
+  $('banners').innerHTML=banners;
+  if(u.accounting_available===false){$('cards').innerHTML='';$('rows').innerHTML='';$('empty').textContent='';$('spendtable').hidden=true;$('periodnote').hidden=true;return}
+  $('spendtable').hidden=false;$('periodnote').hidden=false;
+  var all=Object.create(null);Object.keys(day).concat(Object.keys(month)).forEach(function(m){all[m]=1});
+  var models=Object.keys(all);
+  var mv=function(o,m){return isNum(o[m])?o[m]:(o[m]===null?-1:0)};
+  models.sort(function(a,b){return mv(month,b)-mv(month,a)||mv(day,b)-mv(day,a)||(a<b?-1:a>b?1:0)});
+  var tz=typeof u.period_timezone==='string'&&u.period_timezone?u.period_timezone:'UTC';
+  var D=dayT.bad?null:dayT.v,M=monT.bad?null:monT.v,H=heldT.bad?null:heldT.v;
+  $('cards').innerHTML=
+   '<div class="card"><div class="k">today · virtual estimate</div><div class="v num">'+money(D,per)+'</div><div class="s">'+(dayP?esc(dayP)+' '+esc(tz):'period not reported by the gateway')+'</div></div>'+
+   '<div class="card"><div class="k">this month · virtual estimate</div><div class="v num">'+money(M,per)+'</div><div class="s">'+(monP?esc(monP)+' '+esc(tz):'period not reported by the gateway')+'</div></div>'+
+   '<div class="card"><div class="k">virtual reservation</div><div class="v num">'+money(H,per)+'</div><div class="s">aqua ledger hold, not a bank or card hold</div></div>'+
+   '<div class="card"><div class="k">models with recorded valuation</div><div class="v num">'+models.length+'</div><div class="s">this month</div></div>';
+  var max=0;models.forEach(function(m){if(isNum(month[m]))max=Math.max(max,month[m])});
+  var prices=u.prices&&typeof u.prices==='object'?u.prices:null;
+  if(prices){var pc2=Object.create(null);Object.keys(prices).forEach(function(k){pc2[canon(k)]=prices[k]});prices=pc2}
+  $('rows').innerHTML=models.map(function(m){
+    var pc=max&&isNum(month[m])?Math.round(100*month[m]/max):0;
+    return '<tr><td class="model">'+esc(m)+'<span class="bar"><i style="width:'+pc+'%"></i></span></td>'+
+      spendCell(day[m],per)+spendCell(month[m],per)+spendCell(held[m],per)+
+      '<td class="num dim">'+(prices&&has(prices,m)?priceText(prices[m],per):'not set')+'</td></tr>';
+  }).join('');
+  $('empty').textContent=models.length?'':(names.length?'no virtual ledger entries recorded for the current day or month. provider charges are not shown here.':'the gateway sent no accounts, so virtual usage is unknown. provider charges are not shown here.');
+  $('periodnote').textContent='virtual usage estimates in vUSD'+(typeof u.currency==='string'&&u.currency!=='virtual USD'?' ('+u.currency+')':'')+', not a bill. days and months roll over at '+tz+' midnight. this view covers only the current day and month as reported by the gateway.';
+}
+
+/* ---------- traffic (/summary + /series) ---------- */
+var MET={sum:null,ser:null,g:'route',m:'requests',f:'all',ok:''};
+var ERRK=['rate_limit','upstream','network','timeout','abort','auth','request','other'];
+var FAULTK=['rate_limit','upstream','network','timeout','abort'];
+function rkey(r){return JSON.stringify([r.model===undefined?null:canon(r.model),r.provider===undefined?null:r.provider])}
+function rlabel(k){var a;try{a=JSON.parse(k)}catch(e){a=[k,null]}return nm(a[0])+' / '+pv(a[1])}
+function faultsOf(r){
+  if(isNum(r.provider_faults))return r.provider_faults;
+  var e=r.errors;if(!e||typeof e!=='object')return null;var t=0;
+  for(var i=0;i<FAULTK.length;i++){if(!isNum(e[FAULTK[i]]))return null;t+=e[FAULTK[i]]}return t;
+}
+function sumF(rows,fn){var t=0;for(var i=0;i<rows.length;i++){var v=fn(rows[i]);if(!isNum(v))return null;t+=v}return t}
+function errCls(rows){var p=[];ERRK.forEach(function(k){var t=0;rows.forEach(function(r){if(r.errors&&isNum(r.errors[k]))t+=r.errors[k]});if(t)p.push(kfmt(t)+' '+k.replace('_',' '))});return p.join(' · ')}
+function tokSum(rows,k){
+  var tot=0,any=false,known=0,unk=0,bad=false;
+  rows.forEach(function(r){
+    if(isNum(r[k])){tot+=r[k];any=true}
+    if(isNum(r.known_tok_requests))known+=r.known_tok_requests;else bad=true;
+    if(isNum(r.unknown_tok_requests))unk+=r.unknown_tok_requests;else bad=true;
+  });
+  return {tot:tot,any:any,known:known,unk:unk,bad:bad};
+}
+function tokCell(t,cls){
+  var c=cls||'cls';
+  if(!t.any)return UNK+(!t.bad&&t.unk?'<span class="'+c+'">0 of '+kfmt(t.unk)+' requests</span>':'');
+  if(t.bad)return '<span class="num">'+kfmt(t.tot)+'</span><span class="'+c+'">at least this much, request counts missing</span>';
+  if(t.unk)return '<span class="num">'+kfmt(t.tot)+'</span><span class="'+c+'">from '+kfmt(t.known)+' of '+kfmt(t.known+t.unk)+' requests</span>';
+  return '<span class="num">'+kfmt(t.tot)+'</span>';
+}
+function clearMet(msg){
+  MET.sum=null;MET.ser=null;
+  $('metcards').innerHTML='';$('metbanners').innerHTML='';$('metrows').innerHTML='';$('methead').innerHTML='';$('chart').innerHTML='';
+  $('mettools').hidden=true;$('mettable').hidden=true;$('chartwrap').hidden=true;$('thint1').hidden=true;
+  if(msg!==undefined)$('metstate').textContent=msg;
+}
+function lastOk(){return MET.ok?' last good read was at '+MET.ok+'.':''}
+function renderMet(){
+  var sum=MET.sum,rows=Array.isArray(sum.rows)?sum.rows.filter(function(r){return r&&typeof r==='object'}):[];
+  var since=isNum(sum.since)?new Date(sum.since*1000):null;var sinceTxt=since?since.toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).toLowerCase():'';
+  var bn=[];
+  var WR={restarted:'the usage writer restarted, so the counts around the restart may be understated.',memory_only:'the usage writer is memory only. these counts are not saved and will be lost on restart.',frozen:'the usage writer is frozen, so new traffic is not being counted.'};
+  if(sum.writer&&sum.writer!=='ok')bn.push(WR[sum.writer]||('the usage writer is '+sum.writer+'.'));
+  if(sum.usage_disk&&sum.usage_disk!=='ok')bn.push('usage storage mode is '+sum.usage_disk+(sum.usage_disk==='memory'?', so history may not survive a restart.':', so recent counts may not be saved.'));
+  if(sum.dropped_events){
+    var dk=sum.dropped_by_kind&&typeof sum.dropped_by_kind==='object'?sum.dropped_by_kind:{};
+    var dparts=['attempt','final','rejected'].filter(function(k){return isNum(dk[k])&&dk[k]}).map(function(k){return dk[k]+' '+k}).join(', ');
+    bn.push((isNum(sum.dropped_events)?'at least '+sum.dropped_events:'an unknown number of')+' events were dropped'+(dparts?' ('+dparts+')':'')+', so counts below may be understated.');
+  }
+  if(sum.skipped_lines)bn.push((isNum(sum.skipped_lines)?'at least '+sum.skipped_lines:'some')+' stored lines could not be read and were skipped.');
+  if(sum.clock_clamped)bn.push((isNum(sum.clock_clamped)?sum.clock_clamped:'some')+' events had their timestamps clamped.');
+  if(sum.evicted_cells)bn.push((isNum(sum.evicted_cells)?'at least '+sum.evicted_cells:'some')+' stored cells were removed by retention or memory limits. that is a lower bound and does not say how many requests are missing.');
+  if(sum.poison_events)bn.push((isNum(sum.poison_events)?'at least '+sum.poison_events:'some')+' events were rejected after a counting error, so counts may be understated.');
+  if(sum.unpersisted_events)bn.push((isNum(sum.unpersisted_events)?'at least '+sum.unpersisted_events:'some')+' counted events were not saved to disk and would be lost on restart.');
+  if(sum.history_gap)bn.push('there is a gap in the stored history. some hours inside this window have no data. they are not drawn as zero.');
+  if(sum.incomplete&&!bn.length)bn.push('the gateway marks this history as incomplete without saying why.');
+  if((sum.incomplete||sum.history_gap)&&bn.length)bn.unshift('history is incomplete, so every number here may be understated.');
+  if(MET.ser&&MET.ser.truncated)bn.push('the hourly series was truncated by the gateway, so some hours are not drawn.');
+  if(MET.ser&&MET.ser.history_gap&&!sum.history_gap)bn.push('there is a gap in the stored history for the hourly series. some hours have no data. they are not drawn as zero.');
+  if(MET.ser&&MET.ser.incomplete&&!sum.incomplete)bn.push('the hourly series is marked incomplete, so empty hours are not drawn as zero.');
+  if(sum.truncated)bn.push('only the top '+rows.length+' of '+(isNum(sum.rows_total)?sum.rows_total:'more')+' routes are listed. cards use all-activity totals. grouped views below add up the listed routes only.');
+  $('metbanners').innerHTML=bn.map(function(t){return banner('warn',t)}).join('');
+  if((sum.since==null&&isNum(sum.retained_since))||(sum.retained_since==null&&sum.retained_since!==undefined&&isNum(sum.since))){
+    clearMet();$('metbanners').innerHTML=bn.map(function(t){return banner('warn',t)}).join('');$('gapswrap').hidden=true;
+    $('metstate').textContent='traffic is unavailable: the gateway sent an inconsistent history range (only one of since and retained_since is set). nothing is shown rather than zeros.';
+    MET.sum=null;MET.ser=null;return;
+  }
+  if(!since||!rows.length){
+    clearMet();$('metbanners').innerHTML=bn.map(function(t){return banner('warn',t)}).join('');$('gapswrap').hidden=true;
+    $('metstate').textContent=since?'metering is on since '+sinceTxt+' but has recorded no requests in this window yet.':'no data yet. request metering has not recorded anything, and nothing is shown as zero.';
+    MET.sum=sum;return;
+  }
+  $('thint1').hidden=false;
+  var winStart=isNum(sum.generated_at)&&isNum(sum.hours)?sum.generated_at-sum.hours*3600:null;
+  var ret=(sum.evicted_cells||sum.incomplete||sum.history_gap)&&isNum(sum.retained_since)&&winStart!==null&&sum.retained_since>winStart+3600?' stored history only goes back to '+new Date(sum.retained_since*1000).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).toLowerCase()+', so the last '+sum.hours+' hours are not all available.':'';
+  $('metstate').textContent='metering started '+sinceTxt+'. nothing before that was recorded.'+ret;
+  $('metstate').textContent+=' these earlier periods are not shown as zero.';
+  var T=sum.totals&&typeof sum.totals==='object'?sum.totals:null;
+  if(!T)$('metbanners').innerHTML+=banner('warn','the gateway sent no all-activity totals, so the cards below are not shown.');
+  var req=T?T.requests:null,att=T?T.attempts:null,faults=T?faultsOf(T):null,disc=T?(T.client_disconnects||0):null,rej=T?(T.rejected||0):null;
+  var ti=T?tokSum([T],'tokens_in'):{tot:0,any:false,known:0,unk:0,bad:true},to=T?tokSum([T],'tokens_out'):{tot:0,any:false,known:0,unk:0,bad:true};
+  var lt=function(v){return ms(v,T.latency_overflow).replace(/<span class="cls">[^<]*<\/span>/g,function(m){return /capped/.test(m)?' (capped)':''})};
+  var tl=T?(isNum(att)&&att<LAT_MIN?'<span class="cls s">p50 and p95 need '+LAT_MIN+' or more attempts; this window has '+kfmt(att)+'</span>':'<span class="cls s">p50 '+lt(T.p50_ms)+' · p95 '+lt(T.p95_ms)+(T.latency_overflow===true?'':'')+'</span>'):'';
+  $('metcards').innerHTML=T?
+   '<div class="card"><div class="k">requests</div><div class="v num">'+kcell(req)+'</div><div class="s">'+kfmt(att)+' upstream attempts'+(rej?' · '+kfmt(rej)+' rejected':'')+'</div></div>'+
+   '<div class="card"><div class="k">provider fault rate</div><div class="v num">'+faultCell(faults,att)+'</div><div class="s">'+(faults===1?'1 fault':kfmt(faults)+' faults')+' of '+(att===1?'1 attempt':kfmt(att)+' attempts')+(disc?' · '+kfmt(disc)+' client disconnect'+(disc===1?'':'s')+', not counted':'')+'</div></div>'+
+   '<div class="card"><div class="k">tokens in</div><div class="v">'+tokCell(ti,'cls s')+'</div></div>'+
+   '<div class="card"><div class="k">tokens out</div><div class="v">'+tokCell(to,'cls s')+'</div>'+tl+'</div>':'';
+  $('mettools').hidden=false;$('mettable').hidden=false;
+  var g=MET.g,groups=new Map();
+  rows.forEach(function(r){
+    var key=g==='route'?rkey(r):JSON.stringify([g==='model'?(r.model===undefined?null:r.model):(r.provider===undefined?null:r.provider)]);
+    if(!groups.has(key))groups.set(key,{rows:[],model:r.model,provider:r.provider});groups.get(key).rows.push(r);
+  });
+  var order=Array.from(groups.keys());
+  var reqOf=function(k){var t=0;groups.get(k).rows.forEach(function(r){if(isNum(r.requests))t+=r.requests});return t};
+  order.sort(function(a,b){return reqOf(b)-reqOf(a)});
+  var head=g==='route'?'<th>model</th><th>provider</th>':'<th>'+esc(g)+'</th>';
+  $('methead').innerHTML=head+'<th>requests</th><th>attempts</th><th>fault rate</th><th>tokens in</th><th>tokens out</th><th>p50</th><th>p95</th>';
+  $('metrows').innerHTML=order.map(function(k){
+    var G=groups.get(k),rs=G.rows;
+    var rq=sumF(rs,function(r){return r.requests}),at=sumF(rs,function(r){return r.attempts}),fl=sumF(rs,faultsOf),dc=sumF(rs,function(r){return r.client_disconnects||0}),rj=sumF(rs,function(r){return r.rejected||0}),au=sumF(rs,function(r){return r.auto_requests||0});
+    var first=g==='route'?'<td class="model">'+esc(nm(G.model))+'</td><td class="model dim">'+esc(pv(G.provider))+'</td>':'<td class="model">'+esc(g==='model'?nm(G.model):pv(G.provider))+'</td>';
+    var lat=rs.length===1?[latCell(rs[0].p50_ms,rs[0].latency_overflow,at),latCell(rs[0].p95_ms,rs[0].latency_overflow,at)]:['<span class="unk">not combined</span>','<span class="unk">not combined</span>'];
+    var extra=errCls(rs);if(dc)extra+=(extra?' · ':'')+kfmt(dc)+' disconnect'+(dc===1?'':'s');if(rj)extra+=(extra?' · ':'')+kfmt(rj)+' rejected';if(au)extra+=(extra?' · ':'')+kfmt(au)+' via auto';
+    return '<tr>'+first+'<td class="num">'+kcell(rq)+'</td><td class="num">'+kcell(at)+'</td><td class="num">'+faultCell(fl,at)+(extra?'<span class="cls">'+esc(extra)+'</span>':'')+'</td><td>'+tokCell(tokSum(rs,'tokens_in'))+'</td><td>'+tokCell(tokSum(rs,'tokens_out'))+'</td><td class="num">'+lat[0]+'</td><td class="num">'+lat[1]+'</td></tr>';
+  }).join('');
+  if(sum.truncated&&T){
+    var shownReq=sumF(rows,function(r){return r.requests}),shownAtt=sumF(rows,function(r){return r.attempts});
+    var hidReq=isNum(T.requests)&&isNum(shownReq)?T.requests-shownReq:null,hidAtt=isNum(T.attempts)&&isNum(shownAtt)?T.attempts-shownAtt:null;
+    var ncols=g==='route'?9:8;
+    $('metrows').innerHTML+='<tr><td class="model dim" colspan="'+(g==='route'?2:1)+'">'+(isNum(sum.rows_total)?kfmt(sum.rows_total-rows.length)+' more routes not listed':'more routes not listed')+'</td><td class="num">'+kcell(hidReq)+'</td><td class="num">'+kcell(hidAtt)+'</td><td class="dim" colspan="'+(ncols-(g==='route'?4:3))+'">in the totals above, not broken down here</td></tr>';
+  }
+  var gaps=[];
+  if(ti.unk||to.unk||ti.bad||to.bad)gaps.push(['token counts',ti.bad?'some rows did not say how many requests had token counts. token totals are lower bounds.':kfmt(ti.unk)+' of '+kfmt(ti.known+ti.unk)+' requests came back without token counts. totals add up only the known ones and are marked as such.']);
+  gaps.push(['before '+sinceTxt,'no history. the hourly chart marks those hours as not recorded.']);
+  gaps.push(['latency','p50 and p95 are approximate. they are interpolated from time buckets. they measure the wait for response headers, not first token. they only cover attempts with 2xx headers, including bodies that later aborted. over 64 s is a capped overflow bucket, not an exact value.']);
+  gaps.push(['health','fault rate is provider faults (rate limit, upstream, network, timeout, abort) over attempts. auth and request errors are shown for information and are not counted.']);
+  if(g!=='route')gaps.push(['latency when grouped','p50 and p95 cannot be merged across routes, so they show only per route.']);
+  $('gapswrap').hidden=false;$('gapsnote').textContent='what the numbers above do not cover.';
+  $('gaps').innerHTML=gaps.map(function(x){return '<div class="gap"><b>'+esc(x[0])+'</b>'+esc(x[1])+'</div>'}).join('');
+  if(MET.ser)renderChart();
+}
+function renderChart(){
+  var ser=MET.ser,sum=MET.sum,pts=Array.isArray(ser.points)?ser.points:[],f=MET.f,m=MET.m;
+  var sinceMs=isNum(sum.since)?sum.since*1000:NaN;
+  var end=new Date();end.setUTCMinutes(0,0,0);var N=24,hrs=[];
+  for(var i=N-1;i>=0;i--)hrs.push(end.getTime()-i*3600e3);
+  var by=new Map();
+  pts.forEach(function(p){if(!p||typeof p!=='object')return;if(f!=='all'&&rkey(p)!==f)return;var t=new Date(p.hour).getTime();if(!isFinite(t))return;if(!by.has(t))by.set(t,[]);by.get(t).push(p)});
+  var degraded=sum.incomplete||sum.history_gap||ser.history_gap||ser.incomplete||(sum.writer&&sum.writer!=='ok')||(sum.usage_disk&&sum.usage_disk!=='ok')||sum.dropped_events||sum.skipped_lines||sum.clock_clamped||sum.evicted_cells||sum.poison_events||sum.unpersisted_events;
+  var trunc=!!ser.truncated;
+  var phone=window.innerWidth<761,W=phone?380:960,H=phone?210:230,L=phone?40:46,B=26,T=10,iw=W-L-8,ih=H-B-T,bw=iw/N;
+  var vals=hrs.map(function(t){
+    if(!isFinite(sinceMs)||t+3600e3<=sinceMs)return {k:'before'};
+    var ps=by.get(t)||[];
+    if(!ps.length){
+      if(trunc)return {k:'trunc'};
+      return degraded?{k:'gap'}:{k:'v',v:0,e:0};
+    }
+    if(m==='tokens_out'){
+      var tot=0,kn=0,un=0,cb=false;
+      for(var j=0;j<ps.length;j++){var p=ps[j];if(!isNum(p.tokens_out))return {k:'unknown'};tot+=p.tokens_out;if(isNum(p.known_tok_requests)&&isNum(p.unknown_tok_requests)){kn+=p.known_tok_requests;un+=p.unknown_tok_requests}else cb=true}
+      return {k:'v',v:tot,e:0,partial:cb||un>0,kn:kn,un:un,cb:cb};
+    }
+    var v=0,e=0;
+    for(var q=0;q<ps.length;q++){
+      var p2=ps[q],fl=faultsOf(p2),rq=p2.requests;
+      if(m==='errors'){if(!isNum(fl))return {k:'unknown'};v+=fl}
+      else{if(!isNum(rq))return {k:'unknown'};v+=rq;if(isNum(fl))e+=Math.min(fl,rq)}
+    }
+    return {k:'v',v:v,e:m==='requests'?e:0};
+  });
+  var max=0,anyv=false;vals.forEach(function(x){if(x.k==='v'){anyv=true;max=Math.max(max,x.v)}});if(!max)max=1;
+  var out='<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#111"/><rect width="2" height="6" fill="#333"/></pattern><pattern id="part" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="6" fill="#000" opacity=".55"/></pattern></defs>';
+  if(!anyv)out+='<text class="ax" x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" style="font-size:13px">'+(m==='tokens_out'?'tokens out is unknown for every hour here. a route in this view does not report tokens. pick one that does.':'nothing drawable in this view.')+'</text>';
+  (anyv?[0,.5,1]:[]).forEach(function(fr){var y=T+ih-ih*fr;out+='<line x1="'+L+'" x2="'+(W-8)+'" y1="'+y+'" y2="'+y+'" stroke="#1d1d1d"/><text class="ax" x="'+(L-8)+'" y="'+(y+4)+'" text-anchor="end">'+esc(kfmt(Math.round(max*fr)))+'</text>'});
+  var cd=[];
+  vals.forEach(function(x,i){
+    var xx=L+i*bw+bw*.14,w=bw*.72,t=hrs[i];
+    var label=new Date(t).toLocaleTimeString([], {hour:'numeric'}).toLowerCase();
+    if(x.k==='v'){
+      var h=ih*x.v/max,y=T+ih-h;
+      var unit=x.v===1?(m==='requests'?'request':m==='errors'?'error':'token out'):m.replace('_',' ');
+      var ttl=label+': '+kfmt(x.v)+' '+unit+(x.partial?(x.cb?' at least, request counts missing':' from '+x.kn+' of '+(x.kn+x.un)+((x.kn+x.un)===1?' request':' requests')+' with token counts, so at least this much'):'');
+      out+='<g><title>'+esc(ttl)+'</title><rect x="'+xx+'" y="'+y+'" width="'+w+'" height="'+Math.max(h,x.v?1:0)+'" fill="#fff" opacity=".88" rx="1.5"/>';
+      if(x.partial)out+='<rect x="'+xx+'" y="'+y+'" width="'+w+'" height="'+Math.max(h,x.v?1:0)+'" fill="url(#part)" rx="1.5"/>';
+      if(x.e){var eh=ih*x.e/max;out+='<rect x="'+xx+'" y="'+(T+ih-eh)+'" width="'+w+'" height="'+eh+'" fill="#6b6b6b" rx="1.5"/>'}
+      out+='</g>';
+      cd.push(ttl);
+    }else if(x.k==='gap'){
+      out+='<g><title>'+esc(label+': no events recorded, but history may be incomplete (writer, storage or dropped events)')+'</title><rect x="'+xx+'" y="'+(T+ih-6)+'" width="'+w+'" height="6" fill="url(#hatch)" opacity=".7" rx="1.5"/></g>';
+      cd.push(label+': no events recorded, but history may be incomplete (writer, storage or dropped events)');
+    }else{
+      var why=x.k==='before'?'before metering started, not recorded':(x.k==='trunc'?'the series was truncated, so this hour is not shown':'unknown, a value was missing or a route did not report tokens');
+      out+='<g><title>'+esc(label+': '+why)+'</title><rect x="'+xx+'" y="'+T+'" width="'+w+'" height="'+ih+'" fill="url(#hatch)" opacity=".7" rx="1.5"/></g>';
+      cd.push(label+': '+why);
+    }
+    if(i%(phone?6:4)===0)out+='<text class="ax" x="'+(xx+w/2)+'" y="'+(H-8)+'" text-anchor="middle">'+esc(label)+'</text>';
+  });
+  $('chart').setAttribute('viewBox','0 0 '+W+' '+H);$('chart').innerHTML=out;
+  $('cdrows').innerHTML=cd.map(function(s){return '<div>'+esc(s)+'</div>'}).join('');$('chartdata').hidden=cd.length===0;
+}
+var seqM=0;
+function loadMet(){
+  var my=++seqM;
+  $('metstate').textContent='loading';
+  Promise.all([fetchJSON('/v1/admin/usage/summary?hours=24'),fetchJSON('/v1/admin/usage/series?hours=24&bucket=hour')]).then(function(rs){
+    if(my!==seqM)return;
+    var a=rs[0],b=rs[1];
+    if(a.status===401||b.status===401){deny('your session expired. sign in again.');return}
+    if(a.status===403||b.status===403){deny('this page is for the owner login only.');return}
+    if(a.status===404||a.status===501){clearMet('request metering is not available on this gateway yet, so traffic is not shown. the virtual ledger below loads separately.');
+      $('gapswrap').hidden=false;$('gapsnote').textContent='the ledger records spend per model, nothing else. these are not shown because the numbers do not exist yet. that does not mean they are zero.';
+      $('gaps').innerHTML=[['requests','no per-model request count is stored.'],['tokens in / out','token counts are folded into spend.'],['errors','failed requests are not logged to the ledger.'],['latency','no timings are recorded.'],['by provider','spend is keyed by model, not by route.'],['over time','only the current day and month are kept.']].map(function(x){return '<div class="gap"><b>'+x[0]+'</b>'+x[1]+'</div>'}).join('');return}
+    if(a.status!==200||b.status!==200){
+      var bad=a.status!==200?a.status:b.status;$('gapswrap').hidden=true;
+      clearMet(bad===503?'traffic is not shown while the gateway is down. try again shortly.'+lastOk():(bad===400?'the gateway refused this window (400): hourly buckets only work up to 336 hours. nothing is shown rather than zeros.':'could not read traffic (status '+bad+'). nothing is shown rather than zeros. try again shortly.'+lastOk()));return}
+    if(!a.body||typeof a.body!=='object'||!b.body||typeof b.body!=='object'){$('gapswrap').hidden=true;clearMet('the gateway sent traffic data this page cannot read. nothing is shown rather than zeros.'+lastOk());return}
+    if(b.body.bucket!==undefined&&b.body.bucket!=='hour'){$('gapswrap').hidden=true;clearMet('the gateway answered with '+b.body.bucket+' buckets, but this page asked for hourly ones. nothing is shown rather than zeros.');return}
+    MET.sum=a.body;MET.ser=b.body;MET.ok=stamp();
+    var routes=new Map();(Array.isArray(a.body.rows)?a.body.rows:[]).forEach(function(r){if(r&&typeof r==='object')routes.set(rkey(r),1)});
+    $('filter').innerHTML='<option value="all">all routes</option>'+Array.from(routes.keys()).map(function(k){return '<option value="'+esc(k)+'">'+esc(rlabel(k))+'</option>'}).join('');
+    if(!routes.has(MET.f))MET.f='all';$('filter').value=MET.f;
+    $('chartwrap').hidden=!routes.size;
+    renderMet();
+  },function(){if(my!==seqM)return;$('gapswrap').hidden=true;clearMet('could not reach the gateway for traffic. nothing is shown rather than zeros. try again shortly.'+lastOk())});
+}
+function bindSeg(id,key,attr){$(id).addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;MET[key]=b.getAttribute(attr);Array.prototype.forEach.call($(id).children,function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});if(MET.sum)renderMet()})}
+bindSeg('group','g','data-g');bindSeg('metric','m','data-m');
+var _ph=window.innerWidth<761;window.addEventListener('resize',function(){var n=window.innerWidth<761;if(n!==_ph){_ph=n;if(MET.ser&&MET.sum&&!$('chartwrap').hidden)renderChart()}});
+$('filter').addEventListener('change',function(){MET.f=$('filter').value;if(MET.ser&&MET.sum)renderChart()});
+var seqS=0;
+function load(){loadMet();
+  var my=++seqS;
+  $('state').textContent='';$('stamp').textContent='loading';
+  fetchJSON('/v1/admin/usage').then(function(r){
+    if(my!==seqS)return;
+    if(r.status===401){deny('your session expired. sign in again.');return}
+    if(r.status===403){deny('this page is for the owner login only.');return}
+    if(r.status===503){clearSpend();$('state').textContent='the gateway is unavailable right now. nothing is shown rather than zeros. try again shortly.';$('stamp').textContent='unavailable';return}
+    if(r.status!==200||!r.body||typeof r.body!=='object'){clearSpend();$('state').textContent='could not read usage (status '+r.status+'). nothing is shown. try again shortly.';$('stamp').textContent='failed';return}
+    render(r.body);$('stamp').textContent='updated '+stamp();
+  },function(){if(my!==seqS)return;clearSpend();$('state').textContent='could not reach the gateway. nothing is shown rather than zeros.';$('stamp').textContent='failed'});
+}
+fetchJSON('/auth/me').then(function(r){
+  if(r.status!==200){deny(r.status===401?'':'could not confirm your session.');return}
+  if(!r.body||typeof r.body.login!=='string'||!r.body.login||r.body.role!=='owner'){deny('this page is for the owner login only.');return}
+  var login=r.body.login;
+  $('aqua-user').textContent=login;$('aqua-usersub').textContent=r.body.role;$('aqua-avatar').textContent=login.charAt(0).toUpperCase();$('aqua-signout').style.display='';
+  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
+  $('app').hidden=false;clear();load();
+},function(){deny('could not reach the gateway to check your session.')});
+$('refresh').addEventListener('click',load);
+$('aqua-signout').addEventListener('click',function(ev){ev.preventDefault();fetch(serverOrigin + '/auth/logout',{method:'POST',credentials:'include'}).then(function(){location.reload()},function(){location.reload()})});
+window.addEventListener('pageshow',function(e){if(e.persisted){document.documentElement.setAttribute('data-session-pending','');location.reload()}});
+})();
+</script>
+</body>
+</html>

@@ -1,25 +1,270 @@
 <!doctype html>
 <html lang="en" data-session-pending>
 <head>
-<style>html[data-session-pending] { visibility:hidden; }</style>
+<style>
+/* self-hosted fonts (v3.4 rebuild): no third-party requests; same families and weights as before */
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+html[data-session-pending] { visibility:hidden; }
+.denied { margin-top:6rem; text-align:center; }
+.denied h1 { margin-top:1.125rem; }
+.denied .sub { margin-left:auto; margin-right:auto; }</style>
 <noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>aqua - settings</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-/* aqua shell - shared by landing, console, playground, keys (admin.html carries its own inline copy).
+/* aqua shell - shared by landing, console, playground, keys, settings.
    black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
-   deliberately larger UI (16px at <=1024, ~19.4px at 1920, 22px at 2560+). All component sizes in rem. */
-html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
+   deliberately larger UI (16px at <=1024, ~22.7px at 1920, ~27.5px at 2560, 36px at 3840+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.75vw + 8.32px, 36px); }
 :root {
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
   --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
-  --accent:#45d6e8; --accent-ink:#00272b;
-  --radius-card:0.625rem; --radius-control:0.5rem;
+  --warn:#e3b341;
+  --accent:#2fd4bf; --accent-ink:#03251f;
+  --radius-card:0.7rem; --radius-control:0.5rem;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
   --pad-x:clamp(1.25rem, 3.4vw, 4.5rem);
@@ -28,9 +273,6 @@ html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
   --prose-max:88ch;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-/* Hide scrollbar chrome while preserving wheel, touch and keyboard scrolling. */
-* { scrollbar-width:none; -ms-overflow-style:none; }
-*::-webkit-scrollbar { display:none; width:0; height:0; }
 html,body { background:var(--ground); height:100%; }
 body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 ::selection { background:var(--accent); color:var(--accent-ink); }
@@ -46,35 +288,38 @@ svg { display:block; }
   * { scroll-behavior:auto !important; transition:none !important; animation-duration:0s !important; }
 }
 
+/* app shell locks to the viewport: only inner regions scroll, never the page */
 .app { display:grid; grid-template-columns:16rem 1fr; height:100vh; height:100dvh; }
 
 /* ---- sidebar ---- */
 .side { background:#000; border-right:1px solid var(--rule); padding:1rem 0.75rem; display:flex; flex-direction:column; gap:2px; }
 .brand { display:flex; align-items:center; gap:0.625rem; padding:0.25rem 0.625rem 1.125rem; text-decoration:none; color:var(--text); }
-.brand svg { width:1.375rem; height:1.375rem; }
-.brand .wm { font-weight:600; font-size:1.125rem; letter-spacing:-0.01em; }
-.navlabel { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
+.brand svg { width:1.375rem; height:1.375rem; stroke:var(--accent); }
+.brand .wm { font-weight:500; font-size:1.125rem; letter-spacing:-0.01em; }
+.navlabel { font-size:max(0.72rem, 12px); font-weight:600; letter-spacing:0.09em; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
 .nav a { display:flex; align-items:center; gap:0.625rem; min-height:2.375rem; padding:0 0.75rem; border-radius:0.5rem; color:var(--muted); text-decoration:none; font-size:0.9375rem; font-weight:450; }
 .nav a svg { color:#7a7a7a; width:1.0625rem; height:1.0625rem; flex:none; }
 .nav a:hover { color:var(--text); }
-.nav a.on { background:#161616; color:#fff; font-weight:500; }
-.nav a.on svg { color:#fff; }
+.nav a.on { background:#161616; color:var(--accent); font-weight:500; }
+.nav a.on svg { color:var(--accent); }
 .spacer { flex:1; }
 .userrow { display:flex; align-items:center; gap:0.625rem; padding:0.75rem 0.625rem 0.25rem; border-top:1px solid var(--rule); }
-.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:0.72rem; font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
+.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:max(0.72rem, 12px); font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
 .userrow .un { font-size:0.875rem; font-weight:500; }
 .userrow .up { font-size:0.75rem; color:var(--faint); }
 .userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
-.userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; }
+.userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; display:inline-flex; align-items:center; min-height:1.5rem; }
 .userrow a:hover { color:var(--text); }
+.userrow button { margin-left:auto; font-family:inherit; font-size:0.78rem; color:var(--faint); background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; min-height:1.5rem; }
+.userrow button:hover { color:var(--text); }
 
 /* ---- canvas ---- */
 .main { min-width:0; min-height:0; overflow-y:auto; }
 .side { overflow-y:auto; }
 .canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
 .titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
-h1 { font-size:1.75rem; font-weight:600; letter-spacing:-0.02em; }
-h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
+h1 { font-size:2rem; font-weight:500; letter-spacing:-0.01em; }
+h2 { font-size:1.05rem; font-weight:500; }
 .sub { margin-top:0.4375rem; font-size:0.9375rem; color:var(--muted); max-width:var(--prose-max); }
 .stamp { display:flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; color:var(--faint); }
 .stamp svg { width:0.875rem; height:0.875rem; }
@@ -86,11 +331,18 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .btn:hover { border-color:var(--text); }
 .btn:disabled { color:var(--muted); cursor:wait; }
 .btn:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
+.userrow button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.skiplink { position:absolute; left:-9999px; top:0.5rem; z-index:200; background:var(--ground); color:var(--accent); font-size:0.85rem; padding:0.4rem 0.75rem; border:1px solid var(--line); border-radius:var(--radius-control); text-decoration:none; }
+.skiplink:focus { left:0.5rem; }
+.main:focus { outline:none; }
+summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .btn-solid { background:#fff; color:#000; border-color:#fff; }
 .btn-solid:hover { border-color:#fff; filter:brightness(0.9); }
 
 .stateline { margin-top:1rem; font-size:0.875rem; color:var(--muted); min-height:1.125rem; }
-.stateline.err { color:#e3b341; }
+.stateline.err { color:var(--warn); }
+.unk { color:var(--muted); font-style:italic; }
 
 .empty { margin-top:0.875rem; padding:1.75rem 1.125rem; border:1px dashed var(--control); border-radius:var(--radius-card); color:var(--faint); font-size:0.9375rem; text-align:center; }
 .empty[hidden] { display:none; }
@@ -106,7 +358,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .endpoint .labsub { font-size:0.8125rem; color:var(--faint); font-weight:400; margin-top:2px; }
 .urlbar { margin-left:auto; display:flex; align-items:stretch; min-height:2.375rem; flex:none; max-width:100%; min-width:0; }
 .urlbar .u { display:flex; align-items:center; gap:0.5rem; padding:0 0.9375rem; background:#000; border:1px solid var(--control); border-right:none;
-  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#c8eff5;
+  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#e8e8e8;
   min-width:0; overflow:hidden; white-space:nowrap; }
 .urlbar .cp { display:inline-flex; align-items:center; gap:0.375rem; padding:0 0.9375rem; background:#fff; color:#000; border:1px solid #fff;
   border-radius:0 var(--radius-control) var(--radius-control) 0; font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; }
@@ -115,28 +367,39 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 /* ---- model table ---- */
 .table { margin-top:0.875rem; overflow-x:auto; }
 .thead, .mrow { display:grid; grid-template-columns:minmax(14rem,1.6fr) 7rem 8.125rem 8.125rem 8.125rem 7rem; align-items:center; gap:0.875rem; }
-.thead { min-height:2.5rem; font-size:0.72rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--faint); }
+.thead { min-height:2.5rem; font-size:max(0.72rem, 12px); font-weight:600; letter-spacing:0.07em; color:var(--faint); }
 .thead .h.r { text-align:right; }
 .mrow { min-height:3.5rem; border-top:1px solid var(--rule); padding:0.5rem 0; }
 .mrow:hover { background:#070707; }
 .mrow .c { padding-right:0.5rem; min-width:0; }
 .mrow .c.num { text-align:right; padding-right:2px; font-size:0.9375rem; color:var(--muted); }
-.mname { font-family:var(--mono); font-size:0.875rem; font-weight:600; overflow-wrap:anywhere; }
+.mname { font-family:var(--mono); font-size:0.875rem; font-weight:500; overflow-wrap:anywhere; }
 .msub { font-size:0.8125rem; color:var(--faint); margin-top:3px; }
 .c-status { display:flex; justify-content:flex-end; }
-.pill { display:inline-flex; align-items:center; gap:0.375rem; min-height:1.4375rem; padding:0 0.625rem; border-radius:999px; font-size:0.75rem; font-weight:500; white-space:nowrap; }
-.pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
-.pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
-.pill-warn { background:#211a0c; border:1px solid #3a2e15; color:#e3b341; }
+/* status pills: small dot + word, never fills. ok green / warn amber / bad red */
+.pill { display:inline-flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; font-weight:500; white-space:nowrap; }
+.pill::before { content:""; width:0.375rem; height:0.375rem; border-radius:50%; background:currentColor; flex:none; }
+.pill-live { color:#3fb950; }
+.pill-warn { color:#e3b341; }
+.pill-neutral { color:#a8a8a8; }
+.pill-off { color:#f85149; }
 
 .phonebar { display:none; }
+.phonebar .pb-nav { margin-left:auto; position:relative; }
+.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
+.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
+.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
+.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
+.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
+.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 @media (max-width: 760px) {
   .app { grid-template-columns:1fr; }
   .side { display:none; }
   .phonebar { display:flex; align-items:center; gap:0.75rem; min-height:3.375rem; padding:0 1.125rem; border-bottom:1px solid var(--rule); background:#000; }
   .phonebar .pb-wm { display:flex; align-items:center; gap:0.5625rem; font-weight:600; font-size:1rem; }
-  .phonebar .pb-wm svg { width:1.125rem; height:1.125rem; }
+  .phonebar .pb-wm svg { width:1.125rem; height:1.125rem; stroke:var(--accent); }
+  .phonebar .dim { color:var(--faint); font-size:0.85rem; }
   .canvas { padding:1.25rem 1.125rem 2.5rem; }
   h1 { font-size:1.375rem; }
   .endpoint { flex-direction:column; align-items:flex-start; gap:0.75rem; }
@@ -148,58 +411,628 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   .mrow .c.num { display:none; }
   .c-status { grid-column:2; grid-row:1; align-self:center; }
 }
+
+
+
+
+/* ---- admin (merged from /admin.html, v3.4) ---- */
+section { margin-top:2.5rem; }
+section:first-of-type { margin-top:1.75rem; }
+.sectitle { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.sectitle h2 { margin-top:0; }
+.note { font-size:0.8125rem; color:var(--muted); margin-top:0.625rem; max-width:88ch; }
+.note.err { color:var(--warn); }
+
+/* providers */
+.ptable { margin-top:0.75rem; overflow-x:auto; }
+.phead, .prow { display:grid; grid-template-columns:minmax(8.75rem,1.2fr) 6.875rem 6.875rem minmax(0,2fr); align-items:start; gap:0.875rem; }
+.phead { height:2.375rem; align-items:center; font-size:max(0.6875rem, 12px); font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.prow { border-top:1px solid var(--rule); padding:0.75rem 0; }
+.prow:hover { background:#070707; }
+.prow .pid { font-family:var(--mono); font-size:0.7813rem; font-weight:600; overflow-wrap:anywhere; }
+.conf { font-size:0.7813rem; color:var(--muted); }
+.pmodels { display:flex; flex-direction:column; gap:0.25rem; }
+.pm { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:0.5rem; font-family:var(--mono); font-size:max(0.7188rem, 12px); align-items:baseline; }
+.pm .pub { color:var(--text); overflow-wrap:anywhere; }
+.pm .arr { color:var(--faint); }
+.pm .ups { color:var(--faint); overflow-wrap:anywhere; }
+
+/* usage */
+.uaccount { padding:0.875rem 0; border-bottom:1px solid var(--line); }
+.uhead { display:flex; flex-wrap:wrap; justify-content:space-between; gap:0.375rem 1rem; }
+.uname { font-weight:600; overflow-wrap:anywhere; }
+.utotals { font-variant-numeric:tabular-nums; color:var(--muted); }
+.umodels { margin-top:0.5rem; color:var(--muted); font-size:0.75rem; }
+.umodels summary { cursor:pointer; min-height:1.75rem; }
+.umrow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0.75rem; padding:3px 0; font-variant-numeric:tabular-nums; }
+.umrow span:first-child { overflow-wrap:anywhere; }
+.umrow span:last-child { text-align:right; }
+
+/* models (model-first): one row per canonical model, routes collapsed underneath */
+.resolvebar { display:flex; gap:0.625rem; margin-top:0.875rem; max-width:44rem; }
+.resolvebar input { flex:1; min-width:0; background:var(--ground); color:var(--text); padding:0.5rem 0.625rem; height:2.375rem;
+  border:1px solid #767676; border-radius:var(--radius-control); font:inherit; font-size:0.8125rem; }
+.resolvebar input::placeholder { color:#8a8a8a; }
+.resolvebar input:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+.resolveout { margin-top:0.375rem; }
+.resolveout .rmap { font-size:0.8438rem; color:var(--muted); margin-bottom:0.375rem; }
+.resolveout .rmap b { color:var(--text); font-weight:600; font-family:var(--mono); font-size:0.8125rem; }
+@media(max-width:760px) { .resolvebar { flex-direction:column; } .resolvebar .btn { min-height:2.75rem; } }
+.mdl { border-bottom:1px solid var(--line); padding:0.875rem 0; }
+.mdl summary { display:flex; align-items:baseline; gap:0.75rem; cursor:pointer; min-height:1.75rem; list-style:none; }
+.mdl summary::-webkit-details-marker { display:none; }
+.mdl summary::before { content:"\25B8"; color:var(--faint); font-size:0.75rem; align-self:center; }
+.mdl[open] summary::before { content:"\25BE"; }
+.mdl .mid { font-family:var(--mono); font-weight:600; font-size:0.9rem; overflow-wrap:anywhere; }
+.mdl .menabled { color:var(--text); }
+.mdl .menabled.off { color:var(--faint); }
+.mdl .mmeta { margin-left:auto; display:flex; align-items:center; gap:0.75rem; color:var(--muted); font-size:0.8125rem; white-space:nowrap; }
+.mdl .routes { margin:0.375rem 0 0.25rem 1.125rem; }
+.rhead, .rrow { display:grid; grid-template-columns:minmax(6.5rem,0.7fr) minmax(0,1.6fr) 5.5rem 5rem 6.5rem; gap:0.75rem; align-items:baseline; }
+.rhead { padding:0.375rem 0; font-size:max(0.6875rem, 12px); font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.rrow { border-top:1px solid var(--rule); padding:0.5rem 0; font-size:0.8125rem; }
+.rrow .rp { font-family:var(--mono); font-size:0.75rem; overflow-wrap:anywhere; }
+.rrow .ru { font-family:var(--mono); font-size:0.75rem; color:var(--muted); overflow-wrap:anywhere; }
+.rrow .rc { color:var(--muted); }
+.rrow .rc.ret-src { display:inline-flex; align-items:center; min-height:24px; }
+.rrow .rc.ret-src { cursor:pointer; }
+.rrow .rc.ret-src:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.rdetail { display:none; grid-column:1 / -1; min-width:0; max-width:100%; overflow-wrap:anywhere; color:var(--faint); font-size:0.75rem; line-height:1.5; padding-top:0.125rem; }
+.rrow.show-src .rdetail { display:block; }
+.rdetail a { color:var(--muted); }
+.rnone { padding:0.5rem 0; font-size:0.8125rem; color:var(--faint); }
+@media(max-width:760px) {
+  .rhead { display:none; }
+  .rrow { grid-template-columns:minmax(0,1fr) auto; row-gap:0.25rem; }
+  .rrow .ru { grid-column:1 / -1; }
+  .mdl .mmeta { flex-direction:column; align-items:flex-end; gap:0.125rem; white-space:normal; text-align:right; }
+}
+@media(max-width:760px) {
+  .phead { display:none; }
+  .prow { grid-template-columns:minmax(0,1fr) auto; row-gap:0.25rem; }
+  .prow .pmodels { grid-column:1 / -1; margin-top:0.375rem; }
+  .uhead { flex-direction:column; gap:0.25rem; }
+}
+
+/* ---- settings page ---- */
+.field { margin-top:0.875rem; padding:1.125rem 1.25rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); max-width:64rem; }
+.field .lab { font-size:0.9375rem; font-weight:500; }
+.field .labsub { font-size:0.8125rem; color:var(--faint); margin-top:2px; }
+.field .row { display:flex; gap:0.625rem; margin-top:0.75rem; flex-wrap:wrap; }
+.field input { flex:1; min-width:16rem; min-height:2.375rem; padding:0 0.75rem; background:#000; border:1px solid #767676; border-radius:var(--radius-control); color:var(--text); font-family:var(--mono); font-size:0.8125rem; }
+.field input:focus-visible { outline:2px solid var(--text); outline-offset:1px; }
+.kvline { display:flex; justify-content:space-between; gap:1rem; padding:0.5rem 0; border-top:1px solid var(--rule); font-size:0.9375rem; }
+.kvline:first-of-type { border-top:none; }
+.kvline .k { color:var(--faint); font-size:0.8125rem; }
+.kvline .v { font-family:var(--mono); font-size:0.8125rem; overflow-wrap:anywhere; text-align:right; }
+h2 { margin-top:2rem; }
 </style>
 </head>
 <body>
+<a class="skiplink" href="#main">skip to content</a>
 <div class="app">
-  <aside class="side">
-    <a class="brand" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
-    <div class="nav">
+<aside class="side">
+    <a class="brand" href="https://aqua.goattech.us/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <nav class="nav">
       <div class="navlabel">gateway</div>
-      <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
-      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
-      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
-      <a href="/settings.html" class="on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
-      <a href="#" id="aqua-admin-link" hidden><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>admin</span></a>
-    </div>
+      <a href="/console.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/usage.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+      <a href="/routing.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+      <a href="/settings.html" class="on" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+    </nav>
     <div class="spacer"></div>
-    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
   </aside>
-  <div class="main">
-    <div class="phonebar"><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span></div>
+  <main class="main" id="main" tabindex="-1">
+    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">settings</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a><a href="/usage.html">usage</a><a href="/routing.html">routing</a><a href="/settings.html" aria-current="page">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
     <div class="canvas">
-<h1>settings</h1>
-<p class="sub">your account, across browser sessions and api keys.</p>
-<form id="settings-form" style="max-width:42rem;margin-top:2rem">
-<fieldset id="settings-fields" disabled style="border:0;display:grid;gap:1.5rem">
-<section><label style="display:flex;gap:.75rem;align-items:center"><input type="checkbox" id="zdr-only" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)"> zero data retention routes only</label>
-<p class="sub" style="font-size:.875rem">the gateway checks every route, including auto and api requests. unknown retention is excluded. no current route has verified end-to-end ZDR, so turning this on leaves no models available.</p></section>
-<section><label for="default-model">default playground model</label><br><select id="default-model" style="margin-top:.5rem;background:var(--surface);color:var(--text);border:1px solid var(--line);padding:.65rem;max-width:100%;font:inherit"></select>
-<p class="sub" style="font-size:.875rem">a starting choice, not permission to use a model. access and privacy filters still apply.</p></section>
-<section><label style="display:flex;gap:.75rem;align-items:center"><input type="checkbox" id="show-cost" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)"> show maker cost estimates in playground</label><p class="sub" style="font-size:.875rem">display only. this does not change usage tracking or account limits.</p></section>
-<button class="btn" type="submit" style="justify-self:start">save settings</button>
-</fieldset></form><p id="settings-status" class="stateline" role="status" aria-live="polite">loading settings...</p>
-<div class="foot"><a href="/console.html">models</a><a href="/playground.html">playground</a></div>
-</div></div></div>
+      <div id="aqua-denied" class="denied" hidden>
+    <h1>sign in first</h1>
+    <p class="sub">this page needs your account. <a id="aqua-denied-signin" href="/login/github">sign in with github</a> to continue.</p>
+  </div>
+      <div id="aqua-body" hidden>
+      <div class="titlerow aqua-in">
+        <h1>settings</h1>
+      </div>
+      <p class="sub aqua-in aqua-in-1">connection and session preferences. everything on this page is real. it changes this browser, nothing else.</p>
+
+      <section aria-labelledby="t-conn">
+        <h2 id="t-conn" class="aqua-in aqua-in-2">connection</h2>
+        <div class="field aqua-in aqua-in-2">
+          <div class="lab">api base url</div>
+          <div class="labsub">where this browser sends api requests. stored only in this browser (localStorage). leave on default unless you are pointing the ui at another deployment.</div>
+          <div class="row">
+            <input id="aqua-base-in" aria-label="api base url" spellcheck="false">
+            <button type="button" class="btn btn-solid" id="aqua-base-save">save</button>
+            <button type="button" class="btn" id="aqua-base-reset">reset to default</button>
+          </div>
+          <div class="kvline" style="margin-top:0.75rem"><span class="k">default</span><span class="v" id="aqua-base-default"></span></div>
+          <div class="kvline"><span class="k">effective now</span><span class="v" id="aqua-base-eff"></span></div>
+          <p class="stateline" id="aqua-base-status" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section aria-labelledby="t-sess">
+        <h2 id="t-sess" class="aqua-in aqua-in-3">session</h2>
+        <div class="field aqua-in aqua-in-3">
+          <div class="kvline"><span class="k">signed in as</span><span class="v" id="aqua-who"></span></div>
+          <div class="row">
+            <button type="button" class="btn" id="aqua-signout2">sign out</button>
+          </div>
+        </div>
+      </section>
+
+    <section aria-labelledby="t-models">
+      <div class="sectitle"><h2 id="t-models">models</h2></div>
+      <p class="note">one row per model. duplicate provider routes are merged underneath; upstream ids never leave this page.</p>
+      <p class="stateline" id="aqua-m-status" role="status" aria-live="polite">loading models…</p>
+      <form id="aqua-resolve" class="resolvebar">
+        <input id="aqua-resolve-name" placeholder="test a request name (e.g. an old alias)" autocomplete="off" maxlength="128" aria-label="request name to test">
+        <button type="submit" class="btn" id="aqua-resolve-btn">check route</button>
+      </form>
+      <p class="stateline" id="aqua-resolve-status" role="status" aria-live="polite"></p>
+      <div id="aqua-resolve-result"></div>
+      <div id="aqua-m-rows"></div>
+      <div class="empty" id="aqua-m-empty" hidden>no models available.</div>
+    </section>
+
+    <section aria-labelledby="t-providers">
+      <div class="sectitle"><h2 id="t-providers">providers</h2><button type="button" class="btn" id="aqua-p-refresh">refresh</button></div>
+      <p class="stateline" id="aqua-p-status" role="status" aria-live="polite">loading providers…</p>
+      <div class="ptable" id="aqua-p-table" hidden>
+        <div class="phead"><span>provider</span><span>status</span><span>configured</span><span>models (public → upstream)</span></div>
+        <div id="aqua-p-rows"></div>
+      </div>
+      <div class="empty" id="aqua-p-empty" hidden>no providers configured yet.</div>
+    </section>
+
+    <section aria-labelledby="t-usage">
+      <div class="sectitle"><h2 id="t-usage">usage</h2><button type="button" class="btn" id="aqua-u-refresh">refresh</button></div>
+      <p class="note">virtual usd at model list prices, not a bill. the owner account has no aqua virtual cap; provider limits still apply. daily and monthly windows use utc.</p>
+      <p class="stateline" id="aqua-u-status" role="status" aria-live="polite">loading usage…</p>
+      <div id="aqua-u-accounts"></div>
+    </section>
+      </div>
+    </div>
+  </main>
+</div>
+
 <script>
-(async function(){
- var stored=localStorage.getItem('aqua_api_base');
- if(location.hostname==='aqua.goattech.us'&&(stored==='https://api.aqua.goattech.us/v1'||stored==='https://api.aqua.goattech.us/v1/')){stored='https://aqua-api.goattech.us/v1';localStorage.setItem('aqua_api_base',stored);}
- var base=stored||(location.hostname==='aqua.goattech.us'?'https://aqua-api.goattech.us/v1':location.origin+'/v1');var origin=base.replace(/\/v1$/,'');
- var abort=new AbortController();var timeout=setTimeout(function(){abort.abort();},10000);var me;
- try{var response=await fetch(origin+'/auth/me',{credentials:'include',cache:'no-store',signal:abort.signal});if(!response.ok)throw Error();me=await response.json();if(!me||typeof me.login!=='string'||!me.login||(me.role!=='owner'&&me.role!=='friend'))throw Error();}catch(_){location.replace('/');return;}finally{clearTimeout(timeout);}
- document.documentElement.removeAttribute('data-session-pending');addEventListener('pagehide',function(){document.documentElement.setAttribute('data-session-pending','');});addEventListener('pageshow',function(e){if(e.persisted)location.reload();});
- localStorage.removeItem('aqua_key');document.getElementById('aqua-user').textContent=me.login;document.getElementById('aqua-usersub').textContent=me.role;document.getElementById('aqua-avatar').textContent=me.login.charAt(0).toUpperCase();
- if(me.role==='owner'){var admin=document.getElementById('aqua-admin-link');admin.href=origin+'/admin';admin.hidden=false;}
- var signout=document.getElementById('aqua-signout');signout.style.display='';signout.onclick=function(e){e.preventDefault();fetch(origin+'/auth/logout',{method:'POST',credentials:'include'}).finally(function(){location.replace('/');});};
- var status=document.getElementById('settings-status'),fields=document.getElementById('settings-fields'),picker=document.getElementById('default-model');
- async function api(path,opts){opts=opts||{};opts.credentials='include';opts.cache='no-store';opts.headers={'content-type':'application/json'};var r=await fetch(base+path,opts);if(r.status===401){location.replace('/');throw Error('signed out');}if(!r.ok)throw Error('http '+r.status);return r.json();}
- try{var results=await Promise.all([api('/settings'),api('/models')]);var p=results[0];if(typeof p.zdr_only!=='boolean'||typeof p.show_cost!=='boolean'||typeof p.default_model!=='string')throw Error('invalid settings response');
- var ids=(results[1].data||[]).map(function(m){return m.id;});if(ids.indexOf(p.default_model)<0)ids.push(p.default_model);ids.forEach(function(id){var o=document.createElement('option');o.value=id;o.textContent=id+(results[1].data.some(function(m){return m.id===id;})?'':' (not currently available)');picker.appendChild(o);});
- document.getElementById('zdr-only').checked=p.zdr_only;document.getElementById('show-cost').checked=p.show_cost;picker.value=p.default_model;fields.disabled=false;status.textContent='saved settings loaded.';
- }catch(e){status.textContent='settings could not be loaded ('+e.message+'). controls stay disabled.';return;}
- function applySaved(p){if(!p||typeof p.zdr_only!=='boolean'||typeof p.show_cost!=='boolean'||typeof p.default_model!=='string')throw Error('invalid settings response');if(!Array.from(picker.options).some(function(o){return o.value===p.default_model;})){var o=document.createElement('option');o.value=p.default_model;o.textContent=p.default_model+' (not currently available)';picker.appendChild(o);}document.getElementById('zdr-only').checked=p.zdr_only;document.getElementById('show-cost').checked=p.show_cost;picker.value=p.default_model;}
- var saveBusy=false,saveLocked=false;
- document.getElementById('settings-form').onsubmit=async function(e){e.preventDefault();if(saveBusy||saveLocked)return;saveBusy=true;fields.disabled=true;status.textContent='saving...';try{applySaved(await api('/settings',{method:'POST',body:JSON.stringify({zdr_only:document.getElementById('zdr-only').checked,default_model:picker.value,show_cost:document.getElementById('show-cost').checked})}));status.textContent='saved. open a new playground page to use display changes. privacy applies on the next server dispatch.';}catch(e){status.textContent='save response failed. checking saved settings...';try{applySaved(await api('/settings'));status.textContent='save response failed. current saved settings are shown; no save was repeated.';}catch(_){saveLocked=true;status.textContent='save outcome unknown. reload to check saved settings before saving again.';}}finally{saveBusy=false;fields.disabled=saveLocked;}};
+(async function () {
+  function aquaResolveApiBase() {
+    // Split deployment: Pages serves the UI, the API lives on its own host.
+    // Default: production Pages host talks to the production API; every other host
+    // (local dev, fixtures, *.pages.dev previews) stays same-origin so sign-in fails
+    // closed where cross-site credentialed sign-in is unsupported.
+    // Stored overrides are allowlisted: the production API or this exact origin,
+    // both https-checked for cross-origin; anything else is dropped.
+    var PROD_HOST = 'aqua.goattech.us';
+    var PROD_API = 'https://aqua-api.goattech.us/v1';
+    var OLD_ALIAS = 'https://api.aqua.goattech.us/v1';
+    var sameOrigin = /^https?:$/.test(location.protocol) ? location.origin + '/v1' : '/v1';
+    var stored = localStorage.getItem('aqua_api_base');
+    if (stored) {
+      var s = String(stored).replace(/\/+$/, '');
+      if (s === OLD_ALIAS) { localStorage.setItem('aqua_api_base', PROD_API); return PROD_API; }
+      if (s === PROD_API || s === sameOrigin) return s;
+      localStorage.removeItem('aqua_api_base');
+    }
+    return location.hostname === PROD_HOST ? PROD_API : sameOrigin;
+  }
+  // defaultBase is derived from the shared resolver (no second copy): resolve with no stored override.
+  var storedNow = localStorage.getItem('aqua_api_base');
+  if (storedNow !== null) localStorage.removeItem('aqua_api_base');
+  var defaultBase = aquaResolveApiBase();
+  if (storedNow !== null) localStorage.setItem('aqua_api_base', storedNow);
+  var base = aquaResolveApiBase();
+  var serverOrigin = base.replace(/\/v1$/, '');
+  document.getElementById('aqua-denied-signin').setAttribute('href', serverOrigin + '/login/github');
+
+  var me;
+  var sessionAbort = new AbortController();
+  var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
+  try {
+    var sessionResponse = await fetch(serverOrigin + '/auth/me', { credentials: 'include', cache: 'no-store', signal: sessionAbort.signal });
+    if (!sessionResponse.ok) throw Error('not signed in');
+    me = await sessionResponse.json();
+    if (!me || typeof me.login !== 'string' || !me.login || me.role !== 'owner') throw Error('invalid session');
+  } catch (_) {
+    document.documentElement.removeAttribute('data-session-pending');
+    document.getElementById('aqua-denied').hidden = false;
+    document.getElementById('aqua-user').textContent = '';
+    document.getElementById('aqua-usersub').textContent = '';
+    return;
+  } finally {
+    clearTimeout(sessionTimeout);
+  }
+  document.documentElement.removeAttribute('data-session-pending');
+  addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
+  addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
+
+  document.getElementById('aqua-user').textContent = me.login;
+  document.getElementById('aqua-usersub').textContent = me.role;
+  document.getElementById('aqua-avatar').textContent = me.login.charAt(0).toUpperCase();
+  var so = document.getElementById('aqua-signout');
+  so.style.display = '';
+  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
+  so.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
+  });
+
+  document.getElementById('aqua-body').hidden = false;
+
+  document.getElementById('aqua-who').textContent = me.login + ' \u00b7 ' + me.role;
+  document.getElementById('aqua-signout2').addEventListener('click', function () {
+    fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
+  });
+
+  var input = document.getElementById('aqua-base-in');
+  var status = document.getElementById('aqua-base-status');
+  function paint() {
+    var cur = localStorage.getItem('aqua_api_base');
+    input.value = cur || defaultBase;
+    document.getElementById('aqua-base-default').textContent = defaultBase;
+    document.getElementById('aqua-base-eff').textContent = aquaResolveApiBase();
+  }
+  paint();
+  document.getElementById('aqua-base-save').addEventListener('click', function () {
+    var v = input.value.trim().replace(/\/+$/, '');
+    if (!/^https?:\/\/.+\/v1$/.test(v)) { status.textContent = 'that does not look like an api base url. it should start with http(s):// and end in /v1.'; status.className = 'stateline err'; return; }
+    var allowed = (v === 'https://aqua-api.goattech.us/v1') || (v === location.origin + '/v1');
+    if (!allowed) { status.textContent = 'only the production api or this site can be used'; status.className = 'stateline err'; return; }
+    if (v === defaultBase) { localStorage.removeItem('aqua_api_base'); } else { localStorage.setItem('aqua_api_base', v); }
+    paint();
+    status.textContent = 'saved. other pages use it on their next load.';
+    status.className = 'stateline';
+  });
+  document.getElementById('aqua-base-reset').addEventListener('click', function () {
+    localStorage.removeItem('aqua_api_base');
+    paint();
+    status.textContent = 'back to the default.';
+    status.className = 'stateline';
+  });
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n;
+  }
+  function request(path, opts) {
+    opts = opts || {};
+    opts.credentials = 'include';
+    opts.cache = 'no-store';
+    if (opts.body && !opts.headers) opts.headers = { 'content-type': 'application/json' };
+    return fetch(serverOrigin + path, opts).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (body) {
+        if (!r.ok) {
+          var detail = body && typeof body.error === 'string' ? body.error
+                     : body && typeof body.message === 'string' ? body.message : '';
+          if (r.status === 401) throw Error('session expired. reload to sign in again.');
+          if (r.status === 403) throw Error('not allowed.' + (detail ? ' ' + detail : ''));
+          if (r.status === 503) throw Error('the gateway is unavailable right now. try again shortly.');
+          throw Error('the request failed. try again, and reload the page if it keeps failing.' + (detail ? ' ' + detail : ''));
+        }
+        return body;
+      });
+    });
+  }
+  function money(value) {
+    if (!Number.isSafeInteger(value) || value < 0) return 'unavailable';
+    var usd = value / 1e9;
+    if (usd === 0) return 'vUSD 0.00';
+    if (usd >= 0.01) return 'vUSD ' + usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    // tiny nonzero: up to 4 significant digits, trailing zeros trimmed
+    var s = usd.toPrecision(4);
+    if (s.indexOf('e') !== -1) s = usd.toFixed(9);
+    if (s.indexOf('.') !== -1) s = s.replace(/0+$/, '').replace(/\.$/, '.0');
+    return 'vUSD ' + s;
+  }
+
+  /* ---- providers ---- */
+  var pStatus = document.getElementById('aqua-p-status');
+  var pTable = document.getElementById('aqua-p-table');
+  var pRows = document.getElementById('aqua-p-rows');
+  var pEmpty = document.getElementById('aqua-p-empty');
+  var pRefresh = document.getElementById('aqua-p-refresh');
+  /* ---- models (model-first) ---- */
+  var mStatus = document.getElementById('aqua-m-status');
+  var mRows = document.getElementById('aqua-m-rows');
+  var mEmpty = document.getElementById('aqua-m-empty');
+  // Retention provenance (route-retention audit, checked 2026-11-18): one plain caveat line
+  // plus the official policy link per provider. Explanatory only - never promotes a label.
+  var RETENTION_SRC = {
+    nextrouter: { label: 'upstream retention and training unverified', url: 'https://nextrouter.me/privacy' },
+    zro: { label: 'no gateway content logs; prompt caching may apply', url: 'https://zro.moonmath.ai/privacy' },
+    orcarouter: { label: 'gateway logging optional; upstream retention unverified', url: 'https://docs.orcarouter.ai/privacy/provider-privacy' },
+    logfare: { label: 'prompts and responses logged; training opt-in applies', url: 'https://logfare.ai/privacy' },
+    radeon: { label: 'prompts and responses logged for two days; exceptions apply', url: 'https://amd-aim.github.io/radeon-cloud-docs/api/terms/' },
+    zai: { label: 'api terms say no content storage; route unverified', url: 'https://docs.z.ai/legal-agreement/privacy-policy' },
+    inferbase: { label: 'content stored for 30 days by default; setting unverified', url: 'https://inferbase.ai/privacy' },
+    nim: { label: 'hosted trial may log content and use it to improve models', url: 'https://assets.ngc.nvidia.com/products/api-catalog/legal/NVIDIA%20API%20Trial%20Terms%20of%20Service.pdf' },
+    openrouter: { label: 'upstream retention and privacy settings unverified', url: 'https://openrouter.ai/docs/guides/privacy/data-collection' }
+  };
+  function retentionSrc(r) {
+    var p = r && r.provider ? String(r.provider).toLowerCase() : '';
+    if (RETENTION_SRC[p]) return RETENTION_SRC[p];
+    if (p === '' || p === 'auto') return { label: 'privacy depends on the selected route', url: '' };
+    return null;
+  }
+  function retentionText(r) {
+    var v = r && r.retention;
+    if (v == null) return 'unknown';
+    if (typeof v === 'string') return v; // defensive: pre-facts wire shape
+    if (typeof v === 'object' && typeof v.status === 'string') return v.status.toLowerCase().replace(/_/g, '-');
+    return 'unknown';
+  }
+  // Route status is an availability tier (off / personal), never a health signal.
+  // "personal" (enabled for the owner) is the normal state; anything else is dimmed.
+  function tierPill(st) {
+    st = String(st).toLowerCase();
+    if (st === 'personal') return 'pill pill-neutral';
+    return 'pill pill-off';
+  }
+  function routeEnabled(r) {
+    var st = String(r.status).toLowerCase();
+    return st !== 'off' && !!r.configured;
+  }
+  function renderModels(models) {
+    mRows.textContent = '';
+    if (!Array.isArray(models)) {
+      mStatus.textContent = 'this backend does not report the merged model view yet.';
+      mStatus.className = 'stateline';
+      mEmpty.hidden = true;
+      return;
+    }
+    if (!models.length) {
+      mStatus.textContent = 'no models reported. updated ' + new Date().toLocaleTimeString().toLowerCase() + '.';
+      mStatus.className = 'stateline';
+      mEmpty.hidden = false;
+      return;
+    }
+    mEmpty.hidden = true;
+    models.forEach(function (m) {
+      var routes = Array.isArray(m.routes) ? m.routes : [];
+      var det = el('details', 'mdl');
+      var sum = el('summary');
+      sum.appendChild(el('span', 'mid', m.id));
+      var meta = el('span', 'mmeta');
+      var enabled = routes.filter(routeEnabled).length;
+      var bc = (typeof m.binding_count === 'number') ? m.binding_count : routes.length;
+      var summary = el('span', 'menabled', enabled === 0 ? 'off' : enabled + ' enabled of ' + routes.length);
+      if (enabled === 0) summary.classList.add('off');
+      meta.appendChild(summary);
+      meta.appendChild(el('span', null, bc + ' binding' + (bc === 1 ? '' : 's')));
+      sum.appendChild(meta);
+      det.appendChild(sum);
+      var wrap = el('div', 'routes');
+      if (!routes.length) {
+        wrap.appendChild(el('div', 'rnone', 'no routes. this model cannot serve traffic.'));
+      } else {
+        var tbl = el('div', 'rtable');
+        var head = el('div', 'rhead');
+        ['provider', 'upstream', 'availability', 'configured', 'retention'].forEach(function (h) { head.appendChild(el('span', null, h)); });
+        tbl.appendChild(head);
+        routes.forEach(function (r) {
+          var row = el('div', 'rrow');
+          row.appendChild(el('span', 'rp', r.provider));
+          row.appendChild(el('span', 'ru', r.upstream));
+          var st = el('span'); st.appendChild(el('span', tierPill(r.status), String(r.status))); row.appendChild(st);
+          row.appendChild(el('span', 'rc', r.configured ? 'yes' : 'no'));
+          var rcell = el('span', 'rc', retentionText(r));
+          var rsrc = retentionSrc(r);
+          if (rsrc) {
+            rcell.title = rsrc.label + (rsrc.url ? ' \u00b7 ' + rsrc.url : '');
+            rcell.classList.add('ret-src');
+            rcell.setAttribute('role', 'button');
+            rcell.tabIndex = 0;
+            rcell.setAttribute('aria-expanded', 'false');
+            var rd = el('span', 'rdetail', rsrc.label + (rsrc.url ? ' \u00b7 ' : ''));
+            if (rsrc.url) {
+              var ra = el('a', null, rsrc.url);
+              ra.href = rsrc.url;
+              ra.target = '_blank';
+              ra.rel = 'noopener noreferrer';
+              rd.appendChild(ra);
+            }
+            rcell.addEventListener('click', function () {
+              row.classList.toggle('show-src');
+              rcell.setAttribute('aria-expanded', row.classList.contains('show-src') ? 'true' : 'false');
+            });
+            rcell.addEventListener('keydown', function (ev) {
+              if (ev.key === 'Enter' || ev.key === ' ') {
+                ev.preventDefault();
+                row.classList.toggle('show-src');
+                rcell.setAttribute('aria-expanded', row.classList.contains('show-src') ? 'true' : 'false');
+              }
+            });
+            row.appendChild(rcell);
+            row.appendChild(rd);
+          } else {
+            row.appendChild(rcell);
+          }
+          tbl.appendChild(row);
+        });
+        wrap.appendChild(tbl);
+      }
+      det.appendChild(wrap);
+      mRows.appendChild(det);
+    });
+    mStatus.textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + '. duplicate routes merged.';
+    mStatus.className = 'stateline';
+  }
+  /* ---- request-name resolve (read-only; never dispatches) ---- */
+  var rForm = document.getElementById('aqua-resolve');
+  var rInput = document.getElementById('aqua-resolve-name');
+  var rStatus = document.getElementById('aqua-resolve-status');
+  var rOut = document.getElementById('aqua-resolve-result');
+  rForm.addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var name = rInput.value.trim();
+    rOut.textContent = '';
+    if (!name) { rStatus.textContent = 'type a request name first.'; rStatus.className = 'stateline err'; return; }
+    document.getElementById('aqua-resolve-btn').disabled = true;
+    rStatus.textContent = 'checking…';
+    rStatus.className = 'stateline';
+    var ctrl = new AbortController();
+    var timedOut = false;
+    var timer = setTimeout(function () { timedOut = true; ctrl.abort(); }, window.AQUA_RESOLVE_TIMEOUT_MS || 10000);
+    fetch(serverOrigin + '/v1/admin/resolve?model=' + encodeURIComponent(name), { credentials: 'include', cache: 'no-store', signal: ctrl.signal })
+      .then(function (r) {
+        if (r.status === 404) { rStatus.textContent = 'this backend does not support resolve yet.'; rStatus.className = 'stateline'; return null; }
+        if (r.status === 401) { location.replace('/'); return null; }
+        if (r.status === 403) { rStatus.textContent = 'owner only.'; rStatus.className = 'stateline err'; return null; }
+        if (r.status === 400) { rStatus.textContent = 'that name cannot be checked.'; rStatus.className = 'stateline err'; return null; }
+        if (r.status === 429) { rStatus.textContent = 'rate limited, try again shortly.'; rStatus.className = 'stateline err'; return null; }
+        if (!r.ok) { rStatus.textContent = 'resolve failed (http ' + r.status + ').'; rStatus.className = 'stateline err'; return null; }
+        return r.json();
+      })
+      .then(function (body) {
+        if (!body) return;
+        if (!body.known) {
+          rStatus.textContent = 'no eligible routes for this request name.';
+          rStatus.className = 'stateline err';
+          return;
+        }
+        rStatus.textContent = '';
+        rStatus.className = 'stateline';
+        var wrap = el('div', 'resolveout');
+        var map = el('div', 'rmap');
+        map.appendChild(el('b', null, body.requested));
+        var line = body.canonical !== body.requested ? ' resolves to '
+          : body.requested === 'auto' ? ' is a pooled alias. candidates, in try order:'
+          : ' is a canonical name. candidates, in try order:';
+        map.appendChild(document.createTextNode(line));
+        if (body.canonical !== body.requested) { map.appendChild(el('b', null, body.canonical)); map.appendChild(document.createTextNode('. candidates, in try order:')); }
+        wrap.appendChild(map);
+        var tbl = el('div', 'rtable');
+        var head = el('div', 'rhead');
+        ['provider', 'upstream', 'availability', 'configured', ''].forEach(function (h) { head.appendChild(el('span', null, h)); });
+        tbl.appendChild(head);
+        (body.candidates || []).forEach(function (c) {
+          var row = el('div', 'rrow');
+          row.appendChild(el('span', 'rp', c.provider));
+          row.appendChild(el('span', 'ru', c.upstream));
+          var st = el('span'); st.appendChild(el('span', tierPill(c.status), String(c.status))); row.appendChild(st);
+          row.appendChild(el('span', 'rc', c.configured ? 'yes' : 'no'));
+          row.appendChild(el('span', 'rc', c.deferred ? 'deferred (health)' : ''));
+          tbl.appendChild(row);
+        });
+        wrap.appendChild(tbl);
+        rOut.textContent = '';
+        rOut.appendChild(wrap);
+      })
+      .catch(function (e) {
+        rStatus.textContent = timedOut ? 'resolve timed out. try again shortly.' : 'could not reach the gateway (' + e.message + ').';
+        rStatus.className = 'stateline err';
+      })
+      .finally(function () { clearTimeout(timer); document.getElementById('aqua-resolve-btn').disabled = false; });
+  });
+
+  function loadProviders() {
+    pRefresh.disabled = true;
+    return request('/v1/admin/providers').then(function (body) {
+      var providers = (body && Array.isArray(body.providers)) ? body.providers : [];
+      pRows.textContent = '';
+      if (!providers.length) { pTable.hidden = true; pEmpty.hidden = false; }
+      else {
+        pTable.hidden = false; pEmpty.hidden = true;
+        providers.forEach(function (p) {
+          var row = el('div', 'prow');
+          row.appendChild(el('div', 'pid', p.id));
+          var st = el('div'); var ok = String(p.status).toLowerCase() === 'ok' || String(p.status).toLowerCase() === 'live' || String(p.status).toLowerCase() === 'ready';
+          st.appendChild(el('span', 'pill ' + (ok ? 'pill-live' : 'pill-warn'), String(p.status))); row.appendChild(st);
+          row.appendChild(el('div', 'conf', p.configured ? 'yes' : 'no'));
+          var models = el('div', 'pmodels');
+          (Array.isArray(p.models) ? p.models : []).forEach(function (m) {
+            var line = el('div', 'pm');
+            line.appendChild(el('span', 'pub', m.public));
+            line.appendChild(el('span', 'arr', '→'));
+            line.appendChild(el('span', 'ups', m.upstream));
+            models.appendChild(line);
+          });
+          if (!models.children.length) models.appendChild(el('span', 'conf', 'no models listed'));
+          row.appendChild(models);
+          pRows.appendChild(row);
+        });
+      }
+      renderModels(body && body.models);
+      pStatus.textContent = providers.length + ' provider' + (providers.length === 1 ? '' : 's') + '. updated ' + new Date().toLocaleTimeString().toLowerCase() + '.';
+      pStatus.className = 'stateline';
+    }).catch(function (e) {
+      pStatus.textContent = 'could not load providers. ' + e.message;
+      pStatus.className = 'stateline err';
+      mStatus.textContent = 'could not load models. ' + e.message;
+      mStatus.className = 'stateline err';
+    }).finally(function () { pRefresh.disabled = false; });
+  }
+  pRefresh.addEventListener('click', loadProviders);
+
+  /* ---- usage + caps ---- */
+  var uStatus = document.getElementById('aqua-u-status');
+  var uAccounts = document.getElementById('aqua-u-accounts');
+  var uRefresh = document.getElementById('aqua-u-refresh');
+  var current = null;
+  function total(win, field) {
+    return Object.values((win && win.models) || {}).reduce(function (sum, m) { return sum + (m[field] || 0); }, 0);
+  }
+  function loadUsage() {
+    uRefresh.disabled = true;
+    return request('/v1/admin/usage').then(function (data) {
+      if (!data || data.currency !== 'virtual USD' || data.units_per_usd !== 1000000000) throw Error('the gateway sent usage figures in units this page does not recognize, so those new figures are not shown. check the gateway before trusting any figure.');
+      current = data;
+      uAccounts.textContent = '';
+      var names = Object.keys(data.users || {});
+      if (!names.length) uAccounts.appendChild(el('p', 'note', 'no usage recorded yet.'));
+      names.sort(function (a, b) {
+        return ((data.users[a].cap === null ? -1 : 0) - (data.users[b].cap === null ? -1 : 0)) || a.localeCompare(b);
+      }).forEach(function (account) {
+        var user = data.users[account], owner = user.cap === null;
+        var row = el('div', 'uaccount');
+        var head = el('div', 'uhead');
+        head.appendChild(el('span', 'uname', account + (owner ? ' · no virtual cap' : '')));
+        head.appendChild(el('span', 'utotals', 'today ' + money(total(user.day, 'confirmed')) + ' / month ' + money(total(user.month, 'confirmed'))));
+        row.appendChild(head);
+        if (!owner) row.appendChild(el('p', 'note', 'virtual limits: ' + money(user.cap.daily) + ' daily / ' + money(user.cap.monthly) + ' monthly'));
+        var dayHeld = total(user.day, 'held'), monthHeld = total(user.month, 'held');
+        if (dayHeld || monthHeld) row.appendChild(el('p', 'note', 'virtual reservation: ' + money(dayHeld) + ' today / ' + money(monthHeld) + ' this month. aqua ledger hold, not a bank or card hold. includes in-flight or unreported usage.'));
+        if (user.unknown_requests) row.appendChild(el('p', 'note err', user.unknown_requests + ' request(s) with unknown usage across recorded history. totals are incomplete.'));
+        if (user.accounting_error) row.appendChild(el('p', 'note err', 'accounting bound exceeded. requests are blocked until repaired.'));
+        var models = Array.from(new Set(Object.keys((user.day && user.day.models) || {}).concat(Object.keys((user.month && user.month.models) || {}))));
+        if (models.length) {
+          var details = el('details', 'umodels'); details.appendChild(el('summary', '', 'usage by model'));
+          models.sort().forEach(function (model) {
+            var day = (user.day.models && user.day.models[model]) || null;
+            var month = (user.month.models && user.month.models[model]) || null;
+            var line = el('div', 'umrow');
+            line.appendChild(el('span', '', model));
+            line.appendChild(el('span', '', 'today ' + (day ? money(day.confirmed) : 'not recorded') + ' / month ' + (month ? money(month.confirmed) : 'not recorded')));
+            details.appendChild(line);
+          });
+          row.appendChild(details);
+        }
+        uAccounts.appendChild(row);
+      });
+      var gaps = data.unknown_owner_requests_since_startup || 0;
+      if (!data.accounting_available || data.configuration_error || gaps) {
+        uStatus.textContent = 'accounting unavailable or incomplete. owner requests have no aqua virtual cap; ' + gaps + ' owner request(s) were not recorded since startup. do not treat these totals as complete.';
+        uStatus.className = 'stateline err';
+      } else {
+        uStatus.textContent = 'updated ' + new Date().toLocaleTimeString().toLowerCase() + '. recorded virtual valuation only; reservations are shown separately.';
+        uStatus.className = 'stateline';
+      }
+      return true;
+    }).catch(function (e) {
+      uStatus.textContent = 'usage unavailable. ' + e.message + ' any figures still shown are from the last successful refresh.';
+      uStatus.className = 'stateline err';
+      return false;
+    }).finally(function () { uRefresh.disabled = false; });
+  }
+  uRefresh.addEventListener('click', loadUsage);
+
+  loadProviders();
+  loadUsage();
 })();
-</script></body></html>
+</script>
+</body>
+</html>
