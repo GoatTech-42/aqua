@@ -93,8 +93,31 @@ impl ConnectionLimits {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub struct AuthThrottle {
+    pub failures: u32,
+    pub window_secs: u64,
+    pub entries: usize,
+}
+impl Default for AuthThrottle {
+    fn default() -> Self { Self {failures:5, window_secs:60, entries:10_000} }
+}
+impl AuthThrottle {
+    fn from_lookup(mut lookup: impl FnMut(&str) -> Option<String>) -> Self {
+        Self {
+            failures: lookup("AQUA_AUTH_FAILURE_LIMIT").and_then(|v|v.parse().ok()).unwrap_or(5),
+            window_secs: lookup("AQUA_AUTH_WINDOW_SECS").and_then(|v|v.parse().ok()).unwrap_or(60),
+            entries: lookup("AQUA_AUTH_FAILURE_ENTRIES").and_then(|v|v.parse().ok()).unwrap_or(10_000),
+        }
+    }
+    pub fn failures(self) -> u32 { self.failures.clamp(1,1_000) }
+    pub fn window(self) -> std::time::Duration { std::time::Duration::from_secs(self.window_secs.clamp(1,3_600)) }
+    pub fn entries(self) -> usize { self.entries.clamp(1,100_000) }
+}
+
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub auth_throttle: AuthThrottle,
     pub backoff: Backoff,
     pub connections: ConnectionLimits,
     pub keys: HashMap<String, KeyEntry>,
@@ -381,6 +404,7 @@ pub fn from_env() -> Config {
     };
     let meta = parse_model_meta(env("AQUA_MODEL_META"));
     Config {
+        auth_throttle: AuthThrottle::from_lookup(|name|env(name)),
         backoff: Backoff::from_lookup(|name| env(name)),
         connections: ConnectionLimits::from_lookup(|name| env(name)),
         spend: crate::spend::Settings::from_env(),
@@ -568,6 +592,24 @@ mod connection_config_tests {
         for (total,reserve,want) in [(0,0,(2,1)),(usize::MAX,usize::MAX,(1024,1)),(10,0,(10,9)),(10,20,(10,1))] {
             let limits=ConnectionLimits {total,reserve};
             assert_eq!((limits.total(),limits.ordinary()),want);
+        }
+    }
+}
+
+#[cfg(test)]
+mod auth_throttle_config_tests {
+    use super::AuthThrottle;
+    #[test]
+    fn exact_knobs_defaults_invalids_and_extreme_values_are_bounded() {
+        for bad in [None,Some(""),Some("bad"),Some("-1"),Some("18446744073709551616")] {
+            let p=AuthThrottle::from_lookup(|_|bad.map(str::to_string));
+            assert_eq!((p.failures(),p.window().as_secs(),p.entries()),(5,60,10000));
+        }
+        let p=AuthThrottle::from_lookup(|k|Some(match k {
+            "AQUA_AUTH_FAILURE_LIMIT"=>"2","AQUA_AUTH_WINDOW_SECS"=>"17","AQUA_AUTH_FAILURE_ENTRIES"=>"3",_=>panic!("unexpected knob"),
+        }.into()));assert_eq!((p.failures(),p.window().as_secs(),p.entries()),(2,17,3));
+        for (p,want) in [(AuthThrottle{failures:0,window_secs:0,entries:0},(1,1,1)),(AuthThrottle{failures:u32::MAX,window_secs:u64::MAX,entries:usize::MAX},(1000,3600,100000))] {
+            assert_eq!((p.failures(),p.window().as_secs(),p.entries()),want);
         }
     }
 }

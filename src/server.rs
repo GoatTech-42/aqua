@@ -651,7 +651,6 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     let token = bearer(&req);
 
     if matches!(req.path.as_str(), "/v1/admin/usage" | "/v1/admin/caps") {
-        if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
         return spend_admin(&mut stream,&shared,&req,&token,cors);
     }
 
@@ -662,11 +661,11 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     // 501 (not 401) for authenticated callers so the usage page shows its
     // graceful empty state instead of a false "session expired".
     if req.method == "GET" && matches!(req.path.as_str(), "/v1/admin/usage/summary" | "/v1/admin/usage/series") {
-        if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
         let admin_ok = !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key;
         let cookie_owner = !req.headers.contains_key("authorization")
             && auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).map(|(_,r)| r==Role::Owner).unwrap_or(false);
         if !admin_ok && !cookie_owner {
+            if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
             record_auth_failure(&shared, &token);
             return write_json(&mut stream, 401, &err_body("invalid api key","auth_error"),cors);
         }
@@ -674,12 +673,10 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     }
 
     if req.method == "GET" && req.path == "/v1/admin/providers" {
-        // Throttle check first: admin-key guessing must hit the same 429 wall as API keys.
-        if auth_throttled(&shared, &token) {
-            return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limited"), cors);
-        }
+        // Successful route authentication must not inherit failed-credential throttles.
         if !( !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key )
             && !( !req.headers.contains_key("authorization") && auth::session_cookie(&req.headers).and_then(|id|shared.auth.get_session(&id)).map(|(_,r)|r==Role::Owner).unwrap_or(false) ) {
+            if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limited"),cors); }
             record_auth_failure(&shared, &token);
             return write_json(&mut stream, 401, &err_body("invalid api key", "auth_error"), cors);
         }
@@ -711,9 +708,6 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
 
     if req.path == "/v1/admin/resolve" {
         // Read-only owner diagnostic.
-        if auth_throttled(&shared, &token) {
-            return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limit_error"), cors);
-        }
         // Main's auth only (main's scope decision, reversing the A8 keep-both):
         // the admin key, or an owner session cookie. Legacy and generated
         // bearer keys are NOT accepted on this route.
@@ -724,6 +718,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         } else { None };
         let ops_login = cookie_login;
         if !admin_ok && ops_login.is_none() {
+            if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
             // Anonymous traffic must not lock out valid cookie sessions.
             if req.headers.contains_key("authorization") && !token.is_empty() { record_auth_failure(&shared, &token); }
             return write_json(&mut stream, 401, &err_body("invalid api key", "auth_error"), cors);
@@ -773,17 +768,16 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         }
         entry
     } else {
-        if auth_throttled(&shared, &token) {
-            return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limit_error"), cors);
-        }
         if let Some(ref entry) = generated_entry {entry} else {
             if token.starts_with("aqua_sk_") {
+                if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
                 record_auth_failure(&shared,&token);
                 return write_json(&mut stream,401,&err_body("invalid api key","auth_error"),cors);
             }
             match cfg.keys.get(&token).filter(|_| !token.is_empty() && !token.eq_ignore_ascii_case("change-me")) {
                 Some(e) => e,
                 None => {
+                    if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
                     record_auth_failure(&shared, &token);
                     return write_json(&mut stream, 401, &err_body("invalid api key", "auth_error"), cors);
                 }
@@ -911,7 +905,9 @@ fn manage_keys(stream:&mut TcpStream,shared:&Shared,req:&Request,cors:Option<&st
     }
 }
 
+#[cfg(test)]
 const AUTH_FAIL_LIMIT: u32 = 5; // per token per 60s window
+#[cfg(test)]
 const AUTH_FAIL_MAP_CAP: usize = 10_000;
 
 // GitHub OAuth: exchange the callback code for the user's login. Errors are
@@ -955,24 +951,28 @@ fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str, token_url
 }
 
 fn record_auth_failure(shared: &Shared, token: &str) {
+    let policy = shared.config.auth_throttle;
     let mut failures = shared.auth_failures.lock().unwrap();
-    if failures.len() >= AUTH_FAIL_MAP_CAP {
-        failures.retain(|_, v| v.1.elapsed() <= Duration::from_secs(60));
-        if failures.len() >= AUTH_FAIL_MAP_CAP {
-            failures.clear(); // last resort bound: counters reset, map cannot grow without limit
-        }
+    let fingerprint = crate::keys::fingerprint(token);
+    if let Some(entry) = failures.get_mut(&fingerprint) {
+        if entry.1.elapsed() > policy.window() { *entry = (0, Instant::now()); }
+        entry.0 = entry.0.saturating_add(1);
+        return;
     }
-    let entry = failures.entry(crate::keys::fingerprint(token)).or_insert((0, Instant::now()));
-    if entry.1.elapsed() > Duration::from_secs(60) {
-        *entry = (0, Instant::now());
+    if failures.len() >= policy.entries() {
+        failures.retain(|_, v| v.1.elapsed() <= policy.window());
+        // Preserve active counters. A new fingerprint is untracked while all
+        // bounded slots are fresh; never clear another caller's live limit.
+        if failures.len() >= policy.entries() { return; }
     }
-    entry.0 += 1;
+    failures.insert(fingerprint, (1, Instant::now()));
 }
 
 fn auth_throttled(shared: &Shared, token: &str) -> bool {
+    let policy = shared.config.auth_throttle;
     let failures = shared.auth_failures.lock().unwrap();
     match failures.get(&crate::keys::fingerprint(token)) {
-        Some((n, since)) => *n >= AUTH_FAIL_LIMIT && since.elapsed() <= Duration::from_secs(60),
+        Some((n, since)) => *n >= policy.failures() && since.elapsed() <= policy.window(),
         None => false,
     }
 }
@@ -1783,6 +1783,7 @@ mod reviewer_regressions {
 
     fn shared() -> Shared {
         let config = Config {
+            auth_throttle: Default::default(),
             backoff: Default::default(),
             connections: Default::default(),
             keys: HashMap::new(),
@@ -2388,6 +2389,7 @@ fn spend_admin(stream: &mut TcpStream, shared: &Shared, req: &Request, token: &s
     let key_ok = !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key;
     let session_owner = !req.headers.contains_key("authorization") && auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).map(|(_,role)|role==Role::Owner).unwrap_or(false);
     if !key_ok && !session_owner {
+        if auth_throttled(shared, token) { return write_json(stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
         record_auth_failure(shared, token);
         return write_json(stream,401,&err_body("invalid api key","auth_error"),cors);
     }
@@ -2639,7 +2641,7 @@ mod live_port_tests {
     }
 
     #[test]
-    fn auth_failure_map_clears_all_only_when_full_of_fresh_entries() {
+    fn auth_failure_map_preserves_full_fresh_table() {
         let state=keys_shared();
         {
             let mut failures=state.auth_failures.lock().unwrap();
@@ -2649,8 +2651,9 @@ mod live_port_tests {
         }
         record_auth_failure(&state,"fresh-token");
         let failures=state.auth_failures.lock().unwrap();
-        assert_eq!(failures.len(),1,"a full fresh map must clear, then hold only the new entry");
-        assert_eq!(failures.get(&crate::keys::fingerprint("fresh-token")).map(|(n,_)|*n),Some(1));
+        assert_eq!(failures.len(),10000,"full fresh counters stay bounded and preserved");
+        assert!(failures.contains_key("f-0"));
+        assert!(!failures.contains_key(&crate::keys::fingerprint("fresh-token")));
     }
 
     #[test]
@@ -5854,6 +5857,123 @@ mod connection_admission_tests {
         assert!(bad_method.starts_with("HTTP/1.1 503"),"only GET and OPTIONS reserve this path");
         state.ordinary_in_flight.store(0,Ordering::SeqCst);
         assert!(request(state.clone(),"POST","/v1/admin/resolve?model=x",&owner).starts_with("HTTP/1.1 405"));
+    }
+
+}
+
+#[cfg(test)]
+mod throttle_characterization_tests {
+    use super::*;
+    use super::reviewer_regressions::keys_shared;
+    fn request(state: Arc<Shared>, path: &str, cookie: &str, token: Option<&str>) -> String {
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client=TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+        let (server,_)=listener.accept().unwrap();
+        let worker=thread::spawn(move||handle(server,state).unwrap());
+        let auth=token.map(|t|format!("authorization: Bearer {t}\r\n")).unwrap_or_default();
+        write!(client,"GET {path} HTTP/1.1\r\nhost: x\r\ncookie: aqua_session={cookie}\r\n{auth}content-length: 0\r\n\r\n").unwrap();
+        let mut out=String::new();client.read_to_string(&mut out).unwrap();worker.join().unwrap();out
+    }
+    #[test]
+    fn anonymous_failures_never_override_valid_owner_session_admin_auth() {
+        let state=keys_shared();
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        for _ in 0..5 {assert!(request(state.clone(),"/v1/models","",None).starts_with("HTTP/1.1 401"));}
+        assert!(request(state.clone(),"/v1/admin/providers",&owner,None).starts_with("HTTP/1.1 200"));
+        assert!(request(state.clone(),"/v1/models",&owner,None).starts_with("HTTP/1.1 200"));
+    }
+    #[test]
+    fn invalid_admin_use_never_overrides_valid_legacy_api_auth() {
+        let mut inner=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        inner.config.keys.insert("owner-valid".into(),crate::config::KeyEntry{name:"luke".into(),role:Role::Owner});
+        let state=Arc::new(inner);
+        for _ in 0..5 {assert!(request(state.clone(),"/v1/admin/providers","",Some("owner-valid")).starts_with("HTTP/1.1 401"));}
+        assert!(request(state.clone(),"/v1/models","",Some("owner-valid")).starts_with("HTTP/1.1 200"));
+    }
+    #[test]
+    fn full_fresh_table_retains_existing_throttle_without_growing() {
+        let state=keys_shared();
+        for _ in 0..5 {record_auth_failure(&state,"blocked-token");}
+        assert!(auth_throttled(&state,"blocked-token"));
+        {
+            let mut table=state.auth_failures.lock().unwrap();
+            for i in 0..9999 {table.insert(format!("filler-{i}"),(1,Instant::now()));}
+            assert_eq!(table.len(),10000);
+        }
+        record_auth_failure(&state,"new-token");
+        assert!(auth_throttled(&state,"blocked-token"));
+        assert_eq!(state.auth_failures.lock().unwrap().len(),10000);
+    }
+    #[test]
+    fn all_admin_gates_preserve_owner_sessions_but_never_downgrade_explicit_bad_bearer() {
+        let state=keys_shared();
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        for _ in 0..5 {record_auth_failure(&state,"");record_auth_failure(&state,"bad");}
+        for (path,code) in [("/v1/admin/providers","200"),("/v1/admin/usage","200"),("/v1/admin/caps","404"),
+            ("/v1/admin/usage/summary","501"),("/v1/admin/usage/series","501"),("/v1/admin/resolve?model=x","200")] {
+            assert!(request(state.clone(),path,&owner,None).starts_with(&format!("HTTP/1.1 {code}")),"owner session {path}");
+            assert!(request(state.clone(),path,&owner,Some("bad")).starts_with("HTTP/1.1 429"),"explicit bad bearer stays authoritative: {path}");
+            assert!(request(state.clone(),path,&friend,None).starts_with("HTTP/1.1 429"),"friend does not gain owner auth: {path}");
+        }
+    }
+
+    #[test]
+    fn valid_admin_and_generated_api_keys_survive_unrelated_route_failures() {
+        let mut inner=Arc::try_unwrap(keys_shared()).ok().unwrap();inner.config.admin_key="real-admin".into();
+        let generated=inner.keys.get_mut().unwrap().create("luke","fixture").unwrap();
+        let token=generated["key"].as_str().unwrap().to_string();
+        let state=Arc::new(inner);
+        for _ in 0..5 {record_auth_failure(&state,"real-admin");record_auth_failure(&state,&token);}
+        for (path,code) in [("/v1/admin/providers","200"),("/v1/admin/usage","200"),("/v1/admin/usage/summary","501"),("/v1/admin/resolve?model=x","200")] {
+            assert!(request(state.clone(),path,"",Some("real-admin")).starts_with(&format!("HTTP/1.1 {code}")),"valid admin {path}");
+        }
+        assert!(request(state.clone(),"/v1/models","",Some(&token)).starts_with("HTTP/1.1 200"));
+        assert!(request(state.clone(),"/v1/admin/providers","",Some(&token)).starts_with("HTTP/1.1 429"),"valid API key never becomes admin key");
+        let id=generated["id"].as_str().unwrap();state.keys.lock().unwrap().revoke("luke",id).unwrap();
+        assert!(request(state.clone(),"/v1/models","",Some(&token)).starts_with("HTTP/1.1 429"),"revocation never bypassed");
+    }
+
+    #[test]
+    fn failure_boundary_fingerprint_isolation_expiry_and_configured_window() {
+        let mut inner=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        inner.config.auth_throttle=crate::config::AuthThrottle{failures:2,window_secs:17,entries:3};
+        let state=Arc::new(inner);
+        for _ in 0..2 {assert!(request(state.clone(),"/v1/models","",Some("guess")).starts_with("HTTP/1.1 401"));}
+        assert!(request(state.clone(),"/v1/models","",Some("guess")).starts_with("HTTP/1.1 429"));
+        assert!(request(state.clone(),"/v1/models","",Some("different")).starts_with("HTTP/1.1 401"));
+        let fp=crate::keys::fingerprint("guess");
+        {let mut table=state.auth_failures.lock().unwrap();assert!(!table.contains_key("guess"));table.get_mut(&fp).unwrap().1=Instant::now()-Duration::from_secs(18);}
+        assert!(request(state.clone(),"/v1/models","",Some("guess")).starts_with("HTTP/1.1 401"));
+        assert_eq!(state.auth_failures.lock().unwrap()[&fp].0,1);
+        state.auth_failures.lock().unwrap().get_mut(&fp).unwrap().1=Instant::now()-Duration::from_secs(16);
+        record_auth_failure(&state,"guess");assert!(auth_throttled(&state,"guess"));
+    }
+
+    #[test]
+    fn full_table_existing_counter_updates_and_expired_slot_is_reused() {
+        let mut inner=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        inner.config.auth_throttle=crate::config::AuthThrottle{failures:2,window_secs:17,entries:2};
+        let state=Arc::new(inner);
+        record_auth_failure(&state,"a");record_auth_failure(&state,"b");
+        record_auth_failure(&state,"a");record_auth_failure(&state,"c");
+        assert!(auth_throttled(&state,"a"));assert_eq!(state.auth_failures.lock().unwrap().len(),2);
+        assert!(!state.auth_failures.lock().unwrap().contains_key(&crate::keys::fingerprint("c")));
+        state.auth_failures.lock().unwrap().get_mut(&crate::keys::fingerprint("b")).unwrap().1=Instant::now()-Duration::from_secs(18);
+        record_auth_failure(&state,"c");
+        let table=state.auth_failures.lock().unwrap();assert_eq!(table.len(),2);assert!(table.contains_key(&crate::keys::fingerprint("a")));assert!(table.contains_key(&crate::keys::fingerprint("c")));
+    }
+
+    #[test]
+    fn concurrent_failures_never_exceed_capacity_or_lose_existing_count() {
+        let mut inner=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        inner.config.auth_throttle=crate::config::AuthThrottle{failures:5,window_secs:60,entries:3};
+        let state=Arc::new(inner);record_auth_failure(&state,"existing");
+        let gate=Arc::new(std::sync::Barrier::new(17));let mut workers=Vec::new();
+        for i in 0..16 {let state=state.clone();let gate=gate.clone();workers.push(thread::spawn(move||{gate.wait();record_auth_failure(&state,"existing");record_auth_failure(&state,&format!("guess-{i}"));}));}
+        gate.wait();for w in workers {w.join().unwrap();}
+        let table=state.auth_failures.lock().unwrap();assert_eq!(table.len(),3);assert_eq!(table[&crate::keys::fingerprint("existing")].0,17);
     }
 
 }

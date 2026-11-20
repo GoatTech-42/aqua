@@ -13,8 +13,12 @@ those clients, so the API keeps plain bearer keys.
   `src/server.rs`; provider identity is never exposed to either role.
 - `AQUA_ADMIN_KEY` guards `/v1/admin/providers`.
 - Keys are issued out of band (Luke hands each friend a key) and rotated by env
-  change + restart. Failed-auth throttling is already in place (5 failures / 60s
-  per token).
+  change + restart. Failed-auth throttling defaults to 5 failures / 60s per
+  invalid-credential fingerprint. Successful authentication for the requested
+  route is checked before throttling, so anonymous failures cannot override a
+  valid session and wrong-route key attempts cannot block that key's valid API
+  use. This does not broaden which credential types a route accepts. Explicit
+  bad bearer headers remain authoritative over cookies.
 - AQUA_DAILY_LIMIT applies per key.
 
 ## Web console (landing / console / playground): GitHub OAuth: implemented
@@ -89,3 +93,27 @@ source confidentiality. It blocks normal unsigned browser navigation and keeps
 controls hidden while checking; actual data, usage and inference authorization
 still live on the backend. An edge gateway would be needed to withhold the
 static Pages HTML itself. No edge/deployment setting is changed by this PR.
+
+## Failed-credential throttle limits
+
+Configuration is read at startup. `AQUA_AUTH_FAILURE_LIMIT` defaults to 5,
+clamped 1..1000; `AQUA_AUTH_WINDOW_SECS` defaults to 60, clamped 1..3600;
+`AQUA_AUTH_FAILURE_ENTRIES` defaults to 10000, clamped 1..100000. Invalid,
+negative or overflowing strings use defaults. Programmatic values also clamp
+at use. Zero cannot disable the throttle. On routes that record failed bearer
+authentication, the first 5 invalid attempts get the existing 401 response;
+the next request for the same fingerprint gets 429 until the fixed window
+expires. Existing exemptions remain, including anonymous resolve requests,
+static pages and session-only key management. Failures do not slide the window
+forward.
+
+The bounded in-memory table stores fingerprints, not raw credentials. It sweeps
+expired entries when an insertion needs space. A full fresh table never clears
+active counters: existing fingerprints keep counting; new fingerprints remain
+untracked until a slot expires. This preserves existing limits and the memory
+bound, but means this is not a whole-service brute-force defense. Rotating
+credentials can evade a per-fingerprint limit, including before the table fills.
+There is no IP lockout, persistence across restart, OAuth/login rate limit or
+protection against all connection/CPU exhaustion. Valid route authentication
+still does its normal work; upstream proxy controls remain necessary for hostile
+traffic. No live settings or deployment change is part of this source change.

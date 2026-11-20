@@ -146,6 +146,7 @@ fn config(providers: Vec<Provider>, auto_shortlist: Vec<&str>) -> Config {
     keys.insert("ownerkey".into(), KeyEntry { name: "luke".into(), role: aqua::Role::Owner });
     keys.insert("friendkey".into(), KeyEntry { name: "sam".into(), role: aqua::Role::Friend });
     Config {
+        auth_throttle: Default::default(),
         backoff: Default::default(),
         connections: Default::default(),
         keys,

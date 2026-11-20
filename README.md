@@ -119,6 +119,9 @@ not enforce account billing limits.
     AQUA_GITHUB_FRIENDS=sam,alex
     AQUA_AUTO_SHORTLIST=coder-a,coder-b          # ordered models for the auto alias; empty disables auto
     AQUA_MODEL_META=coder-a=128000               # verified context windows, tokens
+    AQUA_AUTH_FAILURE_LIMIT=5                   # failed credential attempts per fixed window
+    AQUA_AUTH_WINDOW_SECS=60                    # per-fingerprint window, see docs/AUTH.md
+    AQUA_AUTH_FAILURE_ENTRIES=10000              # bounded counters; full fresh tables preserve existing entries
     AQUA_MAX_CONNECTIONS=64                     # total active handlers, clamped 2..1024
     AQUA_CONTROL_RESERVE=8                      # slots held back from ordinary parsed requests
     AQUA_UPSTREAM_BUDGET_SECS=300                # aggregate deadline shared by ALL fallback attempts of one request
@@ -130,6 +133,8 @@ not enforce account billing limits.
 
 Empty or placeholder client keys are dropped at config build and never
 authenticate. Provider keys are only ever sent to their own provider.
+
+A new auth-failure fingerprint at a full fresh table scans up to the configured entry limit under the shared mutex. Hostile token rotation can add CPU and lock pressure; this is not flood resistance.
 
 ## Connection admission
 

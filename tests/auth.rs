@@ -20,6 +20,7 @@ fn oauth_cfg() -> OAuthConfig {
 
 fn cfg_with(oauth: OAuthConfig) -> aqua::Config {
     aqua::Config {
+        auth_throttle: Default::default(),
         backoff: Default::default(),
         connections: Default::default(),
         keys: HashMap::new(),
