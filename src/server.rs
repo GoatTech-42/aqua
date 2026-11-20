@@ -4560,6 +4560,12 @@ mod cooldown_lock_tests {
     // drains the backlog so a queued dispatch is still counted; the test
     // joins before reading the final count.
     fn live_limited_stub(hits: Arc<AtomicUsize>, stop: Arc<AtomicBool>) -> (String, JoinHandle<()>) {
+        live_status_stub(429, "120", hits, stop)
+    }
+
+    // Parameterized status fixture for baseline policy tests. Later calls
+    // always get a healthy response while the listener remains live.
+    fn live_status_stub(status: u16, retry_after: &'static str, hits: Arc<AtomicUsize>, stop: Arc<AtomicBool>) -> (String, JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         listener.set_nonblocking(true).unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
@@ -4575,7 +4581,7 @@ mod cooldown_lock_tests {
                         socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
                         let _ = read_request(&mut socket);
                         if served == 0 {
-                            let _ = write!(socket, "HTTP/1.1 429 Limited\r\ncontent-type: application/json\r\ncontent-length: {}\r\nretry-after: 120\r\nconnection: close\r\n\r\n{ERR}", ERR.len());
+                            let _ = write!(socket, "HTTP/1.1 {status} Limited\r\ncontent-type: application/json\r\ncontent-length: {}\r\nretry-after: {retry_after}\r\nconnection: close\r\n\r\n{ERR}", ERR.len());
                         } else {
                             let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{VALID_OK}", VALID_OK.len());
                         }
@@ -4738,4 +4744,83 @@ mod cooldown_lock_tests {
         assert!(!is_hard(&state, "zai"), "503 is soft evidence");
         assert!((10..=15).contains(&remaining_secs(&state, "zai")), "soft 15s default: {}", remaining_secs(&state, "zai"));
     }
+    // Dispatcher baseline only: soft cooldowns reorder, not block. Inspect
+    // the installed policy before the healthy response clears soft evidence.
+    // Keep the responder live for call two and join before asserting counts.
+    fn baseline_soft_dispatch(status: u16, header: &'static str, seconds: u64) {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (url, worker) = live_status_stub(status, header, hits.clone(), stop.clone());
+        let _stop_guard = StopGuard(stop.clone());
+        let state = lock_state(url, &["fixture-chat"]);
+        let first = call(state.clone(), "fixture-chat");
+        let observed = state.health.lock().unwrap().get("zai").copied();
+        let checkpoint = Instant::now();
+        let second = call(state.clone(), "fixture-chat");
+        stop.store(true, Ordering::SeqCst);
+        worker.join().unwrap();
+        let expected = if status == 429 { "HTTP/1.1 429" } else { "HTTP/1.1 503" };
+        assert!(first.starts_with(expected), "initial failure: {first:?}");
+        let cd = observed.expect("failure installs cooldown");
+        assert!(!cd.hard, "status {status}, header {header:?} must remain soft");
+        let remaining = cd.until.saturating_duration_since(checkpoint);
+        assert!(remaining > Duration::from_secs(seconds - 5) && remaining <= Duration::from_secs(seconds),
+            "status {status}, header {header:?}: expected soft {seconds}s, got {remaining:?}");
+        assert!(second.starts_with("HTTP/1.1 200") && second.contains("valid offline output"),
+            "healthy control must dispatch despite soft cooldown: {second:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 2, "both calls reached the live account");
+        assert!(state.health.lock().unwrap().get("zai").is_none(), "healthy completion clears soft cooldown");
+    }
+
+    #[test]
+    fn baseline_503_numeric_retry_after_stays_soft_and_dispatches() {
+        baseline_soft_dispatch(503, "120", 15);
+    }
+
+    #[test]
+    fn baseline_503_date_retry_after_stays_soft_and_dispatches() {
+        baseline_soft_dispatch(503, "Wed, 01 Jan 2042 00:00:00 GMT", 15);
+    }
+
+    #[test]
+    fn baseline_503_invalid_retry_after_stays_soft_and_dispatches() {
+        baseline_soft_dispatch(503, "soon", 15);
+    }
+
+    #[test]
+    fn baseline_429_plus_signed_header_stays_soft_and_dispatches() {
+        baseline_soft_dispatch(429, "+120", 60);
+    }
+
+    #[test]
+    fn baseline_429_negative_header_stays_soft_and_dispatches() {
+        baseline_soft_dispatch(429, "-120", 60);
+    }
+
+    #[test]
+    fn baseline_expired_hard_limit_dispatches_to_live_account() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (url, worker) = live_status_stub(429, "120", hits.clone(), stop.clone());
+        let _stop_guard = StopGuard(stop.clone());
+        let state = lock_state(url, &["fixture-chat", "fixture-alt"]);
+        let first = call(state.clone(), "fixture-chat");
+        let installed = state.health.lock().unwrap().get("zai").copied();
+        let blocked = call(state.clone(), "fixture-alt");
+        let before_expiry_hits = hits.load(Ordering::SeqCst);
+        // Explicit state boundary, no 120s sleep: keep hard=true but expire it.
+        state.health.lock().unwrap().get_mut("zai").unwrap().until =
+            Instant::now() - Duration::from_secs(1);
+        let resumed = call(state.clone(), "fixture-alt");
+        stop.store(true, Ordering::SeqCst);
+        worker.join().unwrap();
+        assert!(first.starts_with("HTTP/1.1 429"));
+        assert!(installed.is_some_and(|cd| cd.hard), "initial response installs a hard limit");
+        assert!(blocked.starts_with("HTTP/1.1 429"), "live hard limit blocks: {blocked:?}");
+        assert_eq!(before_expiry_hits, 1, "no admission before expiry, responder still live");
+        assert!(resumed.starts_with("HTTP/1.1 200") && resumed.contains("valid offline output"),
+            "expired hard limit allows healthy dispatch on another account model: {resumed:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 2, "initial and post-expiry calls only");
+    }
+
 }
