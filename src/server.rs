@@ -5199,4 +5199,51 @@ mod framing_matrix_tests {
     #[test] fn upstream_status_baseline_503() { upstream_status_baseline(503); }
     #[test] fn upstream_status_baseline_504() { upstream_status_baseline(504); }
 
+    // Present Authorization overrides session fallback, including malformed
+    // values. Fresh state per case keeps throttle policy outside this pin.
+    fn auth_precedence_baseline(header: Option<&str>, accepted: bool) {
+        let mut upstream = Responder::start();
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.keys.insert("offline-owner-key".into(), crate::config::KeyEntry { name: "luke".into(), role: Role::Owner });
+        state.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: upstream.url.clone(), models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-upstream".into(), context: None,
+            }],
+        }];
+        let state = Arc::new(state);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let auth_line = header.map(|value| format!("aUtHoRiZaTiOn: {value}\r\n")).unwrap_or_default();
+        let framing = format!("content-length: {}\r\n", BODY.len()+1);
+        let candidate = gateway_call(state.clone(), request(&cookie, &format!("{auth_line}{framing}")));
+        let candidate_hits = upstream.hits.load(Ordering::SeqCst);
+        // Cookie-only control proves the SAME session is valid after rejection.
+        let cookie_control = gateway_call(state.clone(), request(&cookie, &framing));
+        // Independent bearer-only control proves the configured key works and
+        // no hidden cookie authority is responsible for bearer acceptance.
+        let bearer_control = gateway_call(state, request("", &format!("Authorization: Bearer offline-owner-key\r\n{framing}")));
+        upstream.finish();
+        if accepted {
+            assert!(candidate.starts_with("HTTP/1.1 200") && candidate.contains("framing healthy control"), "accepted header {header:?}: {candidate:?}");
+        } else {
+            assert!(candidate.starts_with("HTTP/1.1 401"), "present invalid header must not use session: {header:?}, {candidate:?}");
+            let body: Value = serde_json::from_str(candidate.split_once("\r\n\r\n").unwrap().1).unwrap();
+            assert_eq!(body, json!({"error":{"message":"invalid api key","type":"auth_error"}}));
+            assert!(!candidate.contains("offline-owner-key"));
+        }
+        let expected = if accepted { 1 } else { 0 };
+        assert_eq!(candidate_hits, expected, "candidate dispatch count");
+        for control in [&cookie_control, &bearer_control] {
+            assert!(control.starts_with("HTTP/1.1 200") && control.contains("framing healthy control"), "healthy auth control: {control:?}");
+        }
+        assert_eq!(upstream.hits.load(Ordering::SeqCst), expected + 2, "only accepted candidate and healthy controls dispatch");
+    }
+    #[test] fn auth_precedence_baseline_absent_header() { auth_precedence_baseline(None, true); }
+    #[test] fn auth_precedence_baseline_empty_header() { auth_precedence_baseline(Some(""), false); }
+    #[test] fn auth_precedence_baseline_basic_header() { auth_precedence_baseline(Some("Basic offline-owner-key"), false); }
+    #[test] fn auth_precedence_baseline_lowercase_scheme() { auth_precedence_baseline(Some("bearer offline-owner-key"), false); }
+    #[test] fn auth_precedence_baseline_tab_separator() { auth_precedence_baseline(Some("Bearer\toffline-owner-key"), false); }
+    #[test] fn auth_precedence_baseline_invalid_key() { auth_precedence_baseline(Some("Bearer not-the-key"), false); }
+    #[test] fn auth_precedence_baseline_valid_bearer() { auth_precedence_baseline(Some("Bearer offline-owner-key"), true); }
+
 }
