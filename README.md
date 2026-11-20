@@ -462,3 +462,5 @@ metadata. Broker-only promises do not certify upstream retention. Logfare,
 Radeon and NIM trial are NON_ZDR; remaining routes are UNKNOWN until full-route
 terms and live configuration are verified. No training or consent setting is
 changed by this source.
+
+Thread creation uses fallible OS spawn results: bind returns an error if the accept thread cannot start, and a handler spawn failure closes that connection. Existing admission/drain tests pass, but the OS thread-creation failure branch has not been exercised by fault injection.

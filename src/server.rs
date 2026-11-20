@@ -195,7 +195,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
     let shutdown = Arc::new(AtomicBool::new(false));
     let flag = shutdown.clone();
     let accept_shared = shared.clone();
-    let handle = thread::spawn(move || {
+    let handle = thread::Builder::new().spawn(move || {
         for stream in listener.incoming() {
             if flag.load(Ordering::SeqCst) {
                 break;
@@ -204,7 +204,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
                 let _ = spawn_handler(stream, accept_shared.clone());
             }
         }
-    });
+    })?;
     Ok(Server { port, shutdown, handle: Some(handle), shared, drain: DEFAULT_DRAIN })
 }
 
@@ -217,10 +217,12 @@ fn spawn_handler(stream: TcpStream, shared: Arc<Shared>) -> Option<JoinHandle<()
         // stall admission. Closing this socket creates no worker thread.
         return None;
     };
-    Some(thread::spawn(move || {
+    // Resource exhaustion must reject this connection, not panic the accept
+    // loop. On spawn failure the closure drops its socket and admission guard.
+    thread::Builder::new().spawn(move || {
         let _in_flight = in_flight;
         let _ = handle(stream, shared);
-    }))
+    }).ok()
 }
 
 struct Request {
