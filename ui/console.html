@@ -325,10 +325,10 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
     status.textContent = 'model names are real; which provider serves a model is never shown here.';
   }).catch(function (e) {
     document.getElementById('aqua-sync').textContent = 'not connected';
-    document.getElementById('aqua-finding').textContent = 'could not reach the api at ' + base + ' (' + e.message + ').';
+    document.getElementById('aqua-finding').textContent = 'could not reach the gateway at ' + base + ' (' + e.message + ').';
     rows.textContent = '';
-    rows.appendChild(makeRow('backend not reachable', base, 'offline', false));
-    status.textContent = 'check that the deployment is up, then reload.';
+    rows.appendChild(makeRow('could not reach the gateway at ' + base, 'reload the page to try again.', 'offline', false));
+    status.textContent = 'the gateway is unavailable right now. reload the page to try again.';
   });
 })();
 </script>
