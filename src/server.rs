@@ -4824,3 +4824,160 @@ mod cooldown_lock_tests {
     }
 
 }
+
+// Request-framing regression matrix. Current parser policy only, not a
+// general HTTP conformance claim and not an auth/throttle policy change.
+#[cfg(test)]
+mod framing_matrix_tests {
+    use super::*;
+    use super::reviewer_regressions::keys_shared;
+    use std::io::ErrorKind;
+    use std::net::Shutdown;
+
+    const BODY: &str = r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline fixture"}]}"#;
+    const VALID: &str = r#"{"choices":[{"index":0,"message":{"role":"assistant","content":"framing healthy control"},"finish_reason":"stop"}]}"#;
+
+    // Own the responder until all malformed and healthy calls finish.
+    // Drop also stops/joins it on assertion panic; all sockets are bounded.
+    struct Responder {
+        url: String,
+        hits: Arc<AtomicUsize>,
+        stop: Arc<AtomicBool>,
+        worker: Option<JoinHandle<()>>,
+    }
+    impl Responder {
+        fn start() -> Self {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            listener.set_nonblocking(true).unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let hits = Arc::new(AtomicUsize::new(0));
+            let stop = Arc::new(AtomicBool::new(false));
+            let h = hits.clone();
+            let done = stop.clone();
+            let worker = thread::spawn(move || {
+                let deadline = Instant::now() + Duration::from_secs(10);
+                loop {
+                    // After every gateway call has joined, no further dispatch
+                    // can be initiated. Drain already queued connections first.
+                    match listener.accept() {
+                        Ok((mut socket, _)) => {
+                            h.fetch_add(1, Ordering::SeqCst);
+                            socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+                            socket.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+                            if read_request_within(&mut socket, Duration::from_secs(2)).is_ok() {
+                                let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{VALID}", VALID.len());
+                            }
+                        }
+                        Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                            if done.load(Ordering::SeqCst) { break; }
+                            assert!(Instant::now() < deadline, "responder exceeded bounded window");
+                            thread::sleep(Duration::from_millis(2));
+                        }
+                        Err(e) => panic!("accept failed: {e}"),
+                    }
+                }
+            });
+            Self { url, hits, stop, worker: Some(worker) }
+        }
+        fn finish(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            self.worker.take().unwrap().join().unwrap();
+        }
+    }
+    impl Drop for Responder {
+        fn drop(&mut self) {
+            self.stop.store(true, Ordering::SeqCst);
+            if let Some(worker) = self.worker.take() { let _ = worker.join(); }
+        }
+    }
+
+    fn pair() -> (TcpStream, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (server, _) = listener.accept().unwrap();
+        for socket in [&client, &server] {
+            socket.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(3))).unwrap();
+        }
+        (client, server)
+    }
+
+    fn request(cookie: &str, framing: &str) -> String {
+        format!("POST /v1/chat/completions HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\norigin: https://aqua.test\r\nsec-fetch-site: same-site\r\ncontent-type: application/json\r\n{framing}\r\n{BODY} ")
+    }
+
+    fn gateway_call(state: Arc<Shared>, bytes: String) -> String {
+        let (mut client, server) = pair();
+        let worker = thread::spawn(move || handle(server, state));
+        client.write_all(bytes.as_bytes()).unwrap();
+        client.shutdown(Shutdown::Write).unwrap();
+        let mut response = String::new();
+        let read_result = client.read_to_string(&mut response);
+        let handler_result = worker.join().unwrap();
+        assert!(handler_result.is_ok(), "handler error: {handler_result:?}");
+        // Rejection may close with unread request bytes. A reset is allowed
+        // only after a response was captured; status/body pins remain below.
+        assert!(read_result.is_ok() || (read_result.is_err_and(|e| e.kind() == ErrorKind::ConnectionReset) && !response.is_empty()));
+        response
+    }
+
+    fn rejects(framing: String, expected: &str) {
+        // Parser-level pin distinguishes rejection from later JSON/auth errors.
+        let (mut client, mut server) = pair();
+        client.write_all(request("unused", &framing).as_bytes()).unwrap();
+        client.shutdown(Shutdown::Write).unwrap();
+        let parse_error = read_request_within(&mut server, Duration::from_secs(2)).err();
+
+        let mut upstream = Responder::start();
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal,
+            api_key: "offline-synthetic".into(), base_url: upstream.url.clone(),
+            models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-upstream".into(), context: None,
+            }],
+        }];
+        let state = Arc::new(state);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let bad = gateway_call(state.clone(), request(&cookie, &framing));
+        let bad_hits = upstream.hits.load(Ordering::SeqCst);
+        // A healthy request on the SAME state and still-live listener proves
+        // the route/auth fixture can dispatch, not just reject everything.
+        let good = gateway_call(state, request(&cookie, &format!("CoNtEnT-LeNgTh: {}\r\n", BODY.len() + 1)));
+        upstream.finish();
+        assert_eq!(parse_error, Some(expected), "parser rejection category");
+        assert!(bad.starts_with("HTTP/1.1 400"), "rejection: {bad:?}");
+        assert!(bad.contains("invalid_request"), "standard error envelope: {bad:?}");
+        assert_eq!(bad_hits, 0, "malformed framing must not dispatch");
+        assert!(good.starts_with("HTTP/1.1 200") && good.contains("framing healthy control"), "healthy control: {good:?}");
+        assert_eq!(upstream.hits.load(Ordering::SeqCst), 1, "only the healthy control reached upstream");
+    }
+
+    #[test]
+    fn framing_equal_duplicate_lengths_rejected() {
+        rejects(format!("content-length: {}\r\nCoNtEnT-LeNgTh: {}\r\n", BODY.len(), BODY.len()), "bad request");
+    }
+    #[test]
+    fn framing_conflicting_lengths_rejected_both_orders() {
+        for (a, b) in [(BODY.len(), BODY.len()+1), (BODY.len()+1, BODY.len())] {
+            rejects(format!("Content-Length: {a}\r\ncOnTeNt-LeNgTh: {b}\r\n"), "bad request");
+        }
+    }
+    #[test]
+    fn framing_transfer_encoding_with_length_rejected_both_orders() {
+        for head in [format!("TrAnSfEr-EnCoDiNg: chunked\r\ncontent-length: {}\r\n", BODY.len()),
+                     format!("content-length: {}\r\nTrAnSfEr-EnCoDiNg: chunked\r\n", BODY.len())] {
+            rejects(head, "chunked");
+        }
+    }
+    #[test]
+    fn framing_nonchunked_transfer_encoding_still_rejected() {
+        rejects(format!("transfer-encoding: identity\r\ncontent-length: {}\r\n", BODY.len()), "chunked");
+    }
+    #[test]
+    fn framing_malformed_and_overflow_lengths_rejected() {
+        for value in ["", "-1", "1x", "2, 2", "99999999999999999999999999999999"] {
+            rejects(format!("content-length: {value}\r\n"), "bad length");
+        }
+    }
+}
