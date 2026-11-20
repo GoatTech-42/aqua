@@ -163,6 +163,47 @@ fn serve(cfg: Config) -> Running {
     Running { base: format!("http://127.0.0.1:{}", s.port()), _h: s }
 }
 
+// Restart on the same state path: Server::drop joins only the accept loop, so a
+// busy handler thread can still hold the state lock file briefly after drop.
+// A real restart waits for the old process to exit; poll the bind the same way.
+fn serve_restart(cfg: Config) -> Running {
+    serve_restart_within(cfg, Duration::from_secs(5), &mut |_| {}).unwrap_or_else(|e| panic!("bind after restart failed: {e}"))
+}
+
+// on_error observes every failed bind attempt so the controls below can count
+// attempts and gate a lock release on observed contention instead of sleeps.
+fn serve_restart_within(cfg: Config, timeout: Duration, on_error: &mut dyn FnMut(&std::io::Error)) -> std::io::Result<Running> {
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        match aqua::bind(cfg.clone()) {
+            Ok(s) => return Ok(Running { base: format!("http://127.0.0.1:{}", s.port()), _h: s }),
+            Err(e) if is_state_lock_contention(&e) && std::time::Instant::now() < deadline => {
+                on_error(&e);
+                thread::sleep(Duration::from_millis(20));
+            }
+            Err(e) => {
+                on_error(&e);
+                return Err(e);
+            }
+        }
+    }
+}
+
+// The state stores guard their lock files with File::try_lock (src/spend.rs,
+// src/keys.rs), whose contention reaches bind's caller as Error::other wrapping
+// std::fs::TryLockError::WouldBlock. Only that positively identified contention
+// is retried; permission, corrupt-state, or any other failure is not.
+fn is_state_lock_contention(e: &std::io::Error) -> bool {
+    let mut cur: Option<&(dyn std::error::Error + 'static)> = e.get_ref().map(|r| r as _);
+    while let Some(err) = cur {
+        if let Some(tle) = err.downcast_ref::<std::fs::TryLockError>() {
+            return matches!(tle, std::fs::TryLockError::WouldBlock);
+        }
+        cur = err.source();
+    }
+    false
+}
+
 fn client() -> ureq::Agent {
     ureq::Agent::config_builder().http_status_as_error(false).build().into()
 }
@@ -946,12 +987,127 @@ fn spend_http_cap_edit_and_usage_survive_server_restart() {
         assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),200);
         assert_eq!(agent.post(&format!("{}/v1/admin/caps",srv.base)).header("authorization","Bearer adminsecret").send_json(serde_json::json!({"name":"sam","daily":"0.00003","monthly":"0.00003"})).unwrap().status(),200);
     }
-    let srv=serve(cfg);let agent=client();
+    let srv=serve_restart(cfg);let agent=client();
     assert_eq!(chat(&agent,&srv.base,"friendkey",pin_msg("coder-a")).status(),429);
     let data:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
     assert_eq!(data["users"]["sam"]["cap"]["daily"],30000);
     assert_eq!(data["users"]["sam"]["day"]["models"]["coder-a"]["confirmed"],20000);
     drop(srv);let _=std::fs::remove_file(path);
+}
+
+// Deterministic controls for serve_restart's lock-contention polling. No
+// sleeps decide outcomes: a lock is released only after a contended attempt is
+// observed through on_error, and attempt counts assert the poll behavior.
+fn restart_ctl_cfg(up_url: &str) -> (Config, std::path::PathBuf) {
+    let path=std::env::temp_dir().join(format!("aqua-restart-ctl-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let mut cfg=spend_cfg(up_url);cfg.spend.path=Some(path.clone());
+    (cfg,path)
+}
+
+fn hold_state_lock(path: &std::path::Path) -> std::fs::File {
+    let held=std::fs::OpenOptions::new().read(true).write(true).create(true).open(path.with_extension("lock")).unwrap();
+    held.try_lock().unwrap();
+    held
+}
+
+#[test]
+fn serve_restart_succeeds_when_held_state_lock_releases_mid_poll() {
+    let up=mock_upstream(|_|json_reply(chat_json("real","ok")));
+    let (cfg,path)=restart_ctl_cfg(&up.url);
+    let held=hold_state_lock(&path);
+    let (observed_tx,observed_rx)=channel();
+    let releaser=thread::spawn(move || { observed_rx.recv_timeout(Duration::from_secs(5)).unwrap(); drop(held); });
+    let mut observed=Some(observed_tx);
+    let mut contended=0u64;
+    let mut on_error=|e: &std::io::Error| {
+        if is_state_lock_contention(e) {
+            contended+=1;
+            if let Some(tx)=observed.take() { let _=tx.send(()); }
+        }
+    };
+    let srv=serve_restart_within(cfg,Duration::from_secs(5),&mut on_error).unwrap();
+    assert!(contended>=1,"the lock must be released only after at least one observed contended attempt");
+    assert_eq!(chat(&client(),&srv.base,"friendkey",pin_msg("coder-a")).status(),200);
+    releaser.join().unwrap();
+    drop(srv);let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+}
+
+#[test]
+fn serve_restart_persistent_lock_fails_at_deadline_with_contention_error() {
+    let up=mock_upstream(|_|json_reply(chat_json("real","ok")));
+    let (cfg,path)=restart_ctl_cfg(&up.url);
+    let _held=hold_state_lock(&path);
+    let started=std::time::Instant::now();
+    let mut attempts=0u64;
+    let err=serve_restart_within(cfg,Duration::from_millis(400),&mut |_: &std::io::Error| attempts+=1).err().expect("persistent lock must fail the bind");
+    assert!(started.elapsed()>=Duration::from_millis(400),"contention must be retried until the deadline");
+    assert!(attempts>=2,"persistent contention must be polled, got {attempts} attempt(s)");
+    assert!(is_state_lock_contention(&err),"final error must be the lock contention, got {err:?}");
+    let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+}
+
+#[test]
+fn serve_restart_does_not_retry_non_lock_errors() {
+    let up=mock_upstream(|_|json_reply(chat_json("real","ok")));
+    let missing_dir=std::env::temp_dir().join(format!("aqua-restart-ctl-missing-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let mut cfg=spend_cfg(&up.url);cfg.spend.path=Some(missing_dir.join("state.json"));
+    let mut attempts=0u64;
+    let err=serve_restart_within(cfg,Duration::from_millis(400),&mut |_: &std::io::Error| attempts+=1).err().expect("missing state dir must fail the bind");
+    assert_eq!(attempts,1,"non-lock error must be attempted exactly once, never polled");
+    assert_eq!(err.kind(),std::io::ErrorKind::NotFound,"got {err:?}");
+    assert!(!is_state_lock_contention(&err),"non-lock error must not be classified as contention, got {err:?}");
+}
+
+// Mutation controls: each mutant is a one-line behavior change to the poll
+// loop, and the named control kills it.
+fn mutant_no_retry(cfg: Config) -> std::io::Result<Running> {
+    // MUTANT: never retries, so the mid-poll release control's success fails.
+    aqua::bind(cfg).map(|s| Running { base: format!("http://127.0.0.1:{}", s.port()), _h: s })
+}
+
+fn mutant_broad_retry(cfg: Config, timeout: Duration, on_error: &mut dyn FnMut(&std::io::Error)) -> std::io::Result<Running> {
+    // MUTANT: retries every bind error, so the non-lock control's
+    // single-attempt assertion fails.
+    let deadline = std::time::Instant::now() + timeout;
+    loop {
+        match aqua::bind(cfg.clone()) {
+            Ok(s) => return Ok(Running { base: format!("http://127.0.0.1:{}", s.port()), _h: s }),
+            Err(e) if std::time::Instant::now() < deadline => {
+                on_error(&e);
+                thread::sleep(Duration::from_millis(20));
+            }
+            Err(e) => return Err(e),
+        }
+    }
+}
+
+#[test]
+fn mutation_no_retry_is_killed_by_the_mid_poll_release_control() {
+    let up=mock_upstream(|_|json_reply(chat_json("real","ok")));
+    let (cfg,path)=restart_ctl_cfg(&up.url);
+    let held=hold_state_lock(&path);
+    // Same scenario as the release control: the mutant errors out while the
+    // lock is still held, where the control asserts success. Mutant killed.
+    let err=mutant_no_retry(cfg.clone()).err().expect("mutant must fail while the lock is held");
+    assert!(is_state_lock_contention(&err));
+    drop(held);
+    let srv=serve_restart(cfg);
+    assert_eq!(chat(&client(),&srv.base,"friendkey",pin_msg("coder-a")).status(),200);
+    drop(srv);let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+}
+
+#[test]
+fn mutation_broad_retry_is_killed_by_the_non_lock_control() {
+    let up=mock_upstream(|_|json_reply(chat_json("real","ok")));
+    let missing_dir=std::env::temp_dir().join(format!("aqua-restart-ctl-mutant-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    let mut cfg=spend_cfg(&up.url);cfg.spend.path=Some(missing_dir.join("state.json"));
+    // Same scenario as the non-lock control: the mutant polls a non-lock
+    // error past one attempt, where the control asserts attempts == 1. Mutant
+    // killed.
+    let mut attempts=0u64;
+    let err=mutant_broad_retry(cfg,Duration::from_millis(300),&mut |_: &std::io::Error| attempts+=1).err().expect("missing state dir must fail the bind");
+    assert!(attempts>1,"mutant must poll the non-lock error, got {attempts} attempt(s)");
+    assert_eq!(err.kind(),std::io::ErrorKind::NotFound,"got {err:?}");
 }
 
 #[test]
@@ -1126,7 +1282,7 @@ fn wave2_shared_calls_survive_restart_and_errors_without_usage() {
     let up=mock_upstream(|_|error_reply(400,vec![]));
     let path=wave2_path();
     for key in ["ownerkey","friendkey","ownerkey","ownerkey","ownerkey"] {
-        let srv=serve(wave2_config(&up,&path));
+        let srv=serve_restart(wave2_config(&up,&path));
         assert_eq!(chat(&client(),&srv.base,key,pin_msg("candidate")).status(),503);
     }
     assert_eq!(up.hits.load(Ordering::SeqCst),4);
