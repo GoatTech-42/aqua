@@ -444,7 +444,10 @@ fn status_text(code: u16) -> &'static str {
 }
 
 fn write_json(stream: &mut TcpStream, code: u16, body: &Value, cors: Option<&str>) -> std::io::Result<()> {
-    let bytes = body.to_string();
+    write_json_serialized(stream, code, &body.to_string(), cors)
+}
+
+fn write_json_serialized(stream: &mut TcpStream, code: u16, bytes: &str, cors: Option<&str>) -> std::io::Result<()> {
     let cors_head = cors_headers(cors);
     write!(
         stream,
@@ -1567,6 +1570,14 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
                 continue;
             }
+            // Bound the bytes we will actually send. Redaction may expand a
+            // small upstream envelope by adding/replacing public metadata.
+            let downstream = redact_payload(&json, &m.public).to_string();
+            if downstream.len() > MAX_RESPONSE {
+                shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
+                set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
+                continue;
+            }
             shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,status==200);
             record_route_latency(shared,&p.id,&m.public,header_latency);
             if let Some(guard) = spend.as_mut() { guard.finish(crate::spend::usage(&json)); }
@@ -1575,7 +1586,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 "{}",
                 json!({ "ts": chrono_day(), "key": entry.name, "provider": p.id, "model": m.public, "stream": false })
             );
-            return write_json(stream, 200, &redact_payload(&json, &m.public), cors);
+            return write_json_serialized(stream, 200, &downstream, cors);
         }
 
         // streaming requested: require a real SSE stream, else fail over cleanly
@@ -6593,6 +6604,12 @@ mod json_body_cap_tests {
         (url,worker)
     }
     fn cap_request(url: String, idle: Duration) -> (String,Arc<Shared>) {
+        cap_request_with_fallback(url,idle,None)
+    }
+    fn cap_request_with_fallback(url: String,idle: Duration,backup: Option<String>) -> (String,Arc<Shared>) {
+        cap_request_state(url,idle,backup,true)
+    }
+    fn cap_request_state(url: String,idle: Duration,backup: Option<String>,cooled: bool) -> (String,Arc<Shared>) {
         let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
         state.config.upstream_budget=Duration::from_secs(3);
         state.config.upstream_idle=idle;
@@ -6600,7 +6617,14 @@ mod json_body_cap_tests {
             id:"inferbase".into(),status:Status::Personal,api_key:"offline-synthetic".into(),base_url:url,
             models:vec![crate::config::ModelEntry {public:"fixture-chat".into(),upstream:"cap-upstream".into(),context:None}],
         }];
-        set_cooldown(&state,"inferbase",60,false);
+        if cooled {set_cooldown(&state,"inferbase",60,false);}
+        if let Some(url)=backup {
+            let mut provider=state.config.providers[0].clone();provider.id="groq".into();provider.base_url=url;
+            state.config.providers.push(provider);
+            // Both cooled, original older. Prove original was attempted via
+            // joined responders and per-route failure counts below.
+            set_cooldown(&state,"groq",60,false);
+        }
         let state=Arc::new(state);
         let cookie=state.auth.create_session("luke",Role::Owner).unwrap();
         let response=browser_api(state.clone(),"POST","/v1/chat/completions",&cookie,
@@ -6655,4 +6679,61 @@ mod json_body_cap_tests {
             assert_eq!(health["healthy_routes"],1);
         }
     }
+    // Valid single-choice completion, with short but well-typed provider
+    // metadata. Redaction replaces that metadata with longer fixed fields.
+    fn expanded_fixture(output_bytes: usize) -> Vec<u8> {
+        assert_eq!(MAX_RESPONSE, 4_000_000);
+        let mut value=json!({"id":"x","object":"chat.completion","created":1,"model":"m",
+            "choices":[{"index":0,"message":{"role":"assistant","content":""},"finish_reason":"stop"}]});
+        let overhead=redact_payload(&value,"fixture-chat").to_string().len();
+        value["choices"][0]["message"]["content"]=json!("x".repeat(output_bytes-overhead));
+        // A timestamp digit-width change must fail the fixture, not shift a boundary.
+        assert_eq!(redact_payload(&value,"fixture-chat").to_string().len(),output_bytes);
+        let raw=value.to_string().into_bytes();
+        assert!(raw.len()<4_000_000,"must exercise output, not raw input cap");raw
+    }
+    #[test]
+    fn json_output_expansion_over_cap_rejects_without_success() {
+        let raw=expanded_fixture(4_000_001);
+        let (url,worker)=cap_stub(raw,vec![],None,false);
+        let (response,state)=cap_request_state(url,Duration::from_secs(2),None,false);worker.join().unwrap();
+        assert_rejected(&response,&state);
+        let body:Value=serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(body,err_body("no models available","upstream_unavailable"));
+        assert!(response.split_once("\r\n\r\n").unwrap().1.len()<=4_000_000);
+    }
+    #[test]
+    fn json_output_exact_and_below_cap_succeed() {
+        for size in [3_999_999,4_000_000] {
+            let (url,worker)=cap_stub(expanded_fixture(size),vec![],None,false);
+            let (response,state)=cap_request(url,Duration::from_secs(2));worker.join().unwrap();
+            assert!(response.starts_with("HTTP/1.1 200"));
+            let (headers,body)=response.split_once("\r\n\r\n").unwrap();
+            assert_eq!(body.len(),size);
+            assert!(headers.contains(&format!("content-length: {size}\r\n")) || headers.ends_with(&format!("content-length: {size}")));
+            let parsed:Value=serde_json::from_str(body).unwrap();assert_eq!(parsed["model"],"fixture-chat");
+            assert!(!state.health.lock().unwrap().contains_key("inferbase"));
+            let health=state.observations.lock().unwrap().aggregate([("inferbase","fixture-chat","cap-upstream")].into_iter());
+            assert_eq!(health["healthy_routes"],1);assert_eq!(health["failed_routes"],0);
+        }
+    }
+
+    #[test]
+    fn json_output_expansion_uses_existing_fallback_path() {
+        let (first,worker)=cap_stub(expanded_fixture(4_000_001),vec![],None,false);
+        let (backup,backup_worker)=cap_stub(VALID.as_bytes().to_vec(),vec![],None,false);
+        let (response,state)=cap_request_with_fallback(first,Duration::from_secs(2),Some(backup));
+        worker.join().unwrap();backup_worker.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 200")&&response.contains("cap control"));
+        let first=state.observations.lock().unwrap().aggregate([("inferbase","fixture-chat","cap-upstream")].into_iter());
+        let backup=state.observations.lock().unwrap().aggregate([("groq","fixture-chat","cap-upstream")].into_iter());
+        assert_eq!(first["failed_routes"],1);assert_eq!(first["healthy_routes"],0);
+        assert_eq!(backup["healthy_routes"],1);assert_eq!(backup["failed_routes"],0);
+        assert!(state.health.lock().unwrap().contains_key("inferbase"));
+        assert!(!state.health.lock().unwrap().contains_key("groq"));
+        let latency=state.route_latency.lock().unwrap();
+        assert!(!latency.contains_key(&("inferbase".into(),"fixture-chat".into())));
+        assert!(latency.contains_key(&("groq".into(),"fixture-chat".into())));
+    }
+
 }
