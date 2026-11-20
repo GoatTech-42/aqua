@@ -14,14 +14,15 @@ pub struct SseRewriter {
     done: bool,
     terminal_snapshot: bool,
     after_done: bool,
+    valid_output: bool,
+    clean_finish: bool,
+    malformed: bool,
+    health_choices:std::collections::HashMap<u64,bool>,
 }
 
 impl SseRewriter {
-    // True once the upstream stream delivered its terminal [DONE] marker.
-    pub fn completed_for_health(&self) -> bool { self.done }
-
     pub fn new(alias: &str) -> Self {
-        SseRewriter { buf: Vec::new(), alias: alias.to_string(), usage: None, done: false, terminal_snapshot: false, after_done: false }
+        SseRewriter { buf: Vec::new(), alias: alias.to_string(), usage: None, done: false, terminal_snapshot: false, after_done: false, valid_output:false, clean_finish:false, malformed:false, health_choices:std::collections::HashMap::new() }
     }
 
     // Incremental per-event cap: the buffer never exceeds MAX_PENDING + 1,
@@ -53,7 +54,16 @@ impl SseRewriter {
         if self.done && self.terminal_snapshot && !self.after_done && self.buf.iter().all(u8::is_ascii_whitespace) { self.usage } else { None }
     }
 
+    // Health is independent of token-usage reporting. Require actual valid
+    // choice output and a terminal marker or accepted finish reason, with no
+    // malformed data, post-terminal data or incomplete event left over.
+    pub fn completed_for_health(&self) -> bool {
+        self.valid_output && (self.done || self.clean_finish) && !self.malformed
+            && !self.after_done && self.buf.iter().all(u8::is_ascii_whitespace)
+    }
+
     fn handle_event(&mut self, event: &[u8], out: &mut Vec<u8>) {
+        if std::str::from_utf8(event).is_err() {self.malformed=true;}
         let text = String::from_utf8_lossy(event);
         let mut data_lines: Vec<String> = Vec::new();
         for line in text.split('\n') {
@@ -76,13 +86,28 @@ impl SseRewriter {
         let frames: Vec<serde_json::Value> = match serde_json::from_str::<serde_json::Value>(&payload) {
             Ok(json) => vec![json],
             // some servers pack several JSON chunks into one event's data lines
-            Err(_) => data_lines
-                .iter()
-                .filter_map(|d| serde_json::from_str::<serde_json::Value>(d).ok())
-                .collect(),
+            Err(_) => {
+                let parsed:Vec<_>=data_lines.iter().filter_map(|d|serde_json::from_str::<serde_json::Value>(d).ok()).collect();
+                if parsed.len()!=data_lines.len() {self.malformed=true;}
+                parsed
+            },
         };
         self.terminal_snapshot = false;
         for json in frames {
+            if json.get("error").is_some() {self.malformed=true;}
+            let choices=json.get("choices").and_then(|v|v.as_array());
+            if let Some(choices)=choices {
+                for choice in choices {
+                    let finish=choice.get("finish_reason").and_then(|v|v.as_str());
+                    let terminal=matches!(finish,Some("stop"|"length"|"tool_calls"|"function_call"|"content_filter"));
+                    if choice.get("delta").is_some_and(|v|v.is_object()) || terminal {
+                        self.valid_output=true;
+                        let index=choice.get("index").and_then(|v|v.as_u64()).unwrap_or(0);
+                        if index>=128 {self.malformed=true;}else{self.health_choices.insert(index,terminal);}
+                        self.clean_finish=!self.health_choices.is_empty() && self.health_choices.values().all(|done|*done);
+                    } else {self.malformed=true;}
+                }
+            } else if json.get("usage").is_none() {self.malformed=true;}
             self.terminal_snapshot = false;
             if let Some((input, output)) = crate::spend::usage(&json) {
                 let old = self.usage.unwrap_or((0, 0));
@@ -282,5 +307,24 @@ mod terminal_snapshot_edges {
         let mut r=SseRewriter::new("m");let mut out=vec![];
         r.push(b"data: {\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":3}}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"more\"}}]}\n\ndata: {\"choices\":[],\"usage\":{\"prompt_tokens\":2,\"completion_tokens\":5}}\n\ndata: [DONE]\n\n",&mut out);
         assert_eq!(r.usage(),Some((2,5)));
+    }
+}
+
+
+#[cfg(test)]
+mod passive_health_completion_tests {
+    use super::*;
+    fn complete(text:&str)->bool{let mut r=SseRewriter::new("m");let mut out=vec![];assert!(r.push(text.as_bytes(),&mut out));r.completed_for_health()}
+    #[test]fn requires_valid_output_and_terminal_not_usage(){
+        assert!(!complete("data: [DONE]\n\n"));
+        assert!(!complete("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n"));
+        assert!(complete("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n"));
+        assert!(complete("data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n"));
+    }
+    #[test]fn malformed_or_post_done_data_is_not_success(){
+        for text in ["data: nope\n\ndata: [DONE]\n\n","data: {\"error\":\"bad\"}\n\ndata: [DONE]\n\n","data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: partial","data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\ndata: {}\n\n"] {assert!(!complete(text));}
+    }
+    #[test]fn finish_reason_must_cover_all_observed_choices(){
+        assert!(!complete("data: {\"choices\":[{\"index\":0,\"delta\":{}},{\"index\":1,\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n"));
     }
 }
