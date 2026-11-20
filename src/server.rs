@@ -4980,4 +4980,89 @@ mod framing_matrix_tests {
             rejects(format!("content-length: {value}\r\n"), "bad length");
         }
     }
+    // CORS baseline tests share the bounded, owned live responder above.
+    // These pin response headers, not browser enforcement or CSRF policy.
+    fn cors_headers_of(response: &str) -> HashMap<String, String> {
+        response.split("\r\n\r\n").next().unwrap().split("\r\n").skip(1)
+            .map(|line| {
+                let (key, value) = line.split_once(':').expect("response header");
+                (key.to_ascii_lowercase(), value.trim().to_string())
+            }).collect()
+    }
+
+    fn cors_baseline_case(configured: &str, origin: Option<&str>, allowed: bool) {
+        let mut upstream = Responder::start();
+        let mut shared = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        shared.config.allowed_origin = configured.into();
+        shared.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal,
+            api_key: "offline-synthetic".into(), base_url: upstream.url.clone(),
+            models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-upstream".into(), context: None,
+            }],
+        }];
+        let shared = Arc::new(shared);
+        let cookie = shared.auth.create_session("luke", Role::Owner).unwrap();
+        let origin_line = origin.map(|o| format!("origin: {o}\r\n")).unwrap_or_default();
+        // No session on preflight: no authentication or upstream work needed.
+        let options = gateway_call(shared.clone(), format!(
+            "OPTIONS /v1/chat/completions HTTP/1.1\r\nhost: api.aqua.test\r\n{origin_line}access-control-request-method: POST\r\naccess-control-request-headers: authorization, content-type\r\ncontent-length: 0\r\n\r\n"));
+        let actual = gateway_call(shared.clone(), format!(
+            "GET /v1/models HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\n{origin_line}content-length: 0\r\n\r\n"));
+        let pre_control_hits = upstream.hits.load(Ordering::SeqCst);
+        // Same-host session origin is accepted independently of configured
+        // CORS, so this control also works with CORS disabled.
+        let healthy_request = request(&cookie, &format!("content-length: {}\r\n", BODY.len()+1))
+            .replace("origin: https://aqua.test", "origin: https://api.aqua.test");
+        let healthy = gateway_call(shared, healthy_request);
+        upstream.finish();
+        assert!(options.starts_with("HTTP/1.1 204"), "preflight: {options:?}");
+        assert!(options.split_once("\r\n\r\n").unwrap().1.is_empty(), "204 has no body");
+        assert!(actual.starts_with("HTTP/1.1 200"), "actual GET: {actual:?}");
+        assert_eq!(pre_control_hits, 0, "OPTIONS and catalog GET never reached upstream");
+        assert!(healthy.starts_with("HTTP/1.1 200") && healthy.contains("framing healthy control"), "healthy control: {healthy:?}");
+        assert_eq!(upstream.hits.load(Ordering::SeqCst), 1, "only healthy control dispatched");
+        let preflight_headers = cors_headers_of(&options);
+        let actual_headers = cors_headers_of(&actual);
+        for headers in [&preflight_headers, &actual_headers] {
+            if allowed {
+                assert_eq!(headers.get("access-control-allow-origin").map(String::as_str), Some(configured));
+                assert_eq!(headers.get("access-control-allow-credentials").map(String::as_str), Some("true"));
+                assert_eq!(headers.get("vary").map(String::as_str), Some("origin"));
+            } else {
+                for key in ["access-control-allow-origin", "access-control-allow-credentials", "vary"] {
+                    assert!(!headers.contains_key(key), "disallowed origin must not get {key}: {headers:?}");
+                }
+            }
+        }
+        if allowed {
+            assert_eq!(preflight_headers.get("access-control-allow-methods").map(String::as_str), Some("GET, POST, OPTIONS"));
+            assert_eq!(preflight_headers.get("access-control-allow-headers").map(String::as_str), Some("authorization, content-type"));
+        } else {
+            assert!(!preflight_headers.contains_key("access-control-allow-methods"));
+            assert!(!preflight_headers.contains_key("access-control-allow-headers"));
+        }
+        assert!(!actual_headers.contains_key("access-control-allow-methods"), "actual response is not preflight");
+        assert!(!actual_headers.contains_key("access-control-allow-headers"));
+    }
+
+    #[test]
+    fn cors_baseline_exact_origin() { cors_baseline_case("https://aqua.test", Some("https://aqua.test"), true); }
+    #[test]
+    fn cors_baseline_missing_origin() { cors_baseline_case("https://aqua.test", None, false); }
+    #[test]
+    fn cors_baseline_null_origin() { cors_baseline_case("https://aqua.test", Some("null"), false); }
+    #[test]
+    fn cors_baseline_scheme_mismatch() { cors_baseline_case("https://aqua.test", Some("http://aqua.test"), false); }
+    #[test]
+    fn cors_baseline_port_mismatch() { cors_baseline_case("https://aqua.test", Some("https://aqua.test:444"), false); }
+    #[test]
+    fn cors_baseline_suffix_lookalike() { cors_baseline_case("https://aqua.test", Some("https://aqua.test.evil.invalid"), false); }
+    #[test]
+    fn cors_baseline_unrelated_origin() { cors_baseline_case("https://aqua.test", Some("https://other.invalid"), false); }
+    #[test]
+    fn cors_baseline_disabled_config() { cors_baseline_case("", Some("https://aqua.test"), false); }
+    #[test]
+    fn cors_baseline_disabled_empty_origin() { cors_baseline_case("", Some(""), false); }
+
 }
