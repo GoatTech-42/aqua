@@ -134,7 +134,9 @@ fn login_disabled_returns_503_when_unconfigured() {
     let base = format!("http://127.0.0.1:{}", r.port());
     let resp = raw(&base, "GET /login/github HTTP/1.1\r\nhost: x\r\n\r\n");
     assert!(resp.starts_with("HTTP/1.1 503"), "unconfigured login must fail closed, got: {}", &resp[..resp.len().min(80)]);
-    assert!(resp.contains("not configured"));
+    let (_, body) = resp.split_once("\r\n\r\n").expect("HTTP response body");
+    let body: serde_json::Value = serde_json::from_str(body).expect("JSON error body");
+    assert_eq!(body["error"]["message"], "github sign-in is not set up.");
 }
 
 #[test]

@@ -840,7 +840,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     document.getElementById('aqua-finding').textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + ' listed for your account, behind one endpoint. listed does not confirm access, remaining quota or consent.';
     rows.textContent = '';
     if (!models.length) {
-      rows.appendChild(makeRow('pool is empty', 'the backend returned no models', 'empty', false));
+      rows.appendChild(makeRow('no models available.', 'no models were returned for your account.', 'empty', false));
       status.textContent = '';
       return;
     }

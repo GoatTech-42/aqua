@@ -650,31 +650,31 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     // console login: browser OAuth flow, separate from the bearer-key API below
     if req.method == "GET" && req.path == "/login/github" {
         if !shared.auth.cfg.enabled() {
-            return write_json(&mut stream, 503, &err_body("github login is not configured on this deployment", "auth_error"), cors);
+            return write_json(&mut stream, 503, &err_body("github sign-in is not set up.", "auth_error"), cors);
         }
         // Only the socket peer is trusted; proxy headers cannot create fresh buckets.
         let admitted = stream.peer_addr().ok().map(|addr| shared.login_starts.lock().unwrap().admit_at(addr.ip(), Instant::now())).unwrap_or(false);
         if !admitted { return write_json(&mut stream,429,&err_body("too many login starts","rate_limit_error"),cors); }
-        let state = match shared.auth.new_state() {Ok(state)=>state,Err(_)=>return write_json(&mut stream,503,&err_body("secure login unavailable","auth_error"),cors)};
+        let state = match shared.auth.new_state() {Ok(state)=>state,Err(_)=>return write_json(&mut stream,503,&err_body("sign-in is unavailable right now. try again shortly.","auth_error"),cors)};
         return write_redirect(&mut stream, &auth::authorize_url(&shared.auth.cfg, &state), &[]);
     }
     if req.method == "GET" && req.path == "/auth/github/callback" {
         if !shared.auth.cfg.enabled() {
-            return write_json(&mut stream, 503, &err_body("github login is not configured on this deployment", "auth_error"), cors);
+            return write_json(&mut stream, 503, &err_body("github sign-in is not set up.", "auth_error"), cors);
         }
         let q = auth::parse_query(&req.query);
         let state_ok = q.get("state").map(|s| shared.auth.take_state(s)).unwrap_or(false);
         let code = q.get("code").cloned().unwrap_or_default();
         if !state_ok || code.is_empty() {
-            return write_json(&mut stream, 400, &err_body("invalid or expired login state", "auth_error"), cors);
+            return write_json(&mut stream, 400, &err_body("could not finish signing in. start again.", "auth_error"), cors);
         }
         return match github_exchange(&shared.agent, &shared.auth.cfg, &code, GITHUB_TOKEN_URL, GITHUB_USER_URL) {
             Ok(login) => match shared.auth.cfg.role_for(&login) {
                 Some(role) => {
-                    let id = match shared.auth.create_session(&login, role) {Ok(id)=>id,Err(_)=>return write_json(&mut stream,503,&err_body("secure login unavailable","auth_error"),cors)};
+                    let id = match shared.auth.create_session(&login, role) {Ok(id)=>id,Err(_)=>return write_json(&mut stream,503,&err_body("sign-in is unavailable right now. try again shortly.","auth_error"),cors)};
                     write_redirect(&mut stream, &shared.auth.cfg.post_login_url(), &[shared.auth.set_cookie(&id)])
                 }
-                None => write_json(&mut stream, 403, &err_body("github account is not on the allowlist", "auth_error"), cors),
+                None => write_json(&mut stream, 403, &err_body("this github account does not have access.", "auth_error"), cors),
             },
             Err(e) => write_json(&mut stream, 502, &err_body(e, "upstream_error"), cors),
         };
@@ -1001,29 +1001,29 @@ fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str, token_url
         .header("accept", "application/json")
         .header("content-type", "application/x-www-form-urlencoded")
         .send(body.into_bytes())
-        .map_err(|_| "github token exchange failed")?;
+        .map_err(|_| "could not finish signing in with github. start again.")?;
     if resp.status().as_u16() != 200 {
-        return Err("github token exchange rejected");
+        return Err("could not finish signing in with github. start again.");
     }
-    let tok: Value = resp.body_mut().read_json().map_err(|_| "github token exchange failed")?;
+    let tok: Value = resp.body_mut().read_json().map_err(|_| "could not finish signing in with github. start again.")?;
     let access = tok
         .get("access_token")
         .and_then(|v| v.as_str())
-        .ok_or("github token exchange rejected")?;
+        .ok_or("could not finish signing in with github. start again.")?;
     let mut uresp = agent
         .get(user_url)
         .header("authorization", &format!("Bearer {}", access))
         .header("user-agent", "aqua")
         .call()
-        .map_err(|_| "github user lookup failed")?;
+        .map_err(|_| "could not finish signing in with github. start again.")?;
     if uresp.status().as_u16() != 200 {
-        return Err("github user lookup rejected");
+        return Err("could not finish signing in with github. start again.");
     }
-    let user: Value = uresp.body_mut().read_json().map_err(|_| "github user lookup failed")?;
+    let user: Value = uresp.body_mut().read_json().map_err(|_| "could not finish signing in with github. start again.")?;
     user.get("login")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
-        .ok_or("github user lookup failed")
+        .ok_or("could not finish signing in with github. start again.")
 }
 
 fn record_auth_failure(shared: &Shared, token: &str) {
@@ -5796,7 +5796,7 @@ mod connection_admission_tests {
         assert!(rejected.starts_with("HTTP/1.1 503"), "ordinary requests cannot consume reserve: {rejected}");
         assert!(console.starts_with("HTTP/1.1 200"));
         assert!(landing.starts_with("HTTP/1.1 200"));
-        assert!(login.contains("github login is not configured"), "login reached its own handler");
+        assert!(login.contains("github sign-in is not set up."), "login reached its own handler");
         assert_eq!(state.ordinary_in_flight.load(Ordering::SeqCst), 56);
     }
 
@@ -5887,7 +5887,7 @@ mod connection_admission_tests {
         assert!(request(state.clone(),"GET","/admin",&friend).starts_with("HTTP/1.1 403"),"reserve never grants owner authorization");
         assert!(request(state.clone(),"POST","/v1/keys",&owner).starts_with("HTTP/1.1 403"),"reserve never bypasses existing CSRF check");
         let callback=request(state.clone(),"GET","/auth/github/callback","");
-        assert!(callback.contains("github login is not configured"));
+        assert!(callback.contains("github sign-in is not set up."));
         state.auth.revoke(&owner);
         assert!(request(state.clone(),"GET","/console",&owner).starts_with("HTTP/1.1 503"),"revoked sessions lose reserve");
     }
@@ -6421,7 +6421,7 @@ mod query_utf8_handler_tests {
             joined.unwrap().unwrap();
             let response = response.unwrap();
             assert!(response.starts_with("HTTP/1.1 400"));
-            assert!(response.contains("invalid or expired login state")); assert!(!response.contains("set-cookie:"));
+            assert!(response.contains("could not finish signing in. start again.")); assert!(!response.contains("set-cookie:"));
             assert!(state.auth.get_session(&session).is_some());
             let wire = format!("GET /auth/me HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={session}\r\n\r\n");
             let (joined, healthy) = request(state.clone(), wire.as_bytes()); joined.unwrap().unwrap();
@@ -6451,7 +6451,7 @@ mod auth_capacity_handler_tests {
         let mut ids = Vec::new(); for _ in 0..10_000 { ids.push(state.auth.new_state().unwrap()); }
         let rejected = request(state.clone(), "/login/github", &session);
         assert!(rejected.starts_with("HTTP/1.1 503"), "capacity must not redirect: {rejected}");
-        assert!(rejected.contains("secure login unavailable")); assert!(!rejected.contains("location:")); assert!(!rejected.contains("set-cookie:"));
+        assert!(rejected.contains("sign-in is unavailable right now. try again shortly.")); assert!(!rejected.contains("location:")); assert!(!rejected.contains("set-cookie:"));
         assert!(state.auth.get_session(&session).is_some());
         let healthy = request(state.clone(), "/auth/me", &session); assert!(healthy.starts_with("HTTP/1.1 200"));
         assert!(state.auth.take_state(&ids[0]), "full rejection must preserve existing state");
