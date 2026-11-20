@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -45,6 +45,7 @@ struct Shared {
     config: Config,
     agent: ureq::Agent,
     auth: Auth,
+    in_flight: Arc<AtomicUsize>,
     quotas: Mutex<HashMap<String, Quota>>,
     // Standard Z.AI account limit is one active inference, across all models.
     zai_in_flight: AtomicBool,
@@ -67,11 +68,28 @@ pub struct Server {
     port: u16,
     shutdown: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
+    shared: Arc<Shared>,
+    drain: Duration,
 }
+
+// How long drop waits for in-flight handlers before returning anyway. This
+// window starts after the accept thread has been joined, so it bounds the
+// drain phase, not total Drop time. A bound, not instant teardown: a handler
+// stuck longer still finishes detached.
+const DEFAULT_DRAIN: Duration = Duration::from_secs(2);
 
 impl Server {
     pub fn port(&self) -> u16 {
         self.port
+    }
+
+    pub fn set_drain_timeout(&mut self, drain: Duration) {
+        self.drain = drain;
+    }
+
+    // Live handler count, for tests observing drain behavior.
+    pub fn in_flight(&self) -> usize {
+        self.shared.in_flight.load(Ordering::SeqCst)
     }
 }
 
@@ -82,6 +100,30 @@ impl Drop for Server {
         if let Some(h) = self.handle.take() {
             let _ = h.join();
         }
+        // Wait for in-flight handlers to finish, bounded by the drain window,
+        // so teardown ordering is deterministic. (A detached handler always
+        // kept its stream; this bounds how long drop waits for it.)
+        let deadline = Instant::now() + self.drain;
+        while self.shared.in_flight.load(Ordering::SeqCst) != 0 && Instant::now() < deadline {
+            thread::sleep(Duration::from_millis(5));
+        }
+    }
+}
+
+// Counts a live connection handler from accept to completion, including a
+// panicking one (drop runs during unwind).
+struct InFlight(Arc<AtomicUsize>);
+
+impl InFlight {
+    fn enter(counter: &Arc<AtomicUsize>) -> Self {
+        counter.fetch_add(1, Ordering::SeqCst);
+        InFlight(counter.clone())
+    }
+}
+
+impl Drop for InFlight {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
     }
 }
 
@@ -103,6 +145,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         images: crate::images::Switches::from_env(),
         spend: Mutex::new(spend),
         unknown_owner_requests: Mutex::new(0),
+        in_flight: Arc::new(AtomicUsize::new(0)),
         auth: Auth::new(config.oauth.clone()),
         config,
         agent,
@@ -120,20 +163,29 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
     });
     let shutdown = Arc::new(AtomicBool::new(false));
     let flag = shutdown.clone();
+    let accept_shared = shared.clone();
     let handle = thread::spawn(move || {
         for stream in listener.incoming() {
             if flag.load(Ordering::SeqCst) {
                 break;
             }
             if let Ok(stream) = stream {
-                let shared = shared.clone();
-                thread::spawn(move || {
-                    let _ = handle(stream, shared);
-                });
+                spawn_handler(stream, accept_shared.clone());
             }
         }
     });
-    Ok(Server { port, shutdown, handle: Some(handle) })
+    Ok(Server { port, shutdown, handle: Some(handle), shared, drain: DEFAULT_DRAIN })
+}
+
+// The in-flight count is incremented synchronously, before the child spawns:
+// when this returns, an accepted connection already counts even if its child
+// has not been scheduled, so drop can never observe 0 for it.
+fn spawn_handler(stream: TcpStream, shared: Arc<Shared>) {
+    let in_flight = InFlight::enter(&shared.in_flight);
+    thread::spawn(move || {
+        let _in_flight = in_flight;
+        let _ = handle(stream, shared);
+    });
 }
 
 struct Request {
@@ -1577,6 +1629,7 @@ mod reviewer_regressions {
             images: crate::images::Switches::default(),
             spend: Mutex::new(crate::spend::Store::open(None).unwrap()),
             unknown_owner_requests: Mutex::new(0),
+            in_flight: Arc::new(AtomicUsize::new(0)),
             auth: Auth::new(config.oauth.clone()),
             config,
             agent: ureq::Agent::new_with_defaults(),
@@ -1592,6 +1645,71 @@ mod reviewer_regressions {
             auth_failures: Mutex::new(HashMap::new()),
             health: Mutex::new(HashMap::new()),
         }
+    }
+
+    #[test]
+    fn in_flight_guard_counts_a_panicking_handler() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        let entered = counter.clone();
+        let worker = thread::spawn(move || {
+            let _guard = InFlight::enter(&entered);
+            panic!("handler panic");
+        });
+        assert!(worker.join().is_err(), "the handler must have panicked");
+        assert_eq!(counter.load(Ordering::SeqCst), 0, "unwind must still decrement");
+    }
+
+    #[test]
+    fn accept_counts_a_connection_before_its_child_runs() {
+        // Deterministic: spawn_handler's increment is sequenced before the
+        // spawn within the calling thread, so on return the connection counts
+        // even if its child was never scheduled. No yield, no sleep.
+        let shared = Arc::new(shared());
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let client = TcpStream::connect(address).unwrap();
+        let (stream, _) = listener.accept().unwrap();
+        spawn_handler(stream, shared.clone());
+        assert_eq!(shared.in_flight.load(Ordering::SeqCst), 1,
+            "the accepted connection must count before its child can run");
+        drop(client); // lets the child's read fail so it exits
+    }
+
+    #[test]
+    fn mutation_increment_in_child_leaves_an_accepted_connection_uncounted() {
+        // Negative control for the ordering guarantee above. MUTANT: the
+        // pre-fix placement, with the increment inside the child behind a
+        // gate. While the gate is closed the child cannot have registered
+        // (no scheduling assumption needed: it cannot pass the gate), so the
+        // accepted connection is invisible to a drop observing the counter.
+        let shared = Arc::new(shared());
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let client = TcpStream::connect(address).unwrap();
+        let (stream, _) = listener.accept().unwrap();
+        let (gate_tx, gate_rx) = std::sync::mpsc::channel::<()>();
+        let mutant_shared = shared.clone();
+        let child = thread::spawn(move || {
+            // MUTANT child: register only after the gate opens.
+            gate_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            let _in_flight = InFlight::enter(&mutant_shared.in_flight);
+            let _ = handle(stream, mutant_shared);
+        });
+        assert_eq!(shared.in_flight.load(Ordering::SeqCst), 0,
+            "mutant: an accepted but not-yet-run child is invisible to drop");
+        drop(client); // so the child's read fails immediately once it runs
+        gate_tx.send(()).unwrap();
+        child.join().unwrap();
+    }
+
+    #[test]
+    fn in_flight_guard_counts_a_completed_handler() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        {
+            let _guard = InFlight::enter(&counter);
+            assert_eq!(counter.load(Ordering::SeqCst), 1);
+        }
+        assert_eq!(counter.load(Ordering::SeqCst), 0);
     }
 
     fn admin_request(shared: Arc<Shared>, method: &str, path: &str, cookie: &str, origin: &str, fetch_site: &str) -> String {

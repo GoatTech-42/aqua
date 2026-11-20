@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::{Arc, Mutex};
@@ -975,6 +975,97 @@ fn spend_parallel_http_requests_share_one_atomic_account_budget() {
     {let(lock,cv)=&*gate;*lock.lock().unwrap()=true;cv.notify_all();}
     assert_eq!(first.join().unwrap(),200);
     assert_eq!(up.hits.load(Ordering::SeqCst),1);
+}
+
+// ---------- shutdown drain ----------
+
+#[test]
+fn server_drop_lets_an_in_flight_request_finish() {
+    let (entered_tx, entered_rx) = channel();
+    let (release_tx, release_rx) = channel();
+    let release_rx = Mutex::new(Some(release_rx));
+    let up = mock_upstream(move |_| {
+        entered_tx.send(()).unwrap();
+        release_rx.lock().unwrap().take().unwrap().recv_timeout(Duration::from_secs(5)).unwrap();
+        json_reply(chat_json("real", "ok"))
+    });
+    let srv = serve(config(
+        vec![provider("p1", &up.url, Status::Friends, vec![("coder-a", "p1/a", None)])],
+        vec![],
+    ));
+    let expected_body = chat_json("real", "ok").to_string();
+    let base = srv.base.clone();
+    let client_thread = thread::spawn(move || {
+        let mut res = chat(&client(), &base, "ownerkey", pin_msg("coder-a"));
+        (res.status(), res.body_mut().read_to_string().unwrap())
+    });
+    entered_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let drop_thread = thread::spawn(move || drop(srv));
+    thread::sleep(Duration::from_millis(100));
+    assert!(!drop_thread.is_finished(), "drop must wait for the in-flight handler");
+    release_tx.send(()).unwrap();
+    let (status, body) = client_thread.join().unwrap();
+    assert_eq!(status, 200);
+    // The gateway rewrites id/model/created, so assert the complete body
+    // field-wise: valid JSON in full (no truncation) with the upstream's
+    // choices and usage carried through intact.
+    let sent: serde_json::Value = serde_json::from_str(&expected_body).unwrap();
+    let got: serde_json::Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(got["choices"], sent["choices"]);
+    assert_eq!(got["usage"], sent["usage"]);
+    assert_eq!(got["model"], "coder-a");
+    assert!(got["created"].as_u64().unwrap() > 0);
+    drop_thread.join().unwrap();
+}
+
+#[test]
+fn server_drop_waits_for_a_counted_blocked_handler() {
+    // Counting test: a raw connection that never sends a byte keeps its
+    // handler blocked in read_request while counted, and drop waits out the
+    // drain window for it. The increment-before-spawn ordering itself is
+    // covered by the synchronous unit tests in src/server.rs, not here.
+    let mut srv = serve(config(vec![], vec![]));
+    srv._h.set_drain_timeout(Duration::from_millis(300));
+    let raw = TcpStream::connect(srv.base.trim_start_matches("http://")).unwrap();
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while srv._h.in_flight() != 1 && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(5));
+    }
+    assert_eq!(srv._h.in_flight(), 1, "the accepted connection must be counted");
+    let started = Instant::now();
+    drop(srv);
+    let elapsed = started.elapsed();
+    assert!(elapsed >= Duration::from_millis(300), "drop must wait out the drain window for the counted handler, took {elapsed:?}");
+    assert!(elapsed < Duration::from_secs(2), "drop must still be bounded, took {elapsed:?}");
+    drop(raw);
+}
+
+#[test]
+fn server_drop_returns_within_the_drain_window_when_a_handler_is_stuck() {
+    let (entered_tx, entered_rx) = channel();
+    let (release_tx, release_rx) = channel();
+    let release_rx = Mutex::new(Some(release_rx));
+    let up = mock_upstream(move |_| {
+        entered_tx.send(()).unwrap();
+        release_rx.lock().unwrap().take().unwrap().recv_timeout(Duration::from_secs(10)).unwrap();
+        json_reply(chat_json("real", "ok"))
+    });
+    let mut srv = serve(config(
+        vec![provider("p1", &up.url, Status::Friends, vec![("coder-a", "p1/a", None)])],
+        vec![],
+    ));
+    srv._h.set_drain_timeout(Duration::from_millis(200));
+    let base = srv.base.clone();
+    let client_thread = thread::spawn(move || chat(&client(), &base, "ownerkey", pin_msg("coder-a")).status());
+    entered_rx.recv_timeout(Duration::from_secs(3)).unwrap();
+    let started = std::time::Instant::now();
+    drop(srv);
+    let elapsed = started.elapsed();
+    assert!(elapsed >= Duration::from_millis(200), "drop must wait out the drain window, took {elapsed:?}");
+    assert!(elapsed < Duration::from_secs(2), "a stuck handler must not block drop past the window, took {elapsed:?}");
+    // The detached handler still completes its response after drop returned.
+    release_tx.send(()).unwrap();
+    assert_eq!(client_thread.join().unwrap(), 200);
 }
 
 #[test]
