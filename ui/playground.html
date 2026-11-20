@@ -1,24 +1,269 @@
 <!doctype html>
 <html lang="en" data-session-pending>
 <head>
-<style>html[data-session-pending] { visibility:hidden; }</style>
+<style>
+/* self-hosted fonts (v3.4 rebuild): no third-party requests; same families and weights as before */
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+html[data-session-pending] { visibility:hidden; }
+.denied { margin-top:6rem; text-align:center; }
+.denied h1 { margin-top:1.125rem; }
+.denied .sub { margin-left:auto; margin-right:auto; }</style>
 <noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>aqua — playground</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<title>aqua - playground</title>
 <style>
-/* aqua shell - shared by landing, console, playground, keys (admin.html carries its own inline copy).
+/* aqua shell - shared by landing, console, playground, keys, settings.
    black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
-   deliberately larger UI (16px at <=1024, ~19.4px at 1920, 22px at 2560+). All component sizes in rem. */
-html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
+   deliberately larger UI (16px at <=1024, ~22.7px at 1920, ~27.5px at 2560, 36px at 3840+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.75vw + 8.32px, 36px); }
 :root {
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
   --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
-  --accent:#45d6e8; --accent-ink:#00272b;
+  --warn:#e8c445;
+  --accent:#2fd4bf; --accent-ink:#03251f;
   --radius-card:0.625rem; --radius-control:0.5rem;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
@@ -28,9 +273,6 @@ html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
   --prose-max:88ch;
 }
 * { margin:0; padding:0; box-sizing:border-box; }
-/* Hide scrollbar chrome while preserving wheel, touch and keyboard scrolling. */
-* { scrollbar-width:none; -ms-overflow-style:none; }
-*::-webkit-scrollbar { display:none; width:0; height:0; }
 html,body { background:var(--ground); height:100%; }
 body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
 ::selection { background:var(--accent); color:var(--accent-ink); }
@@ -46,34 +288,38 @@ svg { display:block; }
   * { scroll-behavior:auto !important; transition:none !important; animation-duration:0s !important; }
 }
 
+/* app shell locks to the viewport: only inner regions scroll, never the page */
 .app { display:grid; grid-template-columns:16rem 1fr; height:100vh; height:100dvh; }
 
 /* ---- sidebar ---- */
 .side { background:#000; border-right:1px solid var(--rule); padding:1rem 0.75rem; display:flex; flex-direction:column; gap:2px; }
 .brand { display:flex; align-items:center; gap:0.625rem; padding:0.25rem 0.625rem 1.125rem; text-decoration:none; color:var(--text); }
-.brand svg { width:1.375rem; height:1.375rem; }
+.brand svg { width:1.375rem; height:1.375rem; stroke:var(--accent); }
 .brand .wm { font-weight:600; font-size:1.125rem; letter-spacing:-0.01em; }
-.navlabel { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
+.navlabel { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
 .nav a { display:flex; align-items:center; gap:0.625rem; min-height:2.375rem; padding:0 0.75rem; border-radius:0.5rem; color:var(--muted); text-decoration:none; font-size:0.9375rem; font-weight:450; }
 .nav a svg { color:#7a7a7a; width:1.0625rem; height:1.0625rem; flex:none; }
 .nav a:hover { color:var(--text); }
-.nav a.on { background:#161616; color:#fff; font-weight:500; }
-.nav a.on svg { color:#fff; }
+.nav a.on { background:#161616; color:var(--accent); font-weight:500; }
+.nav a.on svg { color:var(--accent); }
 .spacer { flex:1; }
 .userrow { display:flex; align-items:center; gap:0.625rem; padding:0.75rem 0.625rem 0.25rem; border-top:1px solid var(--rule); }
 .avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:0.72rem; font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
 .userrow .un { font-size:0.875rem; font-weight:500; }
 .userrow .up { font-size:0.75rem; color:var(--faint); }
 .userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
-.userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; }
+.userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; display:inline-flex; align-items:center; min-height:1.5rem; }
 .userrow a:hover { color:var(--text); }
+.userrow button { margin-left:auto; font-family:inherit; font-size:0.78rem; color:var(--faint); background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; min-height:1.5rem; }
+.userrow button:hover { color:var(--text); }
+.userrow button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 /* ---- canvas ---- */
 .main { min-width:0; min-height:0; overflow-y:auto; }
 .side { overflow-y:auto; }
 .canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
 .titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
-h1 { font-size:1.75rem; font-weight:600; letter-spacing:-0.02em; }
+h1 { font-size:2rem; font-weight:500; letter-spacing:-0.01em; }
 h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .sub { margin-top:0.4375rem; font-size:0.9375rem; color:var(--muted); max-width:var(--prose-max); }
 .stamp { display:flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; color:var(--faint); }
@@ -86,17 +332,27 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .btn:hover { border-color:var(--text); }
 .btn:disabled { color:var(--muted); cursor:wait; }
 .btn:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
+a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
+.skiplink { position:absolute; left:-9999px; top:0.5rem; z-index:200; background:var(--ground); color:var(--accent); font-size:0.85rem; padding:0.4rem 0.75rem; border:1px solid var(--line); border-radius:var(--radius-control); text-decoration:none; }
+.skiplink:focus { left:0.5rem; }
+.main:focus { outline:none; }
+#aqua-send:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.pgsel:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.cbox input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.msearch input::placeholder, .cbox input::placeholder { color:#8a8a8a; }
+.msearch input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .btn-solid { background:#fff; color:#000; border-color:#fff; }
 .btn-solid:hover { border-color:#fff; filter:brightness(0.9); }
 
 .stateline { margin-top:1rem; font-size:0.875rem; color:var(--muted); min-height:1.125rem; }
-.stateline.err { color:#e3b341; }
+.stateline.err { color:var(--warn); }
+.unk { color:var(--muted); font-style:italic; }
 
 .empty { margin-top:0.875rem; padding:1.75rem 1.125rem; border:1px dashed var(--control); border-radius:var(--radius-card); color:var(--faint); font-size:0.9375rem; text-align:center; }
 .empty[hidden] { display:none; }
 
 .foot { margin-top:1.5rem; font-size:0.8125rem; color:var(--faint); display:flex; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; }
-.foot a { color:var(--muted); text-decoration:none; }
+.foot a { color:var(--muted); text-decoration:none; display:inline-block; line-height:1.5rem; }
 .foot a:hover { color:var(--text); }
 
 /* ---- endpoint card ---- */
@@ -106,7 +362,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .endpoint .labsub { font-size:0.8125rem; color:var(--faint); font-weight:400; margin-top:2px; }
 .urlbar { margin-left:auto; display:flex; align-items:stretch; min-height:2.375rem; flex:none; max-width:100%; min-width:0; }
 .urlbar .u { display:flex; align-items:center; gap:0.5rem; padding:0 0.9375rem; background:#000; border:1px solid var(--control); border-right:none;
-  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#c8eff5;
+  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#e8e8e8;
   min-width:0; overflow:hidden; white-space:nowrap; }
 .urlbar .cp { display:inline-flex; align-items:center; gap:0.375rem; padding:0 0.9375rem; background:#fff; color:#000; border:1px solid #fff;
   border-radius:0 var(--radius-control) var(--radius-control) 0; font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; }
@@ -115,7 +371,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 /* ---- model table ---- */
 .table { margin-top:0.875rem; overflow-x:auto; }
 .thead, .mrow { display:grid; grid-template-columns:minmax(14rem,1.6fr) 7rem 8.125rem 8.125rem 8.125rem 7rem; align-items:center; gap:0.875rem; }
-.thead { min-height:2.5rem; font-size:0.72rem; font-weight:600; letter-spacing:0.07em; text-transform:uppercase; color:var(--faint); }
+.thead { min-height:2.5rem; font-size:0.72rem; font-weight:600; letter-spacing:0.07em; color:var(--faint); }
 .thead .h.r { text-align:right; }
 .mrow { min-height:3.5rem; border-top:1px solid var(--rule); padding:0.5rem 0; }
 .mrow:hover { background:#070707; }
@@ -127,16 +383,24 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .pill { display:inline-flex; align-items:center; gap:0.375rem; min-height:1.4375rem; padding:0 0.625rem; border-radius:999px; font-size:0.75rem; font-weight:500; white-space:nowrap; }
 .pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
 .pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
-.pill-warn { background:#211a0c; border:1px solid #3a2e15; color:#e3b341; }
+.pill-warn { background:#211a0c; border:1px solid #3a2e15; color:var(--warn); }
 
+.dim{color:var(--faint);font-size:.85rem}
 .phonebar { display:none; }
+.phonebar .pb-nav { margin-left:auto; position:relative; }
+.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
+.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
+.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
+.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
+.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
+.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 @media (max-width: 760px) {
   .app { grid-template-columns:1fr; }
   .side { display:none; }
   .phonebar { display:flex; align-items:center; gap:0.75rem; min-height:3.375rem; padding:0 1.125rem; border-bottom:1px solid var(--rule); background:#000; }
   .phonebar .pb-wm { display:flex; align-items:center; gap:0.5625rem; font-weight:600; font-size:1rem; }
-  .phonebar .pb-wm svg { width:1.125rem; height:1.125rem; }
+  .phonebar .pb-wm svg { width:1.125rem; height:1.125rem; stroke:var(--accent); }
   .canvas { padding:1.25rem 1.125rem 2.5rem; }
   h1 { font-size:1.375rem; }
   .endpoint { flex-direction:column; align-items:flex-start; gap:0.75rem; }
@@ -149,110 +413,133 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   .c-status { grid-column:2; grid-row:1; align-self:center; }
 }
 
-
 /* ---- playground ---- */
-.main { display:flex; flex-direction:column; overflow:hidden; }
-.phonebar { flex:none; }
-.pg { flex:1; display:grid; grid-template-columns:minmax(0,1fr) 21rem; min-height:0; }
-.conv { display:flex; flex-direction:column; min-width:0; min-height:0; }
-.pghead { flex:none; display:flex; flex-wrap:wrap; align-items:baseline; gap:0.625rem; padding:1rem var(--pad-x); border-bottom:1px solid var(--rule); }
+.pg { display:grid; grid-template-columns:minmax(0,1fr) 21rem; height:100vh; }
+.conv { display:flex; flex-direction:column; min-width:0; }
+.pghead { display:flex; align-items:baseline; gap:0.625rem; padding:1rem var(--pad-x); border-bottom:1px solid var(--rule); }
 .pghead .m { font-weight:600; font-size:1.0625rem; }
 .pghead .s { color:var(--faint); font-size:0.875rem; }
-.pghead .pgsel { display:block; margin-left:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.875rem; padding:0.375rem 0.5rem; max-width:11rem; }
-.stream { flex:1; min-height:0; overflow-y:auto; padding:1.5rem var(--pad-x); display:flex; flex-direction:column; gap:1.375rem; }
+.pghead .pgsel { display:none; margin-left:auto; background:var(--surface); border:1px solid #767676; border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.875rem; padding:0.375rem 0.5rem; max-width:11rem; }
+.stream { flex:1; overflow-y:auto; padding:1.5rem var(--pad-x); display:flex; flex-direction:column; gap:1.375rem; }
 .msg { max-width:68ch; }
 .msg .who, .msg .route { font-family:var(--mono); font-size:0.72rem; margin-bottom:0.375rem; }
 .msg .who { color:var(--faint); }
 .msg .route { color:var(--accent); }
-.msg .route.err { color:#e3b341; }
+.msg .route.err { color:var(--warn); }
 .msg .body { color:#e8e8e8; line-height:1.6; white-space:pre-wrap; }
-.composer { flex:none; border-top:1px solid var(--rule); padding:1rem var(--pad-x); }
-.cbox { display:flex; gap:0.625rem; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); padding:0.375rem 0.375rem 0.375rem 0.875rem; }
-.cbox:focus-within { border-color:var(--control); }
+.composer { border-top:1px solid var(--rule); padding:1rem var(--pad-x); }
+.cbox { display:flex; gap:0.625rem; align-items:center; background:var(--surface); border:1px solid #767676; border-radius:var(--radius-control); padding:0.375rem 0.375rem 0.375rem 0.875rem; }
+.cbox:focus-within { border-color:var(--muted); }
 .cbox input { flex:1; background:none; border:0; outline:0; color:var(--text); font:inherit; min-width:0; }
-.cbox button { background:var(--accent); color:var(--accent-ink); border:0; border-radius:0.375rem; width:2.25rem; height:2.25rem; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
+.cbox button { background:#fff; color:#000; border:0; border-radius:0.375rem; width:2.25rem; height:2.25rem; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
 .cbox button:disabled { opacity:0.4; cursor:default; }
 .cbox button svg { width:1rem; height:1rem; }
 .details { border-left:1px solid var(--rule); padding:1.5rem 1.25rem; background:#050505; overflow-y:auto; }
-.details h2 { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; text-transform:uppercase; color:var(--faint); margin-bottom:0.75rem; }
+.details h2 { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; color:var(--faint); margin-bottom:0.75rem; }
 .kv { display:flex; justify-content:space-between; gap:1rem; padding:0.5rem 0; font-size:0.875rem; border-bottom:1px solid var(--rule); }
-.kv[hidden] { display:none; }
 .kv .k { color:var(--faint); }
 .kv .v { color:var(--text); font-family:var(--mono); font-size:0.8125rem; text-align:right; overflow:hidden; text-overflow:ellipsis; }
 .pgnote { margin-top:1.25rem; font-size:0.8125rem; color:var(--faint); line-height:1.6; }
 .pgnote a { color:var(--muted); }
 .msearch { padding:0 0.375rem 0.375rem; }
-.msearch input { width:100%; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.8125rem; padding:0.375rem 0.625rem; outline:0; }
+.msearch input { width:100%; background:var(--surface); border:1px solid #767676; border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.8125rem; padding:0.375rem 0.625rem; outline:0; }
 .msearch input:focus { border-color:var(--control); }
 .mrow { display:block; padding:0.375rem 0.75rem; border-radius:0.4375rem; color:var(--muted); text-decoration:none; font-size:0.875rem; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+button.mrow { font-family:inherit; background:none; border:0; width:100%; text-align:left; }
 .mrow:hover { color:var(--text); }
 .mrow.on { background:#161616; color:#fff; }
-.keynotice { margin:0 var(--pad-x); padding-top:1rem; font-size:0.875rem; color:#e3b341; }
+#aqua-rail button.mrow:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+#aqua-stream button.mrow:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.kv .unk[tabindex]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.keynotice { margin:0 var(--pad-x); padding-top:1rem; font-size:0.875rem; color:var(--warn); }
 @media (max-width: 900px) {
-  .pg { grid-template-columns:1fr; min-height:0; }
+  .pg { grid-template-columns:1fr; height:auto; min-height:calc(100vh - 3.375rem); }
   .details { display:none; }
   .pghead .pgsel { display:block; }
-  .conv { min-height:0; }
+  .conv { min-height:calc(100vh - 3.375rem); }
 }
+
 </style>
 </head>
 <body>
+<a class="skiplink" href="#main">skip to content</a>
 <div class="app">
   <aside class="side">
-    <a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
-    <div class="nav">
+    <a class="brand" href="/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <nav class="nav">
       <div class="navlabel">gateway</div>
-      <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
-      <a href="/playground.html" class="on"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
-      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
-      <a href="/settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
-      <a href="#" id="aqua-admin-link" hidden><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1-1-1.73l.43-.25a2 2 0 0 1 2 0l.15-.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15-.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg><span>admin</span></a>
+      <a href="/console.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html" class="on" aria-current="page"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/usage.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+      <a href="/routing.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+      <a href="/settings.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+    </nav>
       <div class="navlabel">models</div>
       <div class="msearch"><input id="aqua-filter" placeholder="filter models" aria-label="filter models"></div>
       <div id="aqua-rail"><span class="mrow">loading models…</span></div>
-    </div>
     <div class="spacer"></div>
-    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
   </aside>
-  <main class="main">
-    <div class="phonebar"><a href="/settings.html" style="color:var(--muted);font-size:.8125rem;order:2;margin-left:auto">settings</a><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">playground</span></div>
+  <main class="main" id="main" tabindex="-1">
+    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">playground</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html" aria-current="page">playground</a><a href="/keys.html">api keys</a><a href="/usage.html">usage</a><a href="/routing.html">routing</a><a href="/settings.html">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
+      <div id="aqua-denied" class="denied" hidden>
+    <h1>sign in first</h1>
+    <p class="sub">this page needs your account. <a id="aqua-denied-signin" href="/login/github">sign in with github</a> to continue.</p>
+  </div>
+
+      <div id="aqua-body" hidden>
     <div class="pg">
       <section class="conv">
         <p class="keynotice" id="aqua-keynotice" hidden></p>
         <div class="pghead"><span class="m" id="aqua-route">auto</span><span class="s" id="aqua-routesub">router default</span><select class="pgsel" id="aqua-pgsel" aria-label="model"></select></div>
-        <div class="stream" id="aqua-stream">
+        <div class="stream" id="aqua-stream" role="log" aria-live="polite">
           <div class="msg"><div class="body">pick a model and ask something.</div></div>
         </div>
         <div class="composer">
           <div class="cbox">
-            <input id="aqua-input" placeholder="ask anything…" autocomplete="off">
+            <input id="aqua-input" placeholder="ask anything…" autocomplete="off" aria-label="message">
             <button id="aqua-send" aria-label="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
           </div>
         </div>
       </section>
       <aside class="details">
         <h2>request details</h2>
-        <div class="kv"><span class="k">model</span><span class="v" id="aqua-kv-model">—</span></div>
-        <div class="kv"><span class="k">latency</span><span class="v" id="aqua-kv-latency">—</span></div>
-        <div class="kv"><span class="k">tokens</span><span class="v" id="aqua-kv-tokens">—</span></div>
-        <div class="kv"><span class="k">maker est.</span><span class="v" id="aqua-kv-cost">—</span></div>
-        <p class="pgnote" id="aqua-cost-note">estimated maker API cost in virtual USD, not an Aqua charge. unknown prices stay blank.</p>
+        <div class="kv"><span class="k">model</span><span class="v" id="aqua-kv-model"><span class="unk">unknown</span></span></div>
+        <div class="kv"><span class="k">latency</span><span class="v" id="aqua-kv-latency"><span class="unk">unknown</span></span></div>
+        <div class="kv"><span class="k">tokens</span><span class="v" id="aqua-kv-tokens"><span class="unk">unknown</span></span></div>
+        <div class="kv"><span class="k">cost</span><span class="v"><span class="unk" tabindex="0" title="the gateway does not report a per-request virtual estimate; virtual usage is metered on the usage page. provider charges are not shown here">unknown</span></span></div>
         <p class="pgnote">on the <b>auto</b> route a full upstream window fails over to the next model in the pool. same request, same code.</p>
         <p class="pgnote">apps authenticate with an <a href="/keys.html">api key</a>. the playground uses your browser sign-in.</p>
       </aside>
     </div>
+      </div>
   </main>
 </div>
 
 <script>
 (function () {
-  var storedBase = localStorage.getItem('aqua_api_base');
-  if (location.hostname === 'aqua.goattech.us' &&
-      (storedBase === 'https://api.aqua.goattech.us/v1' || storedBase === 'https://api.aqua.goattech.us/v1/')) {
-    storedBase = 'https://aqua-api.goattech.us/v1';
-    localStorage.setItem('aqua_api_base', storedBase);
+  function aquaResolveApiBase() {
+    // Split deployment: Pages serves the UI, the API lives on its own host.
+    // Default: production Pages host talks to the production API; every other host
+    // (local dev, fixtures, *.pages.dev previews) stays same-origin so sign-in fails
+    // closed where cross-site credentialed sign-in is unsupported.
+    // Stored overrides are allowlisted: the production API or this exact origin,
+    // both https-checked for cross-origin; anything else is dropped.
+    var PROD_HOST = 'aqua.goattech.us';
+    var PROD_API = 'https://aqua-api.goattech.us/v1';
+    var OLD_ALIAS = 'https://api.aqua.goattech.us/v1';
+    var sameOrigin = /^https?:$/.test(location.protocol) ? location.origin + '/v1' : '/v1';
+    var stored = localStorage.getItem('aqua_api_base');
+    if (stored) {
+      var s = String(stored).replace(/\/+$/, '');
+      if (s === OLD_ALIAS) { localStorage.setItem('aqua_api_base', PROD_API); return PROD_API; }
+      if (s === PROD_API || s === sameOrigin) return s;
+      localStorage.removeItem('aqua_api_base');
+    }
+    return location.hostname === PROD_HOST ? PROD_API : sameOrigin;
   }
-  var base = storedBase || (location.hostname === 'aqua.goattech.us' ? 'https://aqua-api.goattech.us/v1' : (/^https?:$/.test(location.protocol) ? location.origin + '/v1' : 'https://aqua-api.goattech.us/v1'));
+  var base = aquaResolveApiBase();
   window.AQUA = { baseUrl: function () { return base; } };
 })();
 </script>
@@ -263,6 +550,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   var sessionAbort = new AbortController();
   var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
   var serverOrigin = AQUA.baseUrl().replace(/\/v1$/, '');
+  document.getElementById('aqua-denied-signin').setAttribute('href', serverOrigin + '/login/github');
   try {
     var sessionResponse = await fetch(serverOrigin + '/auth/me', {
       credentials: 'include', cache: 'no-store', signal: sessionAbort.signal
@@ -270,14 +558,19 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
     if (!sessionResponse.ok) throw Error('not signed in');
     me = await sessionResponse.json();
     if (!me || typeof me.login !== 'string' || !me.login ||
-        (me.role !== 'owner' && me.role !== 'friend')) throw Error('invalid session');
+        me.role !== 'owner') throw Error('invalid session');
   } catch (_) {
-    location.replace('/');
+    document.documentElement.removeAttribute('data-session-pending');
+    document.getElementById('aqua-denied').hidden = false;
+    document.getElementById('aqua-user').textContent = '';
+    document.getElementById('aqua-usersub').textContent = '';
+    document.getElementById('aqua-rail').textContent = '';
     return;
   } finally {
     clearTimeout(sessionTimeout);
   }
   document.documentElement.removeAttribute('data-session-pending');
+  document.getElementById('aqua-body').hidden = false;
   addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
   addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
 
@@ -285,12 +578,11 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   document.getElementById('aqua-usersub').textContent = me.role;
   document.getElementById('aqua-avatar').textContent = me.login.charAt(0).toUpperCase();
   if (me.role === 'owner') {
-    var adminLink = document.getElementById('aqua-admin-link');
-    adminLink.href = serverOrigin + '/admin';
-    adminLink.hidden = false;
+    document.querySelectorAll('.owneronly').forEach(function (a) { a.hidden = false; });
   }
   var so = document.getElementById('aqua-signout');
   so.style.display = '';
+  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
   so.addEventListener('click', function (ev) {
     ev.preventDefault();
     fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
@@ -300,7 +592,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   if (localStorage.getItem('aqua_key') !== null) {
     localStorage.removeItem('aqua_key');
     var notice = document.getElementById('aqua-keynotice');
-    notice.textContent = 'sign-in replaces saved keys — make a key on the api keys page for apps.';
+    notice.textContent = 'sign-in replaces saved keys. make a key on the api keys page for apps.';
     notice.hidden = false;
   }
 
@@ -316,19 +608,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
     });
   }
 
-  function validMakerPrice(p) {
-    return p && p.status === 'verified' && p.currency === 'USD' && p.units_per_usd === 1000000000 &&
-      Number.isSafeInteger(p.input_nano_usd_per_million) && p.input_nano_usd_per_million >= 0 &&
-      Number.isSafeInteger(p.output_nano_usd_per_million) && p.output_nano_usd_per_million >= 0;
-  }
-  function makerDollars(nano) {
-    var whole = nano / 1000000000n;
-    var fraction = (nano % 1000000000n).toString().padStart(9, '0').replace(/0+$/, '');
-    return '$' + whole.toString() + (fraction ? '.' + fraction : '');
-  }
-  var modelPrices = Object.create(null);
   var model = 'auto';
-  var showCost = true;
   var history = [];
   var stream = document.getElementById('aqua-stream');
   function addMsg(who, text, route, isErr) {
@@ -355,39 +635,51 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   }
 
   var sel = document.getElementById('aqua-pgsel');
-  sel.addEventListener('change', function () { setModel(sel.value, sel.value === 'auto' ? 'picks a model and fails over' : ''); });
+  sel.addEventListener('change', function () { setModel(sel.value, sel.value === 'auto' ? 'router default' : ''); });
 
   function loadModels() {
     request('/v1/models').then(function (r) { if (!r.ok) throw Error('http ' + r.status); return r.json(); }).then(function (j) {
       var rail = document.getElementById('aqua-rail');
       var models = j.data || [];
+      var fail = document.getElementById('aqua-pg-fail');
+      if (fail) fail.remove();
       rail.textContent = '';
       sel.textContent = '';
-      if (!models.length) { setModel('', 'no models available'); rail.innerHTML = '<span class="mrow">no models available</span>'; return; }
+      var autoOpt = document.createElement('option'); autoOpt.value = 'auto'; autoOpt.textContent = 'auto'; sel.appendChild(autoOpt);
+      if (!models.length) { rail.innerHTML = '<span class="mrow">no models available</span>'; return; }
       models.forEach(function (m) {
-        modelPrices[m.id] = m.maker_pricing;
-        var a = document.createElement('a');
+        var a = document.createElement('button');
+        a.type = 'button';
         a.className = 'mrow' + (m.id === model ? ' on' : '');
-        a.href = '#';
         a.textContent = m.id;
-        if (m.id === 'auto') { a.title = 'picks a model and fails over through the configured shortlist'; }
-        a.addEventListener('click', function (ev) { ev.preventDefault(); setModel(m.id, m.id === 'auto' ? 'picks a model and fails over' : ''); });
+        a.addEventListener('click', function () { setModel(m.id); });
         rail.appendChild(a);
         var o = document.createElement('option'); o.value = m.id; o.textContent = m.id; sel.appendChild(o);
       });
-      if (!models.some(function (m) { return m.id === model; })) { model = models[0].id; }
-      setModel(model, model === 'auto' ? 'picks a model and fails over' : '');
     }).catch(function (e) {
       var rail = document.getElementById('aqua-rail');
-      if (e.message !== 'signed out.') { rail.innerHTML = '<span class="mrow">could not load models</span>'; }
+      if (e.message !== 'signed out.') {
+        rail.innerHTML = '<span class="mrow">could not load models.</span>';
+        var retry = document.createElement('button');
+        retry.type = 'button'; retry.className = 'mrow'; retry.textContent = 'try again shortly.';
+        retry.addEventListener('click', function () { loadModels(); });
+        rail.appendChild(retry);
+        // the rail is hidden below 760px, so mirror the failure and retry into the stream.
+        var oldFail = document.getElementById('aqua-pg-fail');
+        if (oldFail) oldFail.remove();
+        if (stream.children.length === 1 && !stream.firstElementChild.id && !stream.querySelector('.who') && !stream.querySelector('.route')) stream.textContent = '';
+        var f = document.createElement('div');
+        f.className = 'msg'; f.id = 'aqua-pg-fail';
+        f.innerHTML = '<div class="body">could not load models.</div>';
+        var retry2 = document.createElement('button');
+        retry2.type = 'button'; retry2.className = 'mrow'; retry2.textContent = 'try again shortly.';
+        retry2.addEventListener('click', function () { loadModels(); });
+        f.querySelector('.body').appendChild(retry2);
+        stream.appendChild(f);
+      }
     });
   }
-  request('/v1/settings').then(function(r){if(!r.ok)throw Error('settings unavailable');return r.json();}).then(function(p){
-    if(typeof p.default_model==='string')model=p.default_model;
-    showCost=p.show_cost!==false;
-    document.getElementById('aqua-kv-cost').closest('.kv').hidden=!showCost;
-    document.getElementById('aqua-cost-note').hidden=!showCost;
-  }).catch(function(){}).finally(loadModels);
+  loadModels();
   document.getElementById('aqua-filter').addEventListener('input', function () {
     var q = this.value.toLowerCase();
     document.querySelectorAll('#aqua-rail .mrow').forEach(function (x) {
@@ -403,8 +695,9 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
     var text = input.value.trim();
     if (!text) { return; }
     inFlight = true;
-    document.getElementById('aqua-kv-cost').textContent = '—';
-    document.getElementById('aqua-cost-note').textContent = 'estimated maker API cost in virtual USD, not an Aqua charge. awaiting confirmed usage.';
+    document.getElementById('aqua-kv-model').textContent = 'unknown';
+    document.getElementById('aqua-kv-latency').textContent = 'unknown';
+    document.getElementById('aqua-kv-tokens').textContent = 'unknown';
     input.value = '';
     sendBtn.disabled = true;
     addMsg('you', text);
@@ -416,9 +709,10 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
       .then(function (r) {
         return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
       }).then(function (res) {
-        var dt = ((performance.now() - t0) / 1000).toFixed(2) + 's';
+        var dt = ((performance.now() - t0) / 1000).toFixed(2) + ' s';
         if (!res.ok) {
-          var msg = (res.body && res.body.error && res.body.error.message) || ('request failed (http ' + res.status + ')');
+          var eb = res.body && res.body.error;
+          var msg = (eb && eb.message) || (typeof eb === 'string' ? eb : '') || ('the request failed. try again, and reload the page if it keeps failing.');
           pending.querySelector('.body').textContent = msg;
           var rl = pending.querySelector('.route');
           rl.textContent = res.status === 401 ? 'signed out' : 'error';
@@ -428,31 +722,16 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
         }
         var choice = res.body.choices && res.body.choices[0];
         var reply = (choice && choice.message && choice.message.content) || '(empty reply)';
-        var used = res.body.model || model;
+        var used = typeof res.body.model === 'string' && res.body.model.trim() ? res.body.model : 'unknown';
         var usage = res.body.usage;
-        var p = modelPrices[used];
-        var cost = '—';
-        var note = 'estimated maker API cost in virtual USD, not an Aqua charge. ';
-        if (validMakerPrice(p) && usage && Number.isSafeInteger(usage.prompt_tokens) && usage.prompt_tokens >= 0 &&
-            Number.isSafeInteger(usage.completion_tokens) && usage.completion_tokens >= 0) {
-          // completion_tokens already includes any reported reasoning; do not add it again.
-          var nano = (BigInt(usage.prompt_tokens) * BigInt(p.input_nano_usd_per_million) +
-            BigInt(usage.completion_tokens) * BigInt(p.output_nano_usd_per_million) + 999999n) / 1000000n;
-          cost = makerDollars(nano);
-          note += (p.basis || 'maker list rate') + ' · checked ' + (p.checked_at || 'unknown');
-        } else {
-          note += validMakerPrice(p) ? 'confirmed token usage unavailable.' : (p && p.reason || 'no verified maker price.');
-        }
-        document.getElementById('aqua-kv-cost').textContent = cost;
-        document.getElementById('aqua-cost-note').textContent = note;
-        var route = used + ' · ' + dt + (usage ? (' · ' + usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '') +
-          (showCost ? ' · maker est. ' + cost + (cost !== '—' ? ' virtual USD' : '') : '');
+        if (!usage || !Number.isSafeInteger(usage.prompt_tokens) || usage.prompt_tokens < 0 || !Number.isSafeInteger(usage.completion_tokens) || usage.completion_tokens < 0) usage = null;
+        var route = used + ' · ' + dt + (usage ? (' · ' + usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '') + (choice && choice.finish_reason === 'length' ? ' · partial: output limit reached' : '');
         pending.querySelector('.body').textContent = reply;
         pending.querySelector('.route').textContent = route;
         history.push({ role: 'assistant', content: reply });
         document.getElementById('aqua-kv-model').textContent = used;
         document.getElementById('aqua-kv-latency').textContent = dt;
-        document.getElementById('aqua-kv-tokens').textContent = usage ? (usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '—';
+        document.getElementById('aqua-kv-tokens').textContent = usage ? (usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : 'unknown';
       }).catch(function (e) {
         if (e.message === 'signed out.') { return; }
         pending.querySelector('.body').textContent = 'could not confirm a reply (' + e.message + '). this may already have used tokens, and was not retried.';

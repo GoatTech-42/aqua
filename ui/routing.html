@@ -1,0 +1,1084 @@
+<!doctype html>
+<html lang="en" data-session-pending>
+<head>
+<style>
+/* self-hosted fonts (v3.4 rebuild): no third-party requests; same families and weights as before */
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f01.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Instrument Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-stretch: 100%;
+  font-display: swap;
+  src: url(/fonts/f00.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f02.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f06.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f05.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f07.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f03.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/f04.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+html[data-session-pending] { visibility:hidden; }</style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>aqua - routing</title>
+<style>
+/* aqua shell - shared by landing, console, playground, keys, settings.
+   black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
+   deliberately larger UI (16px at <=1024, ~22.7px at 1920, ~27.5px at 2560, 36px at 3840+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.75vw + 8.32px, 36px); }
+:root {
+  color-scheme: dark;
+  --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
+  --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
+  --accent:#2fd4bf; --accent-ink:#03251f;
+  --radius-card:0.7rem; --radius-control:0.5rem;
+  --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  --pad-x:clamp(1.25rem, 3.4vw, 4.5rem);
+  --pad-top:clamp(1.5rem, 3vw, 3.5rem);
+  --canvas-max:88rem;
+  --prose-max:88ch;
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+/* Hide scrollbar chrome while preserving wheel, touch and keyboard scrolling. */
+* { scrollbar-width:none; -ms-overflow-style:none; }
+*::-webkit-scrollbar { display:none; width:0; height:0; }
+html,body { background:var(--ground); height:100%; }
+body { font-family:var(--font); color:var(--text); font-size:1rem; line-height:1.45; -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility; }
+::selection { background:var(--accent); color:var(--accent-ink); }
+svg { display:block; }
+.num { font-variant-numeric:tabular-nums; font-feature-settings:"tnum"; }
+
+/* brief entrance: opacity/transform only, once, no ambient motion */
+@keyframes aqua-in { from { opacity:0; transform:translateY(0.625rem); } to { opacity:1; transform:none; } }
+.aqua-in { animation:aqua-in .45s cubic-bezier(.22,.61,.36,1) both; }
+.aqua-in-1 { animation-delay:.05s; } .aqua-in-2 { animation-delay:.12s; } .aqua-in-3 { animation-delay:.19s; }
+@media (prefers-reduced-motion: reduce) {
+  .aqua-in, .aqua-in-1, .aqua-in-2, .aqua-in-3 { animation:none; }
+  * { scroll-behavior:auto !important; transition:none !important; animation-duration:0s !important; }
+}
+
+/* app shell locks to the viewport: only inner regions scroll, never the page */
+.app { display:grid; grid-template-columns:16rem 1fr; height:100vh; height:100dvh; }
+
+/* ---- sidebar ---- */
+.side { background:#000; border-right:1px solid var(--rule); padding:1rem 0.75rem; display:flex; flex-direction:column; gap:2px; }
+.brand { display:flex; align-items:center; gap:0.625rem; padding:0.25rem 0.625rem 1.125rem; text-decoration:none; color:var(--text); }
+.brand svg { width:1.375rem; height:1.375rem; stroke:var(--accent); }
+.brand .wm { font-weight:500; font-size:1.125rem; letter-spacing:-0.01em; }
+.navlabel { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
+.nav a { display:flex; align-items:center; gap:0.625rem; min-height:2.375rem; padding:0 0.75rem; border-radius:0.5rem; color:var(--muted); text-decoration:none; font-size:0.9375rem; font-weight:450; }
+.nav a svg { color:#7a7a7a; width:1.0625rem; height:1.0625rem; flex:none; }
+.nav a:hover { color:var(--text); }
+.nav a.on { background:#161616; color:var(--accent); font-weight:500; }
+.nav a.on svg { color:var(--accent); }
+.spacer { flex:1; }
+.userrow { display:flex; align-items:center; gap:0.625rem; padding:0.75rem 0.625rem 0.25rem; border-top:1px solid var(--rule); }
+.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:0.72rem; font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
+.userrow .un { font-size:0.875rem; font-weight:500; }
+.userrow .up { font-size:0.75rem; color:var(--faint); }
+.userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
+.userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; display:inline-flex; align-items:center; min-height:1.5rem; }
+.userrow a:hover { color:var(--text); }
+.userrow button { margin-left:auto; font-family:inherit; font-size:0.78rem; color:var(--faint); background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; min-height:1.5rem; }
+.userrow button:hover { color:var(--text); }
+
+/* ---- canvas ---- */
+.main { min-width:0; min-height:0; overflow-y:auto; }
+.side { overflow-y:auto; }
+.canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
+.titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
+h1 { font-size:2rem; font-weight:500; letter-spacing:-0.01em; }
+h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
+.sub { margin-top:0.4375rem; font-size:0.9375rem; color:var(--muted); max-width:var(--prose-max); }
+.stamp { display:flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; color:var(--faint); }
+.stamp svg { width:0.875rem; height:0.875rem; }
+
+.btn { display:inline-flex; align-items:center; gap:0.4375rem; min-height:2.375rem; padding:0 0.9375rem; border-radius:var(--radius-control);
+  font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; border:1px solid var(--control); background:transparent; color:var(--text); white-space:nowrap;
+  transition:border-color .15s ease, filter .15s ease; }
+.btn svg { width:0.875rem; height:0.875rem; }
+.btn:hover { border-color:var(--text); }
+.btn:disabled { color:var(--muted); cursor:wait; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+.skiplink { position:absolute; left:-9999px; top:0.5rem; z-index:200; background:var(--ground); color:var(--accent); font-size:0.85rem; padding:0.4rem 0.75rem; border:1px solid var(--line); border-radius:var(--radius-control); text-decoration:none; }
+.skiplink:focus { left:0.5rem; }
+.main:focus { outline:none; }
+.btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.btn-solid { background:#fff; color:#000; border-color:#fff; }
+.btn-solid:hover { border-color:#fff; filter:brightness(0.9); }
+
+.stateline { margin-top:1rem; font-size:0.875rem; color:var(--muted); min-height:1.125rem; }
+.stateline.err { color:#e3b341; }
+
+.empty { margin-top:0.875rem; padding:1.75rem 1.125rem; border:1px dashed var(--control); border-radius:var(--radius-card); color:var(--faint); font-size:0.9375rem; text-align:center; }
+.empty[hidden] { display:none; }
+
+.foot { margin-top:1.5rem; font-size:0.8125rem; color:var(--faint); display:flex; justify-content:space-between; gap:0.75rem; flex-wrap:wrap; }
+.foot a { color:var(--muted); text-decoration:none; }
+.foot a:hover { color:var(--text); }
+
+/* ---- endpoint card ---- */
+.endpoint { margin-top:1.5rem; padding:1.125rem 1.25rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card);
+  display:flex; align-items:center; gap:1.125rem; flex-wrap:wrap; }
+.endpoint .lab { font-size:0.9375rem; font-weight:600; flex:none; letter-spacing:-0.005em; }
+.endpoint .labsub { font-size:0.8125rem; color:var(--faint); font-weight:400; margin-top:2px; }
+.urlbar { margin-left:auto; display:flex; align-items:stretch; min-height:2.375rem; flex:none; max-width:100%; min-width:0; }
+.urlbar .u { display:flex; align-items:center; gap:0.5rem; padding:0 0.9375rem; background:#000; border:1px solid var(--control); border-right:none;
+  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#e8e8e8;
+  min-width:0; overflow:hidden; white-space:nowrap; }
+.urlbar .cp { display:inline-flex; align-items:center; gap:0.375rem; padding:0 0.9375rem; background:#fff; color:#000; border:1px solid #fff;
+  border-radius:0 var(--radius-control) var(--radius-control) 0; font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; }
+.urlbar .cp svg { width:0.875rem; height:0.875rem; }
+
+/* ---- model table ---- */
+.table { margin-top:0.875rem; overflow-x:auto; }
+.thead, .mrow { display:grid; grid-template-columns:minmax(14rem,1.6fr) 7rem 8.125rem 8.125rem 8.125rem 7rem; align-items:center; gap:0.875rem; }
+.thead { min-height:2.5rem; font-size:0.72rem; font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.thead .h.r { text-align:right; }
+.mrow { min-height:3.5rem; border-top:1px solid var(--rule); padding:0.5rem 0; }
+.mrow:hover { background:#070707; }
+.mrow .c { padding-right:0.5rem; min-width:0; }
+.mrow .c.num { text-align:right; padding-right:2px; font-size:0.9375rem; color:var(--muted); }
+.mname { font-family:var(--mono); font-size:0.875rem; font-weight:600; overflow-wrap:anywhere; }
+.msub { font-size:0.8125rem; color:var(--faint); margin-top:3px; }
+.c-status { display:flex; justify-content:flex-end; }
+.pill { display:inline-flex; align-items:center; gap:0.375rem; min-height:1.4375rem; padding:0 0.625rem; border-radius:999px; font-size:0.75rem; font-weight:500; white-space:nowrap; }
+.pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
+.pill-live { color:#3fb950; }
+.pill-warn { color:#e3b341; }
+.pill-neutral { color:#a8a8a8; }
+.pill-off { color:#f85149; }
+
+.dim{color:var(--faint);font-size:.85rem}
+.phonebar { display:none; }
+.phonebar .pb-nav { margin-left:auto; position:relative; }
+.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
+.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
+.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
+.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
+.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
+.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
+
+@media (max-width: 760px) {
+  .app { grid-template-columns:1fr; }
+  .side { display:none; }
+  .phonebar { display:flex; align-items:center; gap:0.75rem; min-height:3.375rem; padding:0 1.125rem; border-bottom:1px solid var(--rule); background:#000; }
+  .phonebar .pb-wm { display:flex; align-items:center; gap:0.5625rem; font-weight:600; font-size:1rem; }
+  .phonebar .pb-wm svg { width:1.125rem; height:1.125rem; stroke:var(--accent); }
+  .canvas { padding:1.25rem 1.125rem 2.5rem; }
+  h1 { font-size:1.375rem; }
+  .endpoint { flex-direction:column; align-items:flex-start; gap:0.75rem; }
+  .urlbar { margin-left:0; width:100%; }
+  .urlbar .u { flex:1; }
+  .thead { display:none; }
+  .mrow { grid-template-columns:minmax(0,1fr) auto; row-gap:3px; padding:0.75rem 0; }
+  .mrow:hover { background:transparent; }
+  .mrow .c.num { display:none; }
+  .c-status { grid-column:2; grid-row:1; align-self:center; }
+}
+
+/* ---- admin ---- */
+h1 { margin-top:0; }
+.sub { margin-top:0.375rem; font-size:0.8438rem; color:var(--muted); max-width:80ch; }
+
+section { margin-top:2.5rem; }
+section:first-of-type { margin-top:1.75rem; }
+.sectitle { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
+.btn { display:inline-flex; align-items:center; gap:0.4375rem; height:2.125rem; padding:0 0.8125rem; border-radius:var(--radius-control);
+  font:inherit; font-size:0.7813rem; font-weight:500; cursor:pointer; border:1px solid var(--control); background:transparent; color:var(--text); white-space:nowrap; }
+.btn:hover { border-color:var(--text); }
+.btn:disabled { color:var(--muted); cursor:wait; }
+.btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.btn-solid { background:#fff; color:#000; border-color:#fff; }
+
+.note { font-size:0.8125rem; color:var(--muted); margin-top:0.625rem; max-width:88ch; }
+.note.err { color:#e3b341; }
+.stateline { font-size:0.8125rem; color:var(--muted); margin-top:0.625rem; min-height:1.125rem; }
+.stateline.err { color:#e3b341; }
+
+/* providers */
+.ptable { margin-top:0.75rem; overflow-x:auto; }
+.phead, .prow { display:grid; grid-template-columns:minmax(8.75rem,1.2fr) 6.875rem 6.875rem minmax(0,2fr); align-items:start; gap:0.875rem; }
+.phead { height:2.375rem; align-items:center; font-size:0.6875rem; font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.prow { border-top:1px solid var(--rule); padding:0.75rem 0; }
+.prow:hover { background:#070707; }
+.prow .pid { font-family:var(--mono); font-size:0.7813rem; font-weight:600; overflow-wrap:anywhere; }
+.pill { display:inline-flex; align-items:center; gap:0.375rem; height:1.4375rem; padding:0 0.625rem; border-radius:62.4375rem; font-size:0.7188rem; font-weight:500; white-space:nowrap; }
+.pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
+.pill-live { color:#3fb950; }
+.pill-warn { color:#e3b341; }
+.pill-neutral { color:#a8a8a8; }
+.pill-off { color:#f85149; }
+.conf { font-size:0.7813rem; color:var(--muted); }
+.pmodels { display:flex; flex-direction:column; gap:0.25rem; }
+.pm { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:0.5rem; font-family:var(--mono); font-size:0.7188rem; align-items:baseline; }
+.pm .pub { color:var(--text); overflow-wrap:anywhere; }
+.pm .arr { color:var(--faint); }
+.pm .ups { color:var(--faint); overflow-wrap:anywhere; }
+.empty { margin-top:0.75rem; padding:1.5rem 1.125rem; border:1px dashed var(--control); border-radius:var(--radius-card); color:var(--faint); font-size:0.8438rem; text-align:center; }
+.empty[hidden] { display:none; }
+
+/* usage */
+.uaccount { padding:0.875rem 0; border-bottom:1px solid var(--line); }
+.uhead { display:flex; flex-wrap:wrap; justify-content:space-between; gap:0.375rem 1rem; }
+.uname { font-weight:600; overflow-wrap:anywhere; }
+.utotals { font-variant-numeric:tabular-nums; color:var(--muted); }
+.umodels { margin-top:0.5rem; color:var(--muted); font-size:0.75rem; }
+.umodels summary { cursor:pointer; min-height:1.75rem; }
+.umrow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0.75rem; padding:3px 0; font-variant-numeric:tabular-nums; }
+.umrow span:first-child { overflow-wrap:anywhere; }
+.umrow span:last-child { text-align:right; }
+
+/* caps */
+.cap-fields { display:grid; grid-template-columns:minmax(8.75rem,1fr) minmax(6.875rem,.6fr) minmax(6.875rem,.6fr) auto; align-items:end; gap:0.75rem; margin-top:0.875rem; }
+.cap-fields label { display:flex; flex-direction:column; gap:0.4375rem; font-size:0.7813rem; color:var(--muted); min-width:0; }
+.cap-fields input { background:var(--ground); color:var(--text); width:100%; padding:0.5rem 0.625rem; height:2.375rem;
+  border:1px solid var(--control); border-radius:var(--radius-control); font:inherit; font-size:0.8125rem; }
+.cap-fields input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+
+.denied { margin-top:6rem; text-align:center; }
+.denied h1 { margin-top:1.125rem; }
+.denied .sub { margin-left:auto; margin-right:auto; }
+
+/* models (model-first): one row per canonical model, routes collapsed underneath */
+.resolvebar { display:flex; gap:0.625rem; margin-top:0.875rem; max-width:34rem; }
+.resolvebar input { flex:1; min-width:0; background:var(--ground); color:var(--text); padding:0.5rem 0.625rem; height:2.375rem;
+  border:1px solid var(--control); border-radius:var(--radius-control); font:inherit; font-size:0.8125rem; }
+.resolvebar input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.resolveout { margin-top:0.375rem; }
+.resolveout .rmap { font-size:0.8438rem; color:var(--muted); margin-bottom:0.375rem; }
+.resolveout .rmap b { color:var(--text); font-weight:600; font-family:var(--mono); font-size:0.8125rem; }
+@media(max-width:760px) { .resolvebar { flex-direction:column; } .resolvebar .btn { min-height:2.75rem; } }
+.mdl { border-bottom:1px solid var(--line); padding:0.875rem 0; }
+.mdl summary { display:flex; align-items:baseline; gap:0.75rem; cursor:pointer; min-height:1.75rem; list-style:none; }
+.mdl summary::-webkit-details-marker { display:none; }
+.mdl summary::before { content:"\25B8"; color:var(--faint); font-size:0.75rem; align-self:center; }
+.mdl[open] summary::before { content:"\25BE"; }
+.mdl .mid { font-family:var(--mono); font-weight:600; font-size:0.9rem; overflow-wrap:anywhere; }
+.mdl .menabled { color:var(--text); }
+.mdl .menabled.off { color:var(--faint); }
+.mdl .mmeta { margin-left:auto; display:flex; align-items:center; gap:0.75rem; color:var(--muted); font-size:0.8125rem; white-space:nowrap; }
+.mdl .routes { margin:0.375rem 0 0.25rem 1.125rem; }
+.rhead, .rrow { display:grid; grid-template-columns:minmax(6.5rem,0.7fr) minmax(0,1.6fr) 5.5rem 5rem 6.5rem; gap:0.75rem; align-items:baseline; }
+.rhead { padding:0.375rem 0; font-size:0.6875rem; font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.rrow { border-top:1px solid var(--rule); padding:0.5rem 0; font-size:0.8125rem; }
+.rrow .rp { font-family:var(--mono); font-size:0.75rem; overflow-wrap:anywhere; }
+.rrow .ru { font-family:var(--mono); font-size:0.75rem; color:var(--muted); overflow-wrap:anywhere; }
+.rrow .rc { color:var(--muted); }
+.rnone { padding:0.5rem 0; font-size:0.8125rem; color:var(--faint); }
+@media(max-width:760px) {
+  .rhead { display:none; }
+  .rrow { grid-template-columns:minmax(0,1fr) auto; row-gap:0.25rem; }
+  .rrow .ru { grid-column:1 / -1; }
+  .mdl .mmeta { flex-direction:column; align-items:flex-end; gap:0.125rem; white-space:normal; text-align:right; }
+}
+@media(max-width:1000px) { .cap-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:760px) {
+  .phead { display:none; }
+  .prow { grid-template-columns:minmax(0,1fr) auto; row-gap:0.25rem; }
+  .prow .pmodels { grid-column:1 / -1; margin-top:0.375rem; }
+  .cap-fields { grid-template-columns:1fr; }
+  .cap-fields input, .cap-fields .btn { min-height:2.75rem; height:auto; }
+  .uhead { flex-direction:column; gap:0.25rem; }
+}
+
+
+/* routing page */
+.auto-card { display:flex; align-items:flex-start; gap:1rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); padding:1rem 1.125rem; margin-bottom:1.5rem; }
+.auto-card .cols { flex:1; min-width:0; }
+.auto-card .t { font-weight:600; font-size:0.9375rem; }
+.auto-card .d { color:var(--muted); font-size:0.8125rem; margin-top:0.25rem; max-width:70ch; }
+.switch { position:relative; flex:none; width:2.75rem; height:1.5rem; border-radius:999px; background:#222; border:1px solid #767676; cursor:pointer; transition:background .15s; padding:0; }
+.switch::after { content:""; position:absolute; top:0.1875rem; left:0.1875rem; width:1rem; height:1rem; border-radius:50%; background:#777; transition:left .15s, background .15s; }
+.switch[aria-checked="true"] { background:var(--accent); border-color:var(--accent); }
+.switch[aria-checked="true"]::after { left:1.4375rem; background:var(--accent-ink); }
+.switch:disabled { opacity:.5; cursor:default; }
+.rtable { width:100%; border-collapse:collapse; }
+.rtable th { text-align:left; color:var(--faint); font-size:0.72rem; font-weight:600; letter-spacing:0.09em; padding:0.5rem 0.75rem 0.5rem 0; border-bottom:1px solid var(--line); }
+.rtable td { padding:0.625rem 0.75rem 0.625rem 0; border-bottom:1px solid var(--rule); font-size:0.875rem; vertical-align:middle; }
+.mrow2 { border-bottom:1px solid var(--rule); }
+.mrow2 summary { display:flex; align-items:baseline; gap:1rem; padding:0.875rem 0; cursor:pointer; list-style:none; }
+.mrow2 summary::-webkit-details-marker { display:none; }
+.mrow2 summary .mid { font-family:var(--mono); font-weight:500; font-size:0.9375rem; }
+.mrow2 summary .first { color:var(--muted); font-size:0.8125rem; }
+.mrow2 summary .ordsrc { margin-left:auto; color:var(--faint); font-size:0.8125rem; }
+.mrow2 summary .ordsrc.pinned { color:var(--accent); }
+.cand { display:flex; align-items:center; flex-wrap:wrap; gap:0.375rem 0.75rem; padding:0.4375rem 0 0.4375rem 1.25rem; font-size:0.875rem; }
+.cand .pos { color:var(--faint); font-family:var(--mono); font-size:0.8125rem; width:1.5rem; text-align:right; }
+.cand .prov { font-family:var(--mono); }
+.cand .meta { color:var(--muted); font-size:0.8125rem; min-width:0; overflow-wrap:anywhere; }
+.cand .mv { display:flex; gap:0.25rem; margin-left:auto; }
+.cand .mv button { background:none; border:1px solid var(--control); color:var(--muted); border-radius:0.375rem; width:1.625rem; height:1.625rem; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
+.cand .mv button:hover:not(:disabled) { color:var(--text); border-color:var(--text); }
+.cand .mv button:disabled { opacity:0.25; cursor:default; }
+.cand .mv svg { width:0.75rem; height:0.75rem; }
+.resetbtn { margin:0.625rem 0 1rem 1.25rem; }
+.resetbtn .btn { white-space:normal; max-width:100%; }
+.pill { display:inline-flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; font-weight:500; color:var(--muted); white-space:nowrap; }
+.pill.off { opacity:0.55; }
+.logrow { padding:0.5rem 0; border-bottom:1px solid var(--rule); font-size:0.8125rem; color:var(--muted); display:flex; gap:0.75rem; }
+.logrow .lt { color:var(--faint); font-family:var(--mono); font-size:0.75rem; flex:none; padding-top:0.0625rem; }
+.logrow .lk { flex:none; }
+.logrow .lk.auto { color:var(--accent); }
+.logrow .lk.you { color:var(--text); }
+.usewrap { overflow-x:auto; }
+.note.err { color:#ff8a8a; }
+.note.warn { color:#e3b341; }
+section { margin-bottom:2.5rem; }
+
+</style>
+</head>
+<body>
+<a class="skiplink" href="#main">skip to content</a>
+<div class="app">
+  <aside class="side">
+    <a class="brand" href="https://aqua.goattech.us/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <nav class="nav">
+      <div class="navlabel">gateway</div>
+      <a href="/console.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/usage.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+      <a href="/routing.html" class="on" id="aqua-routing-link" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+      <a href="/settings.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
+  </aside>
+  <main class="main" id="main" tabindex="-1">
+    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">routing</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a><a href="/usage.html">usage</a><a href="/routing.html" aria-current="page">routing</a><a href="/settings.html">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
+    <div class="canvas">
+      <div id="aqua-denied" class="denied" hidden>
+    <h1>sign in first</h1>
+    <p class="sub">this page needs your account. <a id="aqua-denied-signin" href="/login/github">sign in with github</a> to continue.</p>
+  </div>
+
+      <div id="aqua-body" hidden>
+    <h1>routing</h1>
+    <p class="sub">which provider serves each model, in order.<span id="aqua-sub-live" hidden> health and latency samples are measured. order may be config, manual or proposed; prices and limits are source-based estimates.</span></p>
+    <p class="note warn" id="aqua-mock">proposal: the routing apis are not live yet, so this page is a mock. layout, states and conflict handling are final. the data is a fixture. eligibility shown is illustrative, not an account access check.</p>
+
+    <section aria-labelledby="t-auto">
+      <div class="auto-card aqua-in">
+        <div class="cols">
+          <div class="t">auto-reorder</div>
+          <div class="d" id="aqua-auto-desc">when on, a background job (every 10 min) can swap adjacent routes. a swap needs a contender with at least 30 measurements in the last 24 h. score means measured speed on healthy, complete responses. a contender only counts if it is an eligible free route. it must fit the request size and pass access and privacy checks. close calls go to the route with more quota headroom. it must score 25% better twice in a row. the model must not have moved for an hour. the rules are intended to reduce order changes caused by noise. one adjacent swap per evaluation. a route demoted for poor health still gets an occasional probe request. that is about 2% of traffic, so it can be measured again. probes only use otherwise eligible free routes. a route is skipped while its pool cools down. it is also skipped when access or privacy rules exclude it, or when the request would not fit its limits. models you reorder by hand are pinned and left alone, probes included. every move, yours or automatic, lands in the change log with the numbers behind it. proposed defaults, not yet tuned on real traffic.</div>
+        </div>
+        <button class="switch" id="aqua-auto" role="switch" aria-label="auto-reorder" disabled></button>
+      </div>
+    </section>
+
+    <section aria-labelledby="t-routing">
+      <div class="sectitle"><h2 id="t-routing">models</h2></div>
+      <p class="note">one row per model. this page orders providers for a model you already picked. choosing the model itself is a separate proposed feature and is not live. the first eligible route is tried, then eligible same-model free backups; if none remains, the request should fail with a clear reason. never a silent paid, trimmed or different-model answer (proposed behavior, not yet live). order source is labeled. config is registry order. auto-adjusted means the auto job moved it, with the numbers in the change log. yours means pinned.</p>
+      <p class="stateline" id="aqua-r-status" role="status" aria-live="polite">loading routing…</p>
+      <div id="aqua-r-rows"></div>
+    </section>
+
+    <section aria-labelledby="t-log">
+      <div class="sectitle"><h2 id="t-log">change log</h2></div>
+      <p class="note">every reorder, pin, reset and auto-reorder decision, newest first.</p>
+      <p class="stateline" id="aqua-l-status" role="status" aria-live="polite">loading changes…</p>
+      <div id="aqua-log"></div>
+    </section>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<script>
+(async function () {
+  function aquaResolveApiBase() {
+    // Split deployment: Pages serves the UI, the API lives on its own host.
+    // Default: production Pages host talks to the production API; every other host
+    // (local dev, fixtures, *.pages.dev previews) stays same-origin so sign-in fails
+    // closed where cross-site credentialed sign-in is unsupported.
+    // Stored overrides are allowlisted: the production API or this exact origin,
+    // both https-checked for cross-origin; anything else is dropped.
+    var PROD_HOST = 'aqua.goattech.us';
+    var PROD_API = 'https://aqua-api.goattech.us/v1';
+    var OLD_ALIAS = 'https://api.aqua.goattech.us/v1';
+    var sameOrigin = /^https?:$/.test(location.protocol) ? location.origin + '/v1' : '/v1';
+    var stored = localStorage.getItem('aqua_api_base');
+    if (stored) {
+      var s = String(stored).replace(/\/+$/, '');
+      if (s === OLD_ALIAS) { localStorage.setItem('aqua_api_base', PROD_API); return PROD_API; }
+      if (s === PROD_API || s === sameOrigin) return s;
+      localStorage.removeItem('aqua_api_base');
+    }
+    return location.hostname === PROD_HOST ? PROD_API : sameOrigin;
+  }
+  var base = aquaResolveApiBase();
+  var serverOrigin = base.replace(/\/v1$/, '');
+  document.getElementById('aqua-denied-signin').setAttribute('href', serverOrigin + '/login/github');
+  var me;
+  var sessionAbort = new AbortController();
+  var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
+  try {
+    var r = await fetch(serverOrigin + '/auth/me', { credentials: 'include', cache: 'no-store', signal: sessionAbort.signal });
+    if (!r.ok) throw Error('not signed in');
+    me = await r.json();
+    if (!me || typeof me.login !== 'string' || !me.login || me.role !== 'owner') throw Error('invalid session');
+  } catch (_) {
+    showDenied('');
+    return;
+  } finally { clearTimeout(sessionTimeout); }
+
+  document.documentElement.removeAttribute('data-session-pending');
+  addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
+  addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
+
+  document.getElementById('aqua-user').textContent = me.login;
+  document.getElementById('aqua-usersub').textContent = 'owner';
+  document.getElementById('aqua-avatar').textContent = me.login.charAt(0).toUpperCase();
+  document.getElementById('aqua-body').hidden = false;
+  var so = document.getElementById('aqua-signout');
+  so.style.display = '';
+  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
+  so.addEventListener('click', function (ev) {
+    ev.preventDefault();
+    fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
+  });
+
+  function showDenied(why) {
+    document.documentElement.removeAttribute('data-session-pending');
+    document.getElementById('aqua-denied').hidden = false;
+    document.getElementById('aqua-body').hidden = true;
+    document.getElementById('aqua-user').textContent = why;
+    document.getElementById('aqua-usersub').textContent = '';
+  }
+  function el(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; }
+  function request(path, opts) {
+    opts = opts || {};
+    opts.credentials = 'include';
+    opts.cache = 'no-store';
+    if (opts.body && !opts.headers) opts.headers = { 'content-type': 'application/json' };
+    var ac = new AbortController();
+    var timer = setTimeout(function () { ac.abort(); }, 10000);
+    opts.signal = ac.signal;
+    return fetch(base + path.replace(/^\/v1/, ''), opts).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (body) {
+        if (!r.ok) {
+          var detail = body && typeof body.error === 'string' ? body.error : '';
+          var msg, code = 'http';
+          if (r.status === 401) { msg = 'session expired. reload to sign in again.'; code = 'auth'; }
+          else if (r.status === 400) { msg = detail || 'that order was rejected.'; code = 'bad_request'; }
+          else if (r.status === 503) { msg = 'the gateway is unavailable right now. your change was not saved. the old order still stands.'; code = 'storage'; }
+          else if (r.status === 403) { msg = 'the gateway refused that change. reload the page and try again; sign in again if it keeps happening.'; code = 'denied'; }
+          else if (r.status === 409) { msg = detail || 'changed since you loaded'; code = 'stale'; }
+          else { msg = 'the request failed. try again, and reload the page if it keeps failing.' + (detail ? ' ' + detail : ''); }
+          var err = Error(msg);
+          err.status = r.status;
+          err.code = code;
+          throw err;
+        }
+        return body;
+      });
+    }, function (netErr) {
+      var e;
+      if (netErr && netErr.name === 'AbortError') {
+        e = Error('no answer in 10 s. save status unknown. if the gateway did apply the change it will show on the next refresh.');
+        e.code = 'timeout';
+      } else {
+        e = Error('network error. could not reach the gateway.');
+        e.code = 'network';
+      }
+      throw e;
+    }).finally(function () { clearTimeout(timer); });
+  }
+
+  var routing = null;
+  var busy = false;
+  var notice = '';
+  var lastLoadOk = null;
+  var rowButtons = [];
+  var LIVE = false; // flip when the R1 routing backend lands: hides the mock label, shows the measured-data claim
+
+  // Mock mode (LIVE false): the page runs on this embedded fixture and never calls
+  // /v1/admin/routing* - the backend does not serve those endpoints yet, so fetching them
+  // only produced the 404 the banner warned about. Reorder, pin, reset and the auto toggle
+  // mutate the local fixture and log locally, so layout, states and conflict handling render
+  // for real; the data is fixture. Costs are display-only: "provider" = the provider publishes
+  // the price, "market" = looked up from the model maker's list price or a standard public
+  // listing (source named in the label).
+  var MOCK_FIXTURE = {
+    settings: { auto: false, min_samples: 30, hysteresis_pct: 25, window_hours: 24, min_hold_min: 60, confirm_evals: 2, error_ceiling_pct: 20, min_ok: 10, probe_pct: 2 },
+    settings_rev: 1,
+    models: [
+      { model: 'north-mini-code', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' }]},
+      { model: 'nemotron-3-ultra-550b-a55b', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.50 in / $2.20 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'nemotron-3.5-super-vl', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'deepseek-v4.1-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'zro', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
+        { provider: 'orcarouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.30 in / $1.20 out per 1M tok: openrouter list price, looked up 2026-11-18' },
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.30 in / $1.20 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'glm-4.7-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'zai', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' }]},
+      { model: 'deepseek-v4-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'inferbase', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.09 in / $0.18 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'qwen-3.8-27b', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price: unknown' },
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price: unknown' }]},
+      { model: 'glm-5.3-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok: openrouter list price, looked up 2026-11-18' },
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok: openrouter list price, looked up 2026-11-18' },
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'glm-5.3', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.0699 in / $1.40 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'kimi-k2.6', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.65 in / $3.41 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'kimi-k2.7-code', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.60 in / $3.50 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'minimax-m3.1-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.075 in / $0.30 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'mistral-large-4-1t-a52b', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price: unknown' }]},
+      { model: 'nemotron-3.5-lightning-30b-a3b', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price: unknown' }]},
+      { model: 'step-5-preview', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$1 in / $2.70 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'mimo-v2.6-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.14 in / $0.28 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+      { model: 'kimi-k3.1-pro', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
+        { provider: 'nextrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' }]}
+    ]
+  };
+  var mockState = null;
+  var mockLog = [];
+  function mockSnap() { return JSON.parse(JSON.stringify(mockState)); }
+  function mockNote(text) { mockLog.unshift({ t: new Date().toLocaleTimeString(), kind: 'you', text: text }); }
+  function mockRecheck(m) {
+    var seenNonFree = false;
+    m.free_first_violated = m.pinned && m.order.some(function (c) { if (!c.free) { seenNonFree = true; return false; } return seenNonFree; });
+  }
+  function mockApplyOrder(m, ids) {
+    var rest = m.order.filter(function (c) { return !c.eligible; });
+    m.order = ids.map(function (id) { return m.order.find(function (c) { return c.provider === id; }); }).concat(rest);
+    m.pinned = true; m.rev++; mockRecheck(m);
+    mockNote(m.model + ': you set a manual order (' + ids.join(' > ') + '). pinned.');
+  }
+  function mockApplyPin(m, pinned) {
+    m.pinned = pinned; m.rev++; mockRecheck(m);
+    mockNote(m.model + (pinned ? ': you pinned the current order.' : ': you unpinned. auto-reorder may adjust it.'));
+  }
+  function mockApplyReset(m) {
+    var def = MOCK_FIXTURE.models.find(function (x) { return x.model === m.model; });
+    m.order = JSON.parse(JSON.stringify(def.order));
+    m.pinned = false; m.moved_at = null; m.free_first_violated = false; m.rev++;
+    mockNote(m.model + ': you reset to the config order.');
+  }
+  function mockApplyAuto(next) {
+    mockState.settings.auto = next; mockState.settings_rev++;
+    mockNote('you turned auto-reorder ' + (next ? 'on' : 'off') + ' (fixture: no background job runs until the backend lands).');
+  }
+
+  function latText(c) {
+    var t;
+    if (!c.samples) t = 'not measured yet';
+    else if (!c.scored) t = c.samples + ' measurements: not enough to score yet';
+    else {
+      t = c.p50_ok_ms + ' ms over ' + c.samples + ' measurements';
+      if (c.err_pct) t += ' · ' + c.err_pct + '% errors';
+    }
+    if (c.probes) t += (t ? ' · ' : '') + c.probes + ' probe' + (c.probes === 1 ? '' : 's');
+    return t;
+  }
+  function srcLabel(m) {
+    if (m.pinned) return ['your order: pinned', true];
+    if (m.moved_at) return ['auto-adjusted', false];
+    return ['default: config order', false];
+  }
+
+  function renderRouting() {
+    var wrap = document.getElementById('aqua-r-rows');
+    // Remember the focused control so the rebuild can restore it.
+    var prevLabel = null, prevMid = null;
+    var ae = document.activeElement;
+    if (ae && wrap.contains(ae) && ae.tagName === 'BUTTON') {
+      prevLabel = ae.getAttribute('aria-label') || ae.textContent;
+      var pd = ae.closest('details');
+      var pm = pd && pd.querySelector('summary .mid');
+      if (pm) prevMid = pm.textContent;
+    }
+    wrap.textContent = '';
+    rowButtons = [];
+    document.getElementById('aqua-r-status').textContent = routing.models.length + ' models.' + (notice ? ' ' + notice : '');
+    routing.models.forEach(function (m) {
+      var det = el('details', 'mrow2');
+      var sum = el('summary');
+      sum.appendChild(el('span', 'mid', m.model));
+      var firstEligible = m.order.filter(function (c) { return c.eligible; })[0];
+      var nElig = m.order.filter(function (c) { return c.eligible; }).length;
+      sum.appendChild(el('span', 'first', (firstEligible ? 'first: ' + firstEligible.provider + ' \u00b7 ' : 'no eligible routes \u00b7 ') + nElig + ' of ' + m.order.length + ' eligible'));
+      var s = srcLabel(m);
+      sum.appendChild(el('span', 'ordsrc' + (s[1] ? ' pinned' : ''), s[0]));
+      det.appendChild(sum);
+      var eligibleCount = m.order.filter(function (c) { return c.eligible; }).length;
+      var seenEligible = 0;
+      m.order.forEach(function (c, i) {
+        var row = el('div', 'cand' + (c.eligible ? '' : ' ineligible'));
+        if (!c.eligible) row.style.opacity = '0.45';
+        row.appendChild(el('span', 'pos num', String(i + 1)));
+        row.appendChild(el('span', 'prov', c.provider));
+        if (c.cooldown) row.appendChild(el('span', 'pill' + (c.cooldown.hard ? ' off' : ''), c.cooldown.hard ? 'cooling down' : 'recently failed'));
+        if (c.unhealthy) row.appendChild(el('span', 'pill off', 'unhealthy: demoted'));
+        if (!c.eligible) row.appendChild(el('span', 'pill off', 'not eligible'));
+        if (c.status === 'off') row.appendChild(el('span', 'pill off', 'off'));
+        row.appendChild(el('span', 'meta num', latText(c)));
+        if (c.cost) row.appendChild(el('span', 'meta cost', c.cost));
+        var mv = el('span', 'mv');
+        if (c.eligible) {
+          seenEligible++;
+          var up = el('button'); up.type = 'button'; up.disabled = busy || seenEligible === 1;
+          up.setAttribute('aria-label', 'move ' + c.provider + ' up');
+          up.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>';
+          up.addEventListener('click', function () { move(m, c.provider, -1); });
+          var dn = el('button'); dn.type = 'button'; dn.disabled = busy || seenEligible === eligibleCount;
+          dn.setAttribute('aria-label', 'move ' + c.provider + ' down');
+          dn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>';
+          dn.addEventListener('click', function () { move(m, c.provider, 1); });
+          rowButtons.push({ el: up, base: seenEligible === 1 }, { el: dn, base: seenEligible === eligibleCount });
+          mv.appendChild(up); mv.appendChild(dn);
+        }
+        row.appendChild(mv);
+        det.appendChild(row);
+      });
+      if (m.free_first_violated) det.appendChild(el('p', 'note err', 'your pinned order puts a non-free route ahead of a free one. your choice stands. auto-reorder would never do this.'));
+      var bar = el('div', 'resetbtn');
+      if (m.pinned) {
+        var ub = el('button', 'btn', 'unpin. auto manages order (free routes may move ahead of non-free)');
+        ub.type = 'button';
+        ub.addEventListener('click', function () { setPin(m, false); });
+        rowButtons.push({ el: ub, base: false });
+        bar.appendChild(ub);
+        bar.appendChild(document.createTextNode(' '));
+      }
+      if (m.pinned || m.moved_at) {
+        var rb = el('button', 'btn', 'reset to config order');
+        rb.type = 'button';
+        rb.addEventListener('click', function () { resetModel(m); });
+        rowButtons.push({ el: rb, base: false });
+        bar.appendChild(rb);
+      }
+      if (bar.childNodes.length) det.appendChild(bar);
+      det.open = !!m.pinned;
+      wrap.appendChild(det);
+    });
+    setBusyState();
+    // Restore focus to the same control if it survived, its counterpart, or the model's summary.
+    // Deferred so it runs after the mutation's busy window re-enables the rebuilt buttons.
+    if (prevLabel || prevMid) {
+      setTimeout(function () {
+        // Scope the search to the model that had focus: provider labels repeat across models.
+        var target = null, det = null;
+        if (prevMid) {
+          var mids = wrap.querySelectorAll('details > summary .mid');
+          for (var si = 0; si < mids.length; si++) {
+            if (mids[si].textContent === prevMid) { det = mids[si].closest('details'); break; }
+          }
+        }
+        var usable = function (b) { var d = b.closest('details'); return !b.disabled && (!d || d.open); };
+        if (prevLabel && det) {
+          var lbl = prevLabel;
+          var btns = det.querySelectorAll('button');
+          for (var bi = 0; bi < btns.length && !target; bi++) {
+            var bl = btns[bi].getAttribute('aria-label') || btns[bi].textContent;
+            if (bl === lbl && usable(btns[bi])) target = btns[bi];
+          }
+          if (!target && / (up|down)$/.test(lbl)) {
+            var alt = lbl.replace(/ (up|down)$/, function (m, d) { return d === 'up' ? ' down' : ' up'; });
+            for (var bj = 0; bj < btns.length && !target; bj++) {
+              if (btns[bj].getAttribute('aria-label') === alt && usable(btns[bj])) target = btns[bj];
+            }
+          }
+        }
+        if (!target && det) target = det.querySelector('summary');
+        if (target) target.focus();
+      }, 0);
+    }
+  }
+
+  function setStatus(t) { document.getElementById('aqua-r-status').textContent = t; }
+  function setBusy(b) { busy = b; setBusyState(); }
+  function setBusyState() {
+    rowButtons.forEach(function (rb) { rb.el.disabled = busy || rb.base; });
+    autoBtn.disabled = busy || !routing;
+  }
+
+  function conflict(m) {
+    // 409: the row changed since we loaded (auto job or another tab). Refresh, keep the explanation visible, never blind-retry.
+    notice = (m ? m.model + ': ' : '') + 'this changed since you loaded the page. refreshed to the current state. retry if it still looks wrong.';
+    return loadRouting().catch(function (e) {
+      notice = '';
+      setStatus('the change conflicted with newer state, and the refresh after it failed: ' + e.message);
+    });
+  }
+  function isConflict(e) { return !!e && e.status === 409; }
+  function eligibleIds(m) { return m.order.filter(function (c) { return c.eligible; }).map(function (c) { return c.provider; }); }
+  function runMutation(m, label, reqFn) {
+    notice = '';
+    setStatus(label);
+    setBusy(true);
+    var saved = false;
+    return reqFn()
+      .then(function () { saved = true; return loadRouting(); })
+      .then(function () { return loadLog(); })
+      .catch(function (e) {
+        if (isConflict(e)) return conflict(m);
+        setStatus(saved ? 'saved, but refreshing the page after it failed: ' + e.message : e.message);
+      })
+      .finally(function () { setBusy(false); });
+  }
+  function move(m, provider, dir) {
+    var ids = eligibleIds(m);
+    var i = ids.indexOf(provider);
+    var j = i + dir;
+    if (j < 0 || j >= ids.length) return;
+    ids.splice(i, 1); ids.splice(j, 0, provider);
+    runMutation(m, 'saving order for ' + m.model + '…', function () {
+      return LIVE ? request('/v1/admin/routing/' + encodeURIComponent(m.model) + '/order', { method: 'PUT', body: JSON.stringify({ order: ids, pinned: true, rev: m.rev }) }) : Promise.resolve(mockApplyOrder(m, ids));
+    });
+  }
+  function setPin(m, pinned) {
+    runMutation(m, (pinned ? 'pinning ' : 'unpinning ') + m.model + '…', function () {
+      return LIVE ? request('/v1/admin/routing/' + encodeURIComponent(m.model) + '/order', { method: 'PUT', body: JSON.stringify({ pinned: pinned, rev: m.rev }) }) : Promise.resolve(mockApplyPin(m, pinned));
+    });
+  }
+  function resetModel(m) {
+    runMutation(m, 'resetting ' + m.model + '…', function () {
+      return LIVE ? request('/v1/admin/routing/' + encodeURIComponent(m.model) + '/reset', { method: 'POST', body: JSON.stringify({ rev: m.rev }) }) : Promise.resolve(mockApplyReset(m));
+    });
+  }
+
+  var autoBtn = document.getElementById('aqua-auto');
+  function renderAuto() {
+    autoBtn.setAttribute('aria-checked', routing.settings.auto ? 'true' : 'false');
+    setBusyState();
+  }
+  autoBtn.addEventListener('click', function () {
+    if (!routing || busy) return;
+    var next = autoBtn.getAttribute('aria-checked') !== 'true';
+    runMutation(null, next ? 'turning auto-reorder on…' : 'turning auto-reorder off…', function () {
+      return LIVE ? request('/v1/admin/routing/auto', { method: 'PUT', body: JSON.stringify({ settings_rev: routing.settings_rev, auto: next }) }) : Promise.resolve(mockApplyAuto(next));
+    });
+  });
+
+  function validRouting(d) {
+    return d && Array.isArray(d.models) && d.models.every(function (m) {
+      return m && typeof m.model === 'string' && Array.isArray(m.order);
+    }) && d.settings && typeof d.settings.auto === 'boolean' && typeof d.settings_rev === 'number';
+  }
+  function loadRouting() {
+    return (LIVE ? request('/v1/admin/routing') : Promise.resolve(mockSnap())).then(function (data) {
+      if (!validRouting(data)) {
+        var bad = Error('the gateway answered with data this page does not understand. nothing was rendered.');
+        bad.code = 'shape';
+        throw bad;
+      }
+      routing = data;
+      lastLoadOk = new Date();
+      renderRouting();
+      renderAuto();
+    }).catch(function (e) {
+      // Do not keep stale rows or a stale cache: invalidate, clear, disable, say when we last had good data.
+      // Read path: mutation-framed errors (storage/denied/timeout) get read framing here.
+      if (e && (e.code === 'storage' || e.code === 'denied' || e.code === 'timeout')) {
+        var msg = e.code === 'storage' ? 'the gateway is unavailable right now. reload the page to try again.'
+          : e.code === 'denied' ? 'the gateway refused the request. reload the page to try again.'
+          : 'no answer in 10 s. reload the page to try again.';
+        var e2 = Error(msg); e2.code = e.code; e = e2;
+      }
+      routing = null;
+      document.getElementById('aqua-r-rows').textContent = '';
+      rowButtons = [];
+      setStatus(e.message + (lastLoadOk ? ' last loaded ' + lastLoadOk.toLocaleTimeString() + '. cleared rather than show stale data.' : ''));
+      document.getElementById('aqua-l-status').textContent = '';
+      setBusyState();
+      throw e;
+    });
+  }
+
+  function loadLog() {
+    return (LIVE ? request('/v1/admin/routing/log') : Promise.resolve({ log: mockLog.slice() })).then(function (data) {
+      renderLog(data.log || []);
+    }).catch(function (e) {
+      if (e && (e.code === 'storage' || e.code === 'denied' || e.code === 'timeout')) {
+        var msg = e.code === 'storage' ? 'the gateway is unavailable right now. reload the page to try again.'
+          : e.code === 'denied' ? 'the gateway refused the request. reload the page to try again.'
+          : 'no answer in 10 s. reload the page to try again.';
+        var e2 = Error(msg); e2.code = e.code; e = e2;
+      }
+      document.getElementById('aqua-log').textContent = '';
+      document.getElementById('aqua-l-status').textContent = e.message;
+      throw e;
+    });
+  }
+
+  function renderLog(items) {
+    var st = document.getElementById('aqua-l-status');
+    var wrap = document.getElementById('aqua-log');
+    wrap.textContent = '';
+    if (!items.length) { st.textContent = 'no changes yet.'; return; }
+    st.textContent = '';
+    items.forEach(function (it) {
+      var row = el('div', 'logrow');
+      row.appendChild(el('span', 'lt', it.t));
+      row.appendChild(el('span', 'lk ' + (it.kind === 'auto' ? 'auto' : 'you'), it.kind === 'auto' ? 'auto' : 'you'));
+      var text = it.text;
+      if (it.basis && it.basis.n != null) text += ' · measured p50 ' + it.basis.p50_ms + ' ms, ' + it.basis.err_pct + '% errors, ' + it.basis.n + ' samples';
+      row.appendChild(el('span', '', text));
+      wrap.appendChild(row);
+    });
+  }
+
+  if (!LIVE) mockState = JSON.parse(JSON.stringify(MOCK_FIXTURE));
+  if (LIVE) {
+    document.getElementById('aqua-sub-live').hidden = false;
+    document.getElementById('aqua-mock').hidden = true;
+  }
+  loadRouting().catch(function () { /* status already shown */ });
+  loadLog().catch(function () { /* status already shown */ });
+})();
+</script>
+
+</body>
+</html>
