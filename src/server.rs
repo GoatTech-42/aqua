@@ -166,6 +166,21 @@ fn github_agent(cfg: &OAuthConfig) -> ureq::Agent {
 }
 
 pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
+    bind_addr_with_spawner(addr, config, ThreadSpawner)
+}
+
+trait HandlerSpawner {
+    fn spawn<F: FnOnce() + Send + 'static>(&mut self, job: F) -> std::io::Result<JoinHandle<()>>;
+}
+
+struct ThreadSpawner;
+impl HandlerSpawner for ThreadSpawner {
+    fn spawn<F: FnOnce() + Send + 'static>(&mut self, job: F) -> std::io::Result<JoinHandle<()>> {
+        thread::Builder::new().spawn(job)
+    }
+}
+
+fn bind_addr_with_spawner<S: HandlerSpawner + Send + 'static>(addr: &str, config: Config, mut spawner: S) -> std::io::Result<Server> {
     let listener = TcpListener::bind(addr)?;
     let local_addr = listener.local_addr()?;
     let port = local_addr.port();
@@ -210,7 +225,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
                 break;
             }
             if let Ok(stream) = stream {
-                let _ = spawn_handler(stream, accept_shared.clone());
+                let _ = spawn_handler_with(stream, accept_shared.clone(), &mut spawner);
             }
         }
     })?;
@@ -220,7 +235,12 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
 // The in-flight count is incremented synchronously, before the child spawns:
 // when a worker is returned, its accepted connection already counts even if
 // its child has not been scheduled, so drop can never observe 0 for it.
+#[cfg(test)]
 fn spawn_handler(stream: TcpStream, shared: Arc<Shared>) -> Option<JoinHandle<()>> {
+    spawn_handler_with(stream, shared, &mut ThreadSpawner)
+}
+
+fn spawn_handler_with(stream: TcpStream, shared: Arc<Shared>, spawner: &mut impl HandlerSpawner) -> Option<JoinHandle<()>> {
     let Some(in_flight) = InFlight::try_enter(&shared.in_flight, shared.config.connections.total()) else {
         // Do not write from the accept loop: a non-reading peer must never
         // stall admission. Closing this socket creates no worker thread.
@@ -228,7 +248,7 @@ fn spawn_handler(stream: TcpStream, shared: Arc<Shared>) -> Option<JoinHandle<()
     };
     // Resource exhaustion must reject this connection, not panic the accept
     // loop. On spawn failure the closure drops its socket and admission guard.
-    thread::Builder::new().spawn(move || {
+    spawner.spawn(move || {
         let _in_flight = in_flight;
         let _ = handle(stream, shared);
     }).ok()
@@ -6090,4 +6110,133 @@ mod singleton_header_tests {
         }
     }
 
+}
+
+#[cfg(test)]
+mod spawn_recovery_tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    struct FailOnce {
+        failed: bool,
+        observed: mpsc::Sender<(usize, usize)>,
+        counter: Arc<AtomicUsize>,
+    }
+    impl HandlerSpawner for FailOnce {
+        fn spawn<F: FnOnce() + Send + 'static>(&mut self, job: F) -> std::io::Result<JoinHandle<()>> {
+            if !self.failed {
+                self.failed = true;
+                let before = self.counter.load(Ordering::SeqCst);
+                drop(job);
+                self.observed.send((before, self.counter.load(Ordering::SeqCst))).unwrap();
+                return Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "injected spawn failure"));
+            }
+            thread::Builder::new().spawn(job)
+        }
+    }
+
+    fn pair() -> (TcpStream, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        client.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        (client, listener.accept().unwrap().0)
+    }
+    fn logout_wire(session: &str) -> String {
+        format!("POST /auth/logout HTTP/1.1\r\nhost: api.aqua.test\r\norigin: https://aqua.test\r\ncookie: aqua_session={session}\r\ncontent-length: 0\r\n\r\n")
+    }
+    fn closed_without_response(client: &mut TcpStream) {
+        let mut byte = [0];
+        match client.read(&mut byte) {
+            Ok(0) => (),
+            Err(e) if e.kind() == std::io::ErrorKind::ConnectionReset => (),
+            other => panic!("failed launch must close without response: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn failed_spawn_drops_socket_and_admission_without_running_logout_then_recovers() {
+        let state = super::reviewer_regressions::keys_shared();
+        let session = state.auth.create_session("luke", Role::Owner).unwrap();
+        let (tx, rx) = mpsc::channel();
+        let mut spawner = FailOnce { failed: false, observed: tx, counter: state.in_flight.clone() };
+        let (mut client, stream) = pair();
+        client.write_all(logout_wire(&session).as_bytes()).unwrap();
+        let result = spawn_handler_with(stream, state.clone(), &mut spawner);
+        let rejected = result.is_none();
+        if let Some(worker) = result { worker.join().unwrap(); }
+        assert!(rejected, "injected failure must return None, not launch a handler");
+        assert_eq!(rx.recv_timeout(Duration::from_secs(2)).unwrap(), (1, 0), "actual captured admission guard must drop on error");
+        closed_without_response(&mut client);
+        assert_eq!(state.in_flight.load(Ordering::SeqCst), 0);
+        assert!(state.auth.get_session(&session).is_some(), "failed launch must not execute logout");
+
+        let (mut healthy, stream) = pair();
+        healthy.write_all(logout_wire(&session).as_bytes()).unwrap();
+        let worker = spawn_handler_with(stream, state.clone(), &mut spawner).expect("next launch succeeds");
+        let mut response = String::new();
+        healthy.read_to_string(&mut response).unwrap();
+        worker.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 204"));
+        assert!(state.auth.get_session(&session).is_none(), "same-state healthy logout must execute");
+        assert_eq!(state.in_flight.load(Ordering::SeqCst), 0);
+    }
+
+    struct AcceptFailOnce {
+        first: bool,
+        entered: mpsc::Sender<()>,
+        release: mpsc::Receiver<()>,
+        dropped: mpsc::Sender<()>,
+        completed: mpsc::Sender<()>,
+    }
+    impl HandlerSpawner for AcceptFailOnce {
+        fn spawn<F: FnOnce() + Send + 'static>(&mut self, job: F) -> std::io::Result<JoinHandle<()>> {
+            if self.first {
+                self.first = false;
+                self.entered.send(()).unwrap();
+                self.release.recv_timeout(Duration::from_secs(2)).unwrap();
+                drop(job);
+                self.dropped.send(()).unwrap();
+                return Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "injected spawn failure"));
+            }
+            let completed = self.completed.clone();
+            thread::Builder::new().spawn(move || { job(); completed.send(()).unwrap(); })
+        }
+    }
+
+    #[test]
+    fn accept_loop_survives_injected_handler_spawn_error() {
+        let config = super::reviewer_regressions::keys_shared().config.clone();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let (dropped_tx, dropped_rx) = mpsc::channel();
+        let (completed_tx, completed_rx) = mpsc::channel();
+        let server = bind_addr_with_spawner("127.0.0.1:0", config, AcceptFailOnce {
+            first: true, entered: entered_tx, release: release_rx, dropped: dropped_tx, completed: completed_tx,
+        }).unwrap();
+        let session = server.shared.auth.create_session("luke", Role::Owner).unwrap();
+        let mut client = TcpStream::connect(("127.0.0.1", server.port())).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        client.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        client.write_all(logout_wire(&session).as_bytes()).unwrap();
+        // Release even on a missing seam so RED cannot strand the accept thread.
+        let entered = entered_rx.recv_timeout(Duration::from_secs(2));
+        let _ = release_tx.send(());
+        assert!(entered.is_ok(), "accept loop must use the injected handler launcher");
+        dropped_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        closed_without_response(&mut client);
+        assert_eq!(server.in_flight(), 0);
+        assert!(server.shared.auth.get_session(&session).is_some());
+
+        let mut healthy = TcpStream::connect(("127.0.0.1", server.port())).unwrap();
+        healthy.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        healthy.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        healthy.write_all(logout_wire(&session).as_bytes()).unwrap();
+        let mut response = String::new(); healthy.read_to_string(&mut response).unwrap();
+        completed_rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(response.starts_with("HTTP/1.1 204"), "same listener must still serve requests");
+        assert!(server.shared.auth.get_session(&session).is_none());
+        assert_eq!(server.in_flight(), 0);
+        drop(server); // joins the same accept loop after the failed launch
+    }
 }
