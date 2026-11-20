@@ -173,7 +173,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 <form id="settings-form" style="max-width:42rem;margin-top:2rem">
 <fieldset id="settings-fields" disabled style="border:0;display:grid;gap:1.5rem">
 <section><label style="display:flex;gap:.75rem;align-items:center"><input type="checkbox" id="zdr-only" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)"> zero data retention routes only</label>
-<p class="sub" style="font-size:.875rem">the server checks every route, including auto and api requests. unknown retention is excluded. no current route has verified end-to-end ZDR, so turning this on leaves no models available.</p></section>
+<p class="sub" style="font-size:.875rem">the gateway checks every route, including auto and api requests. unknown retention is excluded. no current route has verified end-to-end ZDR, so turning this on leaves no models available.</p></section>
 <section><label for="default-model">default playground model</label><br><select id="default-model" style="margin-top:.5rem;background:var(--surface);color:var(--text);border:1px solid var(--line);padding:.65rem;max-width:100%;font:inherit"></select>
 <p class="sub" style="font-size:.875rem">a starting choice, not permission to use a model. access and privacy filters still apply.</p></section>
 <section><label style="display:flex;gap:.75rem;align-items:center"><input type="checkbox" id="show-cost" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)"> show maker cost estimates in playground</label><p class="sub" style="font-size:.875rem">display only. this does not change usage tracking or account limits.</p></section>
