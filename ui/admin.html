@@ -17,7 +17,7 @@ html { font-size: clamp(16px, 0.521vw + 10.67px, 24px); }
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
   --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
-  --accent:#45d6e8; --accent-ink:#00272b;
+  --accent:#2fd4bf; --accent-ink:#03251f;
   --radius-card:0.625rem; --radius-control:0.5rem;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
@@ -106,7 +106,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .endpoint .labsub { font-size:0.8125rem; color:var(--faint); font-weight:400; margin-top:2px; }
 .urlbar { margin-left:auto; display:flex; align-items:stretch; min-height:2.375rem; flex:none; max-width:100%; min-width:0; }
 .urlbar .u { display:flex; align-items:center; gap:0.5rem; padding:0 0.9375rem; background:#000; border:1px solid var(--control); border-right:none;
-  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#c8eff5;
+  border-radius:var(--radius-control) 0 0 var(--radius-control); font-family:var(--mono); font-size:0.8125rem; color:#e8e8e8;
   min-width:0; overflow:hidden; white-space:nowrap; }
 .urlbar .cp { display:inline-flex; align-items:center; gap:0.375rem; padding:0 0.9375rem; background:#fff; color:#000; border:1px solid #fff;
   border-radius:0 var(--radius-control) var(--radius-control) 0; font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; }
@@ -227,7 +227,7 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
 <body>
 <div class="app">
   <aside class="side">
-    <a class="brand" href="https://aqua.goattech.us/"><svg viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <a class="brand" href="https://aqua.goattech.us/"><svg viewBox="0 0 24 24" fill="none" stroke="#2fd4bf" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
     <div class="nav">
       <div class="navlabel">gateway</div>
       <a href="https://aqua.goattech.us/console.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
@@ -240,7 +240,7 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
     <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
   </aside>
   <main class="main">
-    <div class="phonebar"><a href="/settings.html" style="color:var(--muted);font-size:.8125rem;order:2;margin-left:auto">settings</a><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#45d6e8" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">admin</span></div>
+    <div class="phonebar"><a href="/settings.html" style="color:var(--muted);font-size:.8125rem;order:2;margin-left:auto">settings</a><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#2fd4bf" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">admin</span></div>
     <div class="canvas">
       <div id="aqua-denied" class="denied" hidden>
     <h1>owner only</h1>
