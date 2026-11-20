@@ -274,6 +274,22 @@ fn read_request_within(stream: &mut TcpStream, budget: Duration) -> Result<Reque
             if k == "transfer-encoding" {
                 return Err("chunked"); // chunked bodies unsupported: reject, never guess framing
             }
+            // Authorization must be unambiguous. Cookie field lines are
+            // combined before checking repeated exact session names.
+            if k == "authorization" && headers.contains_key(&k) {
+                return Err("bad request");
+            }
+            if k == "cookie" {
+                let combined = headers.get(&k).map(|prior| format!("{prior}; {}", v.trim()))
+                    .unwrap_or_else(|| v.trim().to_string());
+                if combined.split(';').filter(|part| {
+                    part.trim().split_once('=').map_or(part.trim(), |(name, _)| name.trim()) == "aqua_session"
+                }).count() > 1 {
+                    return Err("bad request");
+                }
+                headers.insert(k, combined);
+                continue;
+            }
             if k == "content-length" {
                 if seen_len {
                     return Err("bad request"); // duplicate Content-Length: ambiguous framing, reject
@@ -5246,10 +5262,10 @@ mod framing_matrix_tests {
     #[test] fn auth_precedence_baseline_invalid_key() { auth_precedence_baseline(Some("Bearer not-the-key"), false); }
     #[test] fn auth_precedence_baseline_valid_bearer() { auth_precedence_baseline(Some("Bearer offline-owner-key"), true); }
 
-    // Characterization, not a security recommendation: duplicate field lines
-    // use the parser's last value; one Cookie value selects the first
-    // syntactically valid session token, even when that session is stale.
-    fn duplicate_auth_characterization(kind: &str, valid_first: bool) {
+    // Deliberate hardening after the historical characterization: ambiguous
+    // Authorization field lines and repeated session names are rejected
+    // before credential selection. Healthy single-field controls still work.
+    fn duplicate_auth_rejection(kind: &str, valid_first: bool) {
         let mut upstream = Responder::start();
         let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
         state.config.keys.insert("offline-owner-key".into(), crate::config::KeyEntry { name: "luke".into(), role: Role::Owner });
@@ -5265,47 +5281,108 @@ mod framing_matrix_tests {
         assert!(state.auth.get_session(stale).is_none(), "stale fixture must not resolve");
         let (first, second) = if valid_first { (cookie.as_str(), stale) } else { (stale, cookie.as_str()) };
         let framing = format!("content-length: {}\r\n", BODY.len()+1);
-        let (bytes, accepted, header_key, expected_value) = match kind {
+        let bytes = match kind {
             "authorization" => {
                 let (a,b) = if valid_first { ("Bearer offline-owner-key", "Bearer not-the-key") }
                             else { ("Bearer not-the-key", "Bearer offline-owner-key") };
-                (request(&cookie, &format!("Authorization: {a}\r\naUtHoRiZaTiOn: {b}\r\n{framing}")),
-                    !valid_first, "authorization", b.to_string())
+                request(&cookie, &format!("Authorization: {a}\r\naUtHoRiZaTiOn: {b}\r\n{framing}"))
             }
             "cookie-lines" => {
-                let raw = request(first, &format!("CoOkIe: aqua_session={second}\r\n{framing}"));
-                (raw, !valid_first, "cookie", format!("aqua_session={second}"))
+                request(first, &format!("CoOkIe: aqua_session={second}\r\n{framing}"))
             }
             "cookie-tokens" => {
                 let value = format!("aqua_session={first}; aqua_session={second}");
-                (request(value.strip_prefix("aqua_session=").unwrap(), &framing),
-                    valid_first, "cookie", value)
+                request(value.strip_prefix("aqua_session=").unwrap(), &framing)
             }
-            _ => panic!("unknown characterization"),
+            "authorization-equal" => request(&cookie, &format!("Authorization: Bearer offline-owner-key\r\nauthorization: Bearer offline-owner-key\r\n{framing}")),
+            "cookie-lines-equal" => request(&cookie, &format!("Cookie: aqua_session={cookie}\r\n{framing}")),
+            "cookie-tokens-equal" => request(&format!("{cookie}; aqua_session={cookie}"), &framing),
+            "cookie-bare" => {
+                if valid_first { request(&format!("{cookie}; aqua_session"), &framing) }
+                else { request("", &framing).replace("cookie: aqua_session=", &format!("cookie: aqua_session; aqua_session={cookie}")) }
+            }
+            "cookie-empty" | "cookie-malformed" => {
+                let invalid = if kind == "cookie-empty" { "" } else { "not-hex" };
+                let (a,b) = if valid_first { (cookie.as_str(), invalid) } else { (invalid, cookie.as_str()) };
+                request(&format!("{a}; aqua_session={b}"), &framing)
+            }
+            _ => panic!("unknown rejection fixture"),
         };
         let (mut client, mut server) = pair();
         client.write_all(bytes.as_bytes()).unwrap();
         client.shutdown(Shutdown::Write).unwrap();
-        let parsed = read_request_within(&mut server, Duration::from_secs(2)).unwrap();
+        let parse_error = read_request_within(&mut server, Duration::from_secs(2)).err();
         let candidate = gateway_call(state.clone(), bytes);
         let candidate_hits = upstream.hits.load(Ordering::SeqCst);
-        let healthy = gateway_call(state, request(&cookie, &framing));
+        let healthy = gateway_call(state.clone(), request(&cookie, &framing));
+        let unrelated_cookie = gateway_call(state, request(&format!("{cookie}; theme=dark; unrelated=x"), &framing));
         upstream.finish();
-        assert_eq!(parsed.headers.get(header_key), Some(&expected_value), "parser's last field line wins");
-        if kind == "cookie-tokens" {
-            assert_eq!(auth::session_cookie(&parsed.headers).as_deref(), Some(first), "first syntactically valid session token wins");
-        }
-        let expected_status = if accepted { "HTTP/1.1 200" } else { "HTTP/1.1 401" };
-        assert!(candidate.starts_with(expected_status), "{kind}, valid_first={valid_first}: {candidate:?}");
-        assert_eq!(candidate_hits, usize::from(accepted), "candidate dispatch reflects characterized auth selection");
+        assert_eq!(parse_error, Some("bad request"), "ambiguous credentials fail at parser");
+        assert!(candidate.starts_with("HTTP/1.1 400"), "{kind}, valid_first={valid_first}: {candidate:?}");
+        let body: Value = serde_json::from_str(candidate.split_once("\r\n\r\n").unwrap().1).unwrap();
+        assert_eq!(body, json!({"error":{"message":"malformed request","type":"invalid_request"}}));
+        assert_eq!(candidate_hits, 0, "ambiguous credentials never dispatch");
         assert!(healthy.starts_with("HTTP/1.1 200") && healthy.contains("framing healthy control"), "same-session healthy control: {healthy:?}");
-        assert_eq!(upstream.hits.load(Ordering::SeqCst), usize::from(accepted)+1);
+        assert!(unrelated_cookie.starts_with("HTTP/1.1 200"), "unrelated cookie names remain supported: {unrelated_cookie:?}");
+        assert_eq!(upstream.hits.load(Ordering::SeqCst), 2);
     }
-    #[test] fn duplicate_auth_characterization_valid_then_invalid() { duplicate_auth_characterization("authorization", true); }
-    #[test] fn duplicate_auth_characterization_invalid_then_valid() { duplicate_auth_characterization("authorization", false); }
-    #[test] fn duplicate_cookie_characterization_valid_then_stale_lines() { duplicate_auth_characterization("cookie-lines", true); }
-    #[test] fn duplicate_cookie_characterization_stale_then_valid_lines() { duplicate_auth_characterization("cookie-lines", false); }
-    #[test] fn duplicate_cookie_characterization_valid_then_stale_tokens() { duplicate_auth_characterization("cookie-tokens", true); }
-    #[test] fn duplicate_cookie_characterization_stale_then_valid_tokens() { duplicate_auth_characterization("cookie-tokens", false); }
+    #[test] fn duplicate_auth_rejection_valid_then_invalid() { duplicate_auth_rejection("authorization", true); }
+    #[test] fn duplicate_auth_rejection_invalid_then_valid() { duplicate_auth_rejection("authorization", false); }
+    #[test] fn duplicate_cookie_rejection_valid_then_stale_lines() { duplicate_auth_rejection("cookie-lines", true); }
+    #[test] fn duplicate_cookie_rejection_stale_then_valid_lines() { duplicate_auth_rejection("cookie-lines", false); }
+    #[test] fn duplicate_cookie_rejection_valid_then_stale_tokens() { duplicate_auth_rejection("cookie-tokens", true); }
+    #[test] fn duplicate_cookie_rejection_stale_then_valid_tokens() { duplicate_auth_rejection("cookie-tokens", false); }
+
+    #[test] fn duplicate_cookie_rejection_empty_then_valid() { duplicate_auth_rejection("cookie-empty", false); }
+    #[test] fn duplicate_cookie_rejection_valid_then_empty() { duplicate_auth_rejection("cookie-empty", true); }
+    #[test] fn duplicate_cookie_rejection_malformed_then_valid() { duplicate_auth_rejection("cookie-malformed", false); }
+    #[test] fn duplicate_cookie_rejection_valid_then_malformed() { duplicate_auth_rejection("cookie-malformed", true); }
+
+    #[test] fn duplicate_cookie_rejection_bare_then_valid() { duplicate_auth_rejection("cookie-bare", false); }
+    #[test] fn duplicate_cookie_rejection_valid_then_bare() { duplicate_auth_rejection("cookie-bare", true); }
+
+    #[test] fn duplicate_auth_rejection_equal_values() { duplicate_auth_rejection("authorization-equal", true); }
+    #[test] fn duplicate_cookie_rejection_equal_fields() { duplicate_auth_rejection("cookie-lines-equal", true); }
+    #[test] fn duplicate_cookie_rejection_equal_tokens() { duplicate_auth_rejection("cookie-tokens-equal", true); }
+
+    fn split_cookie_control(bearer_only: bool, session_first: bool) {
+        let mut upstream = Responder::start();
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.keys.insert("offline-owner-key".into(), crate::config::KeyEntry { name: "luke".into(), role: Role::Owner });
+        state.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: upstream.url.clone(), models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-upstream".into(), context: None,
+            }],
+        }];
+        let state = Arc::new(state);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let framing = format!("content-length: {}\r\n", BODY.len()+1);
+        let mut bytes = request(&cookie, &framing);
+        let field = if bearer_only {
+            "cookie: theme=dark\r\nCoOkIe: other=x\r\nAuthorization: Bearer offline-owner-key".to_string()
+        } else if session_first {
+            format!("cookie: aqua_session={cookie}\r\nCoOkIe: theme=dark")
+        } else {
+            format!("cookie: theme=dark\r\nCoOkIe: aqua_session={cookie}")
+        };
+        bytes = bytes.replace(&format!("cookie: aqua_session={cookie}"), &field);
+        let (mut client, mut server) = pair();
+        client.write_all(bytes.as_bytes()).unwrap();
+        client.shutdown(Shutdown::Write).unwrap();
+        let parsed = read_request_within(&mut server, Duration::from_secs(2));
+        let response = gateway_call(state, bytes);
+        upstream.finish();
+        let parsed = parsed.expect("disjoint Cookie fields combine");
+        let expected = if bearer_only { "theme=dark; other=x".to_string() }
+            else if session_first { format!("aqua_session={cookie}; theme=dark") }
+            else { format!("theme=dark; aqua_session={cookie}") };
+        assert_eq!(parsed.headers.get("cookie"), Some(&expected), "wire order preserved with semicolon-space join");
+        assert!(response.starts_with("HTTP/1.1 200") && response.contains("framing healthy control"), "healthy split-cookie response: {response:?}");
+        assert_eq!(upstream.hits.load(Ordering::SeqCst), 1);
+    }
+    #[test] fn split_cookie_session_first_control() { split_cookie_control(false, true); }
+    #[test] fn split_cookie_session_last_control() { split_cookie_control(false, false); }
+    #[test] fn split_cookie_bearer_only_control() { split_cookie_control(true, false); }
 
 }
