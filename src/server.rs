@@ -294,7 +294,13 @@ fn read_request_within(stream: &mut TcpStream, budget: Duration) -> Result<Reque
     let mut seen_len = false;
     for line in lines {
         if let Some((k, v)) = line.split_once(':') {
-            let k = k.trim().to_ascii_lowercase();
+            // Validate before canonicalizing. Whitespace or lossy-decoded
+            // non-ASCII bytes must never become a framing/auth field name.
+            if k.is_empty() || !k.bytes().all(|b| b.is_ascii_alphanumeric() ||
+                b"!#$%&'*+-.^_`|~".contains(&b)) {
+                return Err("bad request");
+            }
+            let k = k.to_ascii_lowercase();
             if k == "transfer-encoding" {
                 return Err("chunked"); // chunked bodies unsupported: reject, never guess framing
             }
@@ -5985,6 +5991,45 @@ mod throttle_characterization_tests {
         for i in 0..16 {let state=state.clone();let gate=gate.clone();workers.push(thread::spawn(move||{gate.wait();record_auth_failure(&state,"existing");record_auth_failure(&state,&format!("guess-{i}"));}));}
         gate.wait();for w in workers {w.join().unwrap();}
         let table=state.auth_failures.lock().unwrap();assert_eq!(table.len(),3);assert_eq!(table[&crate::keys::fingerprint("existing")].0,17);
+    }
+
+}
+
+#[cfg(test)]
+mod field_name_tests {
+    use super::*;
+    fn parse(line: &[u8]) -> Result<Request, &'static str> {
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client=TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let(mut server,_)=listener.accept().unwrap();
+        let mut wire=b"GET / HTTP/1.1\r\nhost: x\r\n".to_vec();wire.extend_from_slice(line);wire.extend_from_slice(b"\r\n\r\n");
+        client.write_all(&wire).unwrap();
+        read_request_within(&mut server,Duration::from_secs(2))
+    }
+    #[test]
+    fn malformed_field_names_rejected_without_normalizing() {
+        for line in [b"content-length : 0".as_slice(),b" content-length: 0",b"\tcontent-length: 0",b"content-length\t: 0",b": empty",b"x-\xff: yes",b"x-\0: yes",b"x/name: yes",b"x(name): yes",b"x@name: yes",b"x name: yes",b"x\x7fname: yes"] {
+            assert_eq!(parse(line).err(),Some("bad request"),"line bytes {line:?}");
+        }
+    }
+    #[test]
+    fn valid_token_names_case_and_opaque_value_keep_existing_behavior() {
+        let req=parse(b"X-!#$%&'*+.^_`|~012AZaz: value").unwrap();
+        assert_eq!(req.headers.get("x-!#$%&'*+.^_`|~012azaz").map(String::as_str),Some("value"));
+        let req=parse(b"CoNtEnT-LeNgTh: \t0\t ").unwrap();assert!(req.body.is_empty());
+        let req=parse(b"x-opaque: \xff").unwrap();assert_eq!(req.headers["x-opaque"],"\u{fffd}");
+    }
+    #[test]
+    fn malformed_field_name_returns_generic_400_at_handler() {
+        let state=super::reviewer_regressions::keys_shared();
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client=TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        let (server,_)=listener.accept().unwrap();
+        let worker=thread::spawn(move||handle(server,state).unwrap());
+        client.write_all(b"GET / HTTP/1.1\r\nhost: x\r\nx/name: yes\r\n\r\n").unwrap();
+        let mut response=String::new();client.read_to_string(&mut response).unwrap();worker.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 400"));assert!(response.contains("malformed request"));assert!(!response.contains("x/name"));
     }
 
 }
