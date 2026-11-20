@@ -1372,7 +1372,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             Ok(r) => r,
             Err(_) => {
                 shared.observations.lock().unwrap().transport_failure(&p.id,&m.public,&m.upstream);
-                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
                 continue; // network failure: try the next provider
             }
         };
@@ -1386,14 +1386,20 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             }
             if status == 429 {
                 saw_rate_limit = true;
-                // a Retry-After is evidence of a real limit: honor it (bounded)
-                // and do not retry this account until it lapses
+                // Even absent/malformed Retry-After, an explicit 429 blocks
+                // this provider account. Never soften it into ordering only.
+                let secs = parse_retry_after(&resp)
+                    .map(|n| shared.config.backoff.retry_after_secs(n))
+                    .unwrap_or_else(|| shared.config.backoff.missing_429_secs());
+                set_cooldown(shared, &p.id, secs, true);
+            } else if status == 503 {
                 match parse_retry_after(&resp) {
-                    Some(secs) => set_cooldown(shared, &p.id, secs, true),
-                    None => set_cooldown(shared, &p.id, COOLDOWN_429_DEFAULT_SECS, false),
+                    Some(secs) => set_cooldown(shared, &p.id,
+                        shared.config.backoff.retry_after_secs(secs), true),
+                    None => set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false),
                 }
             } else {
-                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
             }
             // drain the upstream error body without ever forwarding it
             let _ = resp.body_mut().as_reader().take(64 * 1024).read_to_end(&mut Vec::new());
@@ -1411,12 +1417,12 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             let mut buf = Vec::new();
             if resp.body_mut().as_reader().take(MAX_RESPONSE as u64).read_to_end(&mut buf).is_err() {
                 shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
-                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
                 continue;
             }
             let Ok(json) = serde_json::from_slice::<Value>(&buf) else {
                 shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
-                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
                 continue;
             };
             // A parseable body is not yet a completion: providers answer 2xx
@@ -1431,7 +1437,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 || json.get("choices").and_then(Value::as_array).is_none_or(|c| c.is_empty())
             {
                 shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
-                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
                 continue;
             }
             shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,status==200);
@@ -1449,7 +1455,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         if !content_type.starts_with("text/event-stream") {
             let _ = resp.body_mut().as_reader().take(64 * 1024).read_to_end(&mut Vec::new());
             shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
-            set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+            set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
             continue;
         }
         record_route_latency(shared,&p.id,&m.public,header_latency);
@@ -1509,7 +1515,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         if completed {
             clear_cooldown(shared, &p.id);
         } else {
-            set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+            set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
         }
         return Ok(());
     }
@@ -1581,7 +1587,9 @@ impl Drop for ProviderSlot<'_> {
     fn drop(&mut self) { self.0.store(false, Ordering::Release); }
 }
 
+#[cfg(test)]
 const COOLDOWN_SOFT_SECS: u64 = 15;
+#[cfg(test)]
 const COOLDOWN_429_DEFAULT_SECS: u64 = 60;
 const RETRY_AFTER_MAX_SECS: u64 = 3600; // bound on provider-supplied Retry-After
 
@@ -1622,13 +1630,13 @@ fn clear_cooldown(shared: &Shared, provider_id: &str) {
 // Retry-After, clamped to (0, 1h]. Both RFC 9110 forms: delta seconds, and a
 // STRICT IMF-fixdate (fixed-width fields, a real calendar date whose weekday
 // actually matches). Obsolete formats, normalizable junk ("31 Feb"), loose
-// widths and out-of-range values are treated as absent (soft default): a
+// widths and out-of-range values are treated as absent (status-specific default): a
 // malformed untrusted header must never panic or silently become a limit.
 fn parse_retry_after(resp: &ureq::http::Response<ureq::Body>) -> Option<u64> {
     let raw = resp.headers().get("retry-after")?.to_str().ok()?.trim();
     // RFC 9110 delta-seconds are digits only: a leading '+' (which
     // u64::from_str would accept) or any other junk is malformed and falls
-    // through to the soft default rather than installing a hard limit
+    // through to the status-specific default
     if !raw.is_empty() && raw.bytes().all(|b| b.is_ascii_digit()) {
         if let Ok(secs) = raw.parse::<u64>() {
             return Some(secs.clamp(1, RETRY_AFTER_MAX_SECS));
@@ -1725,6 +1733,7 @@ mod reviewer_regressions {
 
     fn shared() -> Shared {
         let config = Config {
+            backoff: Default::default(),
             keys: HashMap::new(),
             admin_key: String::new(),
             daily_limit: 200,
@@ -4231,6 +4240,18 @@ const STREAM_BODY: &str = r#"{"model":"fixture-chat","messages":[{"role":"user",
         let first = chat(state.clone());
         assert!(first.starts_with(first_expect), "first call takes the scripted path: {first:?}");
         assert!(!slot(&state, "zai").load(Ordering::SeqCst), "slot released after the attempt ended");
+        if first_expect == "HTTP/1.1 429" {
+            // Release is independent of account backoff. First prove the
+            // permit is free but hard cooling still prevents dispatch, then
+            // expire only test state to exercise a second acquired permit.
+            let blocked = chat(state.clone());
+            assert!(blocked.starts_with("HTTP/1.1 429"), "429 fallback remains blocked: {blocked:?}");
+            assert_eq!(hits.load(Ordering::SeqCst), 1, "released permit is not permission to bypass backoff");
+            let mut health = state.health.lock().unwrap();
+            let cd = health.get_mut("zai").expect("429 installs backoff");
+            assert!(cd.hard);
+            cd.until = Instant::now() - Duration::from_secs(1);
+        }
         let second = chat(state.clone());
         worker.join().unwrap();
         assert!(second.starts_with("HTTP/1.1 200") && second.contains("valid offline output"),
@@ -4456,10 +4477,10 @@ const STREAM_BODY: &str = r#"{"model":"fixture-chat","messages":[{"role":"user",
 // behavior so a regression trips a test. A Retry-After on a 429 is a hard
 // limit: the account is skipped across ALL its models with no extra
 // admission until it lifts. Hard deadlines are never shortened; soft
-// evidence never touches a hard limit. Missing/invalid Retry-After on a 429
-// is the soft 60s default, 503 is the soft 15s default, and a usable
-// Retry-After clamps at 1h. Client disconnect is never upstream-failure
-// evidence (pinned in permit_lifetime_tests). No production change.
+// evidence never touches a hard limit. Selected policy: missing/invalid
+// Retry-After on429 blocks60s; usable503 Retry-After blocks its bounded
+// delay.503 without usable header remains soft15s. Defaults are configurable. Client disconnect is never upstream-failure
+// evidence (pinned in permit_lifetime_tests). Backoff policy changed under the parent decision.
 #[cfg(test)]
 mod cooldown_lock_tests {
     use super::*;
@@ -4474,6 +4495,10 @@ mod cooldown_lock_tests {
         assert_eq!(COOLDOWN_SOFT_SECS, 15, "generic failure cooldown is 15s");
         assert_eq!(COOLDOWN_429_DEFAULT_SECS, 60, "429 without usable Retry-After is 60s");
         assert_eq!(RETRY_AFTER_MAX_SECS, 3600, "Retry-After is clamped at 1h");
+        let cfg = crate::config::Backoff::default();
+        assert_eq!(cfg.missing_429_secs(), COOLDOWN_429_DEFAULT_SECS);
+        assert_eq!(cfg.soft_secs(), COOLDOWN_SOFT_SECS);
+        assert_eq!(cfg.retry_after_secs(u64::MAX), RETRY_AFTER_MAX_SECS);
     }
 
     // IMF-fixdate parsing: exact epoch for the classic RFC example, junk
@@ -4700,25 +4725,108 @@ mod cooldown_lock_tests {
         assert_eq!(hits.load(Ordering::SeqCst), 2, "exactly the first call and the control reached the account");
     }
 
+    // Parent-selected reversible replacement policy. The responder stays live across blocked
+    // requests, then proves post-expiry dispatch with a valid completion.
+    fn approved_block(status: u16, header: &'static str, seconds: u64) {
+        approved_configured_block(status, header, seconds, None);
+    }
+    fn approved_configured_block(status: u16, header: &'static str, seconds: u64,
+        configured: Option<crate::config::Backoff>) {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (url, worker) = live_status_stub(status, header, hits.clone(), stop.clone());
+        let _stop_guard = StopGuard(stop.clone());
+        let mut owned = Arc::try_unwrap(lock_state(url, &["fixture-chat", "fixture-alt"])).ok().unwrap();
+        if let Some(configured) = configured { owned.config.backoff = configured; }
+        let state = Arc::new(owned);
+        let first = call(state.clone(), "fixture-chat");
+        let installed = state.health.lock().unwrap().get("zai").copied();
+        let checkpoint = Instant::now();
+        let ledger_before = serde_json::to_value(&state.spend.lock().unwrap().ledger).unwrap();
+        let quota_before = state.quotas.lock().unwrap().values().map(|q| (q.reserved, q.in_flight)).collect::<Vec<_>>();
+        let blocked = call(state.clone(), "fixture-alt");
+        let blocked_hits = hits.load(Ordering::SeqCst);
+        let ledger_after = serde_json::to_value(&state.spend.lock().unwrap().ledger).unwrap();
+        let quota_after = state.quotas.lock().unwrap().values().map(|q| (q.reserved, q.in_flight)).collect::<Vec<_>>();
+        // Expire only test state. No real-time 60s/120s wait.
+        if let Some(cd) = state.health.lock().unwrap().get_mut("zai") {
+            cd.until = Instant::now() - Duration::from_secs(1);
+        }
+        let resumed = call(state.clone(), "fixture-alt");
+        stop.store(true, Ordering::SeqCst);
+        worker.join().unwrap();
+        let expected = if status == 429 { "HTTP/1.1 429" } else { "HTTP/1.1 503" };
+        assert!(first.starts_with(expected), "first failure: {first:?}");
+        let cd = installed.expect("failure installs cooldown");
+        assert!(cd.hard, "approved status/header policy must block the account: {status}/{header:?}");
+        let remaining = cd.until.saturating_duration_since(checkpoint);
+        assert!(remaining > Duration::from_secs(seconds.saturating_sub(5)) && remaining <= Duration::from_secs(seconds), "expected {seconds}s, got {remaining:?}");
+        assert!(blocked.starts_with("HTTP/1.1 429"), "hard-cooled account must not dispatch: {blocked:?}");
+        assert_eq!(blocked_hits, 1, "no dispatch across other account models while blocked");
+        assert_eq!(ledger_before, ledger_after, "blocked request must not reserve spend");
+        assert_eq!(quota_before, quota_after, "blocked request must not reserve quota");
+        assert!(resumed.starts_with("HTTP/1.1 200") && resumed.contains("valid offline output"), "expired deadline must allow dispatch: {resumed:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 2, "only failure and post-expiry control reach provider");
+    }
+
     #[test]
-    fn plain_429_without_retry_after_is_soft_60s() {
+    fn approved_backoff_configured_429_default_is_used_by_dispatch() {
+        approved_configured_block(429, "soon", 17, Some(crate::config::Backoff {
+            missing_429_secs:17, ..Default::default()
+        }));
+    }
+    #[test]
+    fn approved_backoff_configured_503_ceiling_is_used_by_dispatch() {
+        approved_configured_block(503, "120", 42, Some(crate::config::Backoff {
+            retry_after_max_secs:42, ..Default::default()
+        }));
+    }
+    #[test]
+    fn approved_backoff_configured_429_ceiling_is_used_by_dispatch() {
+        approved_configured_block(429, "120", 42, Some(crate::config::Backoff {
+            retry_after_max_secs:42, ..Default::default()
+        }));
+    }
+    #[test]
+    fn approved_backoff_configured_soft_503_stays_soft() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let (url, worker) = status_stub(503, Some("soon"), 1, hits);
+        let mut owned = Arc::try_unwrap(lock_state(url, &["fixture-chat"])).ok().unwrap();
+        owned.config.backoff.soft_secs = 9;
+        let state = Arc::new(owned);
+        let first = call(state.clone(), "fixture-chat");
+        worker.join().unwrap();
+        assert!(first.starts_with("HTTP/1.1 503"));
+        assert!(!is_hard(&state, "zai"));
+        assert!((5..=9).contains(&remaining_secs(&state, "zai")));
+    }
+
+    #[test] fn approved_backoff_429_empty_blocks_60s() { approved_block(429, "", 60); }
+    #[test] fn approved_backoff_429_invalid_blocks_60s() { approved_block(429, "soon", 60); }
+    #[test] fn approved_backoff_429_overflow_blocks_60s() { approved_block(429, "99999999999999999999999999", 60); }
+    #[test] fn approved_backoff_503_numeric_blocks_delay() { approved_block(503, "120", 120); }
+    #[test] fn approved_backoff_503_future_date_blocks_ceiling() { approved_block(503, "Wed, 01 Jan 2042 00:00:00 GMT", 3600); }
+    #[test] fn approved_backoff_503_long_delay_blocks_ceiling() { approved_block(503, "7200", 3600); }
+
+    #[test]
+    fn plain_429_without_retry_after_blocks_60s() {
         let (state, _) = limited_once(None, 429);
-        assert!(!is_hard(&state, "zai"), "no Retry-After: soft evidence only");
-        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "soft 60s default: {}", remaining_secs(&state, "zai"));
+        assert!(is_hard(&state, "zai"), "429 fallback blocks even without usable Retry-After");
+        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "hard 60s fallback: {}", remaining_secs(&state, "zai"));
     }
 
     #[test]
-    fn invalid_retry_after_is_soft_60s() {
+    fn invalid_retry_after_blocks_60s() {
         let (state, _) = limited_once(Some("soon"), 429);
-        assert!(!is_hard(&state, "zai"), "unparseable Retry-After is not limit evidence");
-        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "soft 60s default: {}", remaining_secs(&state, "zai"));
+        assert!(is_hard(&state, "zai"), "429 fallback blocks even without usable Retry-After");
+        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "hard 60s fallback: {}", remaining_secs(&state, "zai"));
     }
 
     #[test]
-    fn overflowing_retry_after_is_soft_60s() {
+    fn overflowing_retry_after_blocks_60s() {
         let (state, _) = limited_once(Some("99999999999999999999999999"), 429);
-        assert!(!is_hard(&state, "zai"), "digit overflow carries no usable evidence");
-        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "soft 60s default: {}", remaining_secs(&state, "zai"));
+        assert!(is_hard(&state, "zai"), "429 fallback blocks even without usable Retry-After");
+        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "hard 60s fallback: {}", remaining_secs(&state, "zai"));
     }
 
     #[test]
@@ -4737,6 +4845,31 @@ mod cooldown_lock_tests {
             "exactly the 1s floor, pinned against the pre-call instant");
     }
 
+    // Exercise the parser itself, before any configured use-site ceiling.
+    // Literal3600 is independent of RETRY_AFTER_MAX_SECS, so raising that
+    // constant cannot be hidden by Backoff's second cap.
+    fn direct_parser_ceiling(header: &'static str) {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let (url, worker) = status_stub(429, Some(header), 1, hits.clone());
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .timeout_global(Some(Duration::from_secs(5)))
+            .max_redirects(0).build().into();
+        let response = agent.get(&url).call().expect("loopback response");
+        let parsed = parse_retry_after(&response);
+        worker.join().unwrap();
+        assert_eq!(hits.load(Ordering::SeqCst), 1);
+        assert_eq!(parsed, Some(3600), "parser absolute ceiling, independent of configured dispatch cap");
+    }
+    #[test]
+    fn direct_parse_retry_after_numeric_absolute_ceiling() {
+        direct_parser_ceiling("7200");
+    }
+    #[test]
+    fn direct_parse_retry_after_future_date_absolute_ceiling() {
+        direct_parser_ceiling("Wed, 01 Jan 2042 00:00:00 GMT");
+    }
+
     #[test]
     fn large_retry_after_clamps_at_one_hour() {
         let (state, _) = limited_once(Some("7200"), 429);
@@ -4745,10 +4878,10 @@ mod cooldown_lock_tests {
     }
 
     #[test]
-    fn past_date_retry_after_is_soft_60s() {
+    fn past_date_retry_after_blocks_60s() {
         let (state, _) = limited_once(Some("Sun, 06 Nov 1994 08:49:37 GMT"), 429);
-        assert!(!is_hard(&state, "zai"), "a past date is no evidence of a future limit");
-        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "soft 60s default: {}", remaining_secs(&state, "zai"));
+        assert!(is_hard(&state, "zai"), "429 fallback blocks even without usable Retry-After");
+        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "hard 60s fallback: {}", remaining_secs(&state, "zai"));
     }
 
     #[test]
@@ -4793,13 +4926,13 @@ mod cooldown_lock_tests {
     }
 
     #[test]
-    fn baseline_503_numeric_retry_after_stays_soft_and_dispatches() {
-        baseline_soft_dispatch(503, "120", 15);
+    fn policy_503_numeric_retry_after_blocks() {
+        approved_block(503, "120", 120);
     }
 
     #[test]
-    fn baseline_503_date_retry_after_stays_soft_and_dispatches() {
-        baseline_soft_dispatch(503, "Wed, 01 Jan 2042 00:00:00 GMT", 15);
+    fn policy_503_date_retry_after_blocks() {
+        approved_block(503, "Wed, 01 Jan 2042 00:00:00 GMT", 3600);
     }
 
     #[test]
@@ -4808,13 +4941,13 @@ mod cooldown_lock_tests {
     }
 
     #[test]
-    fn baseline_429_plus_signed_header_stays_soft_and_dispatches() {
-        baseline_soft_dispatch(429, "+120", 60);
+    fn policy_429_plus_signed_header_blocks() {
+        approved_block(429, "+120", 60);
     }
 
     #[test]
-    fn baseline_429_negative_header_stays_soft_and_dispatches() {
-        baseline_soft_dispatch(429, "-120", 60);
+    fn policy_429_negative_header_blocks() {
+        approved_block(429, "-120", 60);
     }
 
     #[test]
@@ -5186,6 +5319,14 @@ mod framing_matrix_tests {
         let failure_hits = upstream.hits.load(Ordering::SeqCst);
         let cooldown = state.health.lock().unwrap().get("inferbase").copied();
         let checkpoint = Instant::now();
+        let blocked = if status == 503 {
+            let blocked = gateway_call(state.clone(), request(&cookie, &framing));
+            assert_eq!(upstream.hits.load(Ordering::SeqCst), 1,
+                "503 Retry-After blocks while preserving framing/sanitization checks");
+            state.health.lock().unwrap().get_mut("inferbase").unwrap().until =
+                Instant::now() - Duration::from_secs(1);
+            Some(blocked)
+        } else { None };
         let healthy = gateway_call(state.clone(), request(&cookie, &framing));
         upstream.finish();
         assert!(failed.starts_with("HTTP/1.1 503"), "upstream {status} becomes generic gateway503: {failed:?}");
@@ -5204,9 +5345,15 @@ mod framing_matrix_tests {
             assert!(!headers.contains_key(key), "non429 upstream header must not be forwarded: {head}");
         }
         let cd = cooldown.expect("failed attempt installs cooldown");
-        assert!(!cd.hard, "current non429 behavior is soft despite Retry-After");
         let remaining = cd.until.saturating_duration_since(checkpoint);
-        assert!(remaining > Duration::from_secs(10) && remaining <= Duration::from_secs(15), "soft15s: {remaining:?}");
+        if status == 503 {
+            assert!(cd.hard, "503 usable Retry-After must block");
+            assert!(remaining > Duration::from_secs(115) && remaining <= Duration::from_secs(120), "hard120s: {remaining:?}");
+            assert!(blocked.unwrap().starts_with("HTTP/1.1 429"), "blocked request has no provider attempt");
+        } else {
+            assert!(!cd.hard, "other non429 statuses remain soft");
+            assert!(remaining > Duration::from_secs(10) && remaining <= Duration::from_secs(15), "soft15s: {remaining:?}");
+        }
         assert_eq!(failure_hits, 1, "the failure was actually dispatched");
         assert!(healthy.starts_with("HTTP/1.1 200") && healthy.contains("framing healthy control"), "healthy follow-up: {healthy:?}");
         assert_eq!(upstream.hits.load(Ordering::SeqCst), 2, "failure and healthy control both dispatched");

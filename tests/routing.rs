@@ -146,6 +146,7 @@ fn config(providers: Vec<Provider>, auto_shortlist: Vec<&str>) -> Config {
     keys.insert("ownerkey".into(), KeyEntry { name: "luke".into(), role: aqua::Role::Owner });
     keys.insert("friendkey".into(), KeyEntry { name: "sam".into(), role: aqua::Role::Friend });
     Config {
+        backoff: Default::default(),
         keys,
         admin_key: "adminsecret".into(),
         daily_limit: 200,
@@ -345,28 +346,45 @@ fn huge_retry_after_is_bounded_but_still_hard() {
     assert_eq!(p1.hits.load(Ordering::SeqCst), 1, "clamped Retry-After still excludes the account");
 }
 
-#[test]
-fn plain_429_deprioritizes_but_allows_last_resort_retry() {
-    // no Retry-After: soft cooldown. A sole provider is retried (stale blips
-    // must not cause a false 503) and recovers.
-    let failing = Arc::new(AtomicBool::new(true));
-    let flag = failing.clone();
-    let p1 = mock_upstream(move |_| {
-        if flag.load(Ordering::SeqCst) { error_reply(429, vec![]) } else { json_reply(chat_json("m", "recovered")) }
-    });
-    let srv = serve(config(
-        vec![provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)])],
-        vec!["coder-a"],
-    ));
-    let agent = client();
-    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
-    failing.store(false, Ordering::SeqCst);
-    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 200, "soft-cooled sole provider retried");
-    assert_eq!(p1.hits.load(Ordering::SeqCst), 2);
+// Invalid/absent header is no evidence about delay, but explicit429 is
+// enough evidence to block. Default config blocks the recovered responder;
+// a separate1s-configured instance proves the fallback duration (not the
+// malformed value) determines expiry. Default60s is measured directly by
+// cooldown_lock_tests, without sleeping a minute in integration tests.
+fn fallback_429_blocks_and_uses_configured_delay(header: Option<&'static str>) {
+    for short in [false, true] {
+        let recovering = Arc::new(AtomicBool::new(false));
+        let flag = recovering.clone();
+        let p1 = mock_upstream(move |_| {
+            if flag.load(Ordering::SeqCst) { json_reply(chat_json("m", "recovered")) }
+            else { error_reply(429, header.map(|v| vec![("retry-after",v)]).unwrap_or_default()) }
+        });
+        let mut cfg = config(vec![provider("p1", &p1.url, Status::Friends,
+            vec![("coder-a", "p1/a", None), ("coder-b", "p1/b", None)])], vec!["coder-a"]);
+        if short { cfg.backoff.missing_429_secs = 1; }
+        let srv = serve(cfg);
+        let agent = client();
+        assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
+        recovering.store(true, Ordering::SeqCst);
+        assert_eq!(chat(&agent, &srv.base, "ownerkey", pin_msg("coder-b")).status(), 429,
+            "account blocks even another model while responder is healthy");
+        assert_eq!(p1.hits.load(Ordering::SeqCst), 1, "blocked request never dispatches");
+        if short {
+            thread::sleep(Duration::from_millis(1200));
+            assert_eq!(chat(&agent, &srv.base, "ownerkey", pin_msg("coder-b")).status(), 200,
+                "configured fallback expires, not a malformed/past/signed header delay");
+            assert_eq!(p1.hits.load(Ordering::SeqCst), 2, "healthy expiry control dispatches");
+        }
+    }
 }
 
 #[test]
-fn http_date_retry_after_is_hard_when_future_soft_when_past() {
+fn plain_429_blocks_account_until_configured_expiry() {
+    fallback_429_blocks_and_uses_configured_delay(None);
+}
+
+#[test]
+fn future_http_date_retry_after_hard_blocks_account() {
     // future IMF-fixdate: real limit evidence, account excluded until lapse
     let p1 = mock_upstream(|_| error_reply(429, vec![("retry-after", "Mon, 15 Nov 2027 00:00:00 GMT")]));
     let p2 = mock_upstream(|_| json_reply(chat_json("m", "ok")));
@@ -384,45 +402,13 @@ fn http_date_retry_after_is_hard_when_future_soft_when_past() {
 }
 
 #[test]
-fn past_http_date_retry_after_is_no_evidence() {
-    // a date in the past says nothing about the current limit: soft default
-    let failing = Arc::new(AtomicBool::new(true));
-    let flag = failing.clone();
-    let p1 = mock_upstream(move |_| {
-        if flag.load(Ordering::SeqCst) {
-            error_reply(429, vec![("retry-after", "Sun, 15 Nov 2020 00:00:00 GMT")])
-        } else {
-            json_reply(chat_json("m", "recovered"))
-        }
-    });
-    let srv = serve(config(
-        vec![provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)])],
-        vec!["coder-a"],
-    ));
-    let agent = client();
-    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
-    failing.store(false, Ordering::SeqCst);
-    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 200, "past date treated as absent, last-resort retry allowed");
+fn past_http_date_retry_after_uses_blocking_default() {
+    fallback_429_blocks_and_uses_configured_delay(Some("Sun, 15 Nov 2020 00:00:00 GMT"));
 }
 
 #[test]
-fn signed_retry_after_delta_is_malformed_soft_not_hard() {
-    // RFC 9110 delta-seconds are digits only: "+3600" must not become a
-    // one-hour hard limit; malformed values get the soft default instead.
-    let failing = Arc::new(AtomicBool::new(true));
-    let flag = failing.clone();
-    let p1 = mock_upstream(move |_| {
-        if flag.load(Ordering::SeqCst) { error_reply(429, vec![("retry-after", "+3600")]) } else { json_reply(chat_json("m", "recovered")) }
-    });
-    let srv = serve(config(
-        vec![provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)])],
-        vec!["coder-a"],
-    ));
-    let agent = client();
-    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
-    failing.store(false, Ordering::SeqCst);
-    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 200, "malformed Retry-After is a soft blip: sole provider is retried");
-    assert_eq!(p1.hits.load(Ordering::SeqCst), 2);
+fn signed_retry_after_delta_uses_blocking_default() {
+    fallback_429_blocks_and_uses_configured_delay(Some("+3600"));
 }
 
 #[test]
@@ -470,24 +456,8 @@ fn client_429_never_carries_a_fabricated_retry_after() {
 }
 
 #[test]
-fn junk_retry_after_is_soft_not_hard() {
-    let failing = Arc::new(AtomicBool::new(true));
-    let flag = failing.clone();
-    let p1 = mock_upstream(move |_| {
-        if flag.load(Ordering::SeqCst) {
-            error_reply(429, vec![("retry-after", "tomorrow-ish")])
-        } else {
-            json_reply(chat_json("m", "recovered"))
-        }
-    });
-    let srv = serve(config(
-        vec![provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)])],
-        vec!["coder-a"],
-    ));
-    let agent = client();
-    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
-    failing.store(false, Ordering::SeqCst);
-    assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 200, "unparseable Retry-After never becomes a hard exclusion");
+fn junk_retry_after_uses_blocking_default() {
+    fallback_429_blocks_and_uses_configured_delay(Some("tomorrow-ish"));
 }
 
 #[test]
@@ -733,7 +703,7 @@ fn context_filter_leaving_only_hard_limited_bindings_429s_without_burning_quota(
     let p1_calls = Arc::new(AtomicUsize::new(0));
     let n1 = p1_calls.clone();
     let p1 = mock_upstream(move |_| {
-        if n1.fetch_add(1, Ordering::SeqCst) == 0 { error_reply(429, vec![]) } else { json_reply(chat_json("m", "small ctx ok")) }
+        if n1.fetch_add(1, Ordering::SeqCst) == 0 { error_reply(500, vec![]) } else { json_reply(chat_json("m", "small ctx ok")) }
     });
     let p2 = mock_upstream(|_| error_reply(429, vec![("retry-after", "120")]));
     let mut cfg = config(
@@ -746,17 +716,21 @@ fn context_filter_leaving_only_hard_limited_bindings_429s_without_burning_quota(
     cfg.daily_limit = 2;
     let srv = serve(cfg);
     let agent = client();
-    // r1: p1 soft-fails, p2 429s with Retry-After -> hard limit installed
+    // r1: p1 soft-fails500 (not hard429), p2 hard-limits with Retry-After
     assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 429);
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 1);
     assert_eq!(p2.hits.load(Ordering::SeqCst), 1);
     // r2: max_tokens filters p1 (ctx 100) out; only hard-limited p2 remains.
     // 429 before any quota reservation.
     let too_big = serde_json::json!({"model": "coder-a", "max_tokens": 150, "messages": [{"role": "user", "content": "hi"}]});
     assert_eq!(chat(&agent, &srv.base, "ownerkey", too_big).status(), 429);
     assert_eq!(p2.hits.load(Ordering::SeqCst), 1, "hard-limited account is never attempted");
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 1, "context filtering prevented a small-route dispatch");
     // the leaked-reservation check: r1 burned one of two daily slots; had r2
     // burned the other, r3 could not route
     assert_eq!(chat(&agent, &srv.base, "ownerkey", auto_msg()).status(), 200, "r2 burned no quota: the second daily slot still routes");
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 2, "small-context positive control really dispatched");
+    assert_eq!(p2.hits.load(Ordering::SeqCst), 1, "large account remains hard-blocked");
 }
 
 #[test]

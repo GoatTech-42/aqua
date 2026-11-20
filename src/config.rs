@@ -73,6 +73,7 @@ pub struct Provider {
 
 #[derive(Clone, Debug)]
 pub struct Config {
+    pub backoff: Backoff,
     pub keys: HashMap<String, KeyEntry>,
     pub admin_key: String,
     pub daily_limit: u32,
@@ -92,6 +93,67 @@ pub struct Config {
     // drip-feeding upstream making progress faster than this window survives
     // (bounded only by upstream_budget); a stuck one is cut here.
     pub upstream_idle: std::time::Duration,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Backoff {
+    pub missing_429_secs: u64,
+    pub retry_after_max_secs: u64,
+    pub soft_secs: u64,
+}
+impl Default for Backoff {
+    fn default() -> Self {
+        Self { missing_429_secs: 60, retry_after_max_secs: 3600, soft_secs: 15 }
+    }
+}
+impl Backoff {
+    fn from_lookup(mut lookup: impl FnMut(&str) -> Option<String>) -> Self {
+        let defaults = Self::default();
+        let mut read = |name: &str, fallback| lookup(name)
+            .and_then(|v| v.parse::<u64>().ok()).unwrap_or(fallback).clamp(1, 3600);
+        Self {
+            missing_429_secs: read("AQUA_BACKOFF_429_SECS", defaults.missing_429_secs),
+            retry_after_max_secs: read("AQUA_BACKOFF_RETRY_AFTER_MAX_SECS", defaults.retry_after_max_secs),
+            soft_secs: read("AQUA_BACKOFF_SOFT_SECS", defaults.soft_secs),
+        }
+    }
+    // Bound at use too: synthetic/test configs cannot overflow Instant math
+    // or disable mandatory blocking with zero, regardless of env parsing.
+    pub fn missing_429_secs(self) -> u64 { self.missing_429_secs.clamp(1, 3600) }
+    pub fn retry_after_secs(self, parsed: u64) -> u64 {
+        parsed.clamp(1, self.retry_after_max_secs.clamp(1, 3600))
+    }
+    pub fn soft_secs(self) -> u64 { self.soft_secs.clamp(1, 3600) }
+}
+
+#[cfg(test)]
+mod backoff_config_tests {
+    use super::Backoff;
+    #[test]
+    fn backoff_lookup_defaults_and_invalids_are_safe() {
+        let d = Backoff::default();
+        assert_eq!(Backoff::from_lookup(|_| None), d);
+        for bad in ["", "soon", "+not-number", "-1", "18446744073709551616"] {
+            assert_eq!(Backoff::from_lookup(|_| Some(bad.into())), d);
+        }
+    }
+    #[test]
+    fn backoff_lookup_uses_exact_knobs_and_bounds() {
+        let custom = Backoff::from_lookup(|name| Some(match name {
+            "AQUA_BACKOFF_429_SECS" => "17",
+            "AQUA_BACKOFF_RETRY_AFTER_MAX_SECS" => "42",
+            "AQUA_BACKOFF_SOFT_SECS" => "9",
+            _ => panic!("unexpected lookup {name}"),
+        }.into()));
+        assert_eq!(custom, Backoff { missing_429_secs:17, retry_after_max_secs:42, soft_secs:9 });
+        assert_eq!(custom.retry_after_secs(120), 42);
+        assert_eq!(Backoff::from_lookup(|_| Some("0".into())), Backoff { missing_429_secs:1, retry_after_max_secs:1, soft_secs:1 });
+        assert_eq!(Backoff::from_lookup(|_| Some(u64::MAX.to_string())), Backoff { missing_429_secs:3600, retry_after_max_secs:3600, soft_secs:3600 });
+        let wild = Backoff { missing_429_secs:u64::MAX, retry_after_max_secs:u64::MAX, soft_secs:0 };
+        assert_eq!(wild.missing_429_secs(),3600);
+        assert_eq!(wild.retry_after_secs(u64::MAX),3600);
+        assert_eq!(wild.soft_secs(),1);
+    }
 }
 
 struct RegistryEntry {
@@ -296,6 +358,7 @@ pub fn from_env() -> Config {
     };
     let meta = parse_model_meta(env("AQUA_MODEL_META"));
     Config {
+        backoff: Backoff::from_lookup(|name| env(name)),
         spend: crate::spend::Settings::from_env(),
         keys,
         admin_key: env("AQUA_ADMIN_KEY").unwrap_or_default(),

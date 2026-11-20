@@ -20,6 +20,7 @@ fn oauth_cfg() -> OAuthConfig {
 
 fn cfg_with(oauth: OAuthConfig) -> aqua::Config {
     aqua::Config {
+        backoff: Default::default(),
         keys: HashMap::new(),
         admin_key: "adminsecret".into(),
         daily_limit: 200,
