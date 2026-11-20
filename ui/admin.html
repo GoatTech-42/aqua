@@ -4,7 +4,7 @@
 <style>html[data-session-pending] { visibility:hidden; }</style>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>aqua — admin</title>
+<title>aqua - admin</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -249,7 +249,7 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
 
       <div id="aqua-body" hidden>
     <h1>admin</h1>
-    <p class="sub">providers, usage and friend limits. provider identities stay on this page — friends only see model names.</p>
+    <p class="sub">providers, usage and friend limits. provider identities stay on this page: friends only see model names.</p>
 
     <section aria-labelledby="t-providers">
       <div class="sectitle"><h2 id="t-providers">providers</h2><button type="button" class="btn" id="aqua-p-refresh">refresh</button></div>
@@ -343,7 +343,7 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
         if (!r.ok) {
           var detail = body && typeof body.error === 'string' ? body.error
                      : body && typeof body.message === 'string' ? body.message : '';
-          if (r.status === 401) throw Error('session expired — reload to sign in again.');
+          if (r.status === 401) throw Error('session expired. reload to sign in again.');
           if (r.status === 403) throw Error('not allowed.' + (detail ? ' ' + detail : ''));
           if (r.status === 503) throw Error('storage is unavailable right now. try again shortly.');
           throw Error('request failed (http ' + r.status + ').' + (detail ? ' ' + detail : ''));
@@ -440,7 +440,7 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
         var user = data.users[account], owner = user.cap === null;
         var row = el('div', 'uaccount');
         var head = el('div', 'uhead');
-        head.appendChild(el('span', 'uname', account + (owner ? ' — uncapped' : '')));
+        head.appendChild(el('span', 'uname', account + (owner ? ' · uncapped' : '')));
         head.appendChild(el('span', 'utotals', 'today ' + money(total(user.day, 'confirmed')) + ' / month ' + money(total(user.month, 'confirmed'))));
         row.appendChild(head);
         if (!owner) {
@@ -504,8 +504,8 @@ h2 { font-size:1.0625rem; font-weight:600; letter-spacing:-0.01em; }
         capMessage.className = 'stateline err';
         return loadUsage().then(function (ok) {
           capMessage.textContent = ok
-            ? 'could not confirm the save. the figures were refreshed — check them before saving again.'
-            : 'could not confirm the save, and refreshing the figures failed — reload the page and check before saving again.';
+            ? 'could not confirm the save. the figures were refreshed. check them before saving again.'
+            : 'could not confirm the save, and refreshing the figures failed. reload the page and check before saving again.';
         });
       })
       .finally(function () { capSave.disabled = false; });

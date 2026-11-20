@@ -49,4 +49,4 @@ HTML would need a separately configured edge session gateway to be private.
 - Streaming replies in the playground (backend supports SSE; the composer uses a
   single non-streaming POST for now).
 - Live quota/usage display (backend does not expose it).
-- Deployment (Cloudflare Pages) — these files are not served anywhere yet.
+- Deployment (Cloudflare Pages): these files are not served anywhere yet.

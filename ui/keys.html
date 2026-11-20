@@ -5,7 +5,7 @@
 <noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aqua — api keys</title>
+<title>aqua - api keys</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -241,7 +241,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
             <span>copy</span>
           </button>
         </div>
-        <p class="rv-note">shown once. copy it now — aqua stores only the masked version.</p>
+        <p class="rv-note">shown once. copy it now: aqua stores only the masked version.</p>
       </div>
 
       <p class="stateline" id="aqua-status" role="status" aria-live="polite">loading keys...</p>
@@ -315,7 +315,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
   if (localStorage.getItem('aqua_key') !== null) {
     localStorage.removeItem('aqua_key');
     var notice = document.getElementById('aqua-keynotice');
-    notice.textContent = 'sign-in replaces saved keys — make a key on the api keys page for apps.';
+    notice.textContent = 'sign-in replaces saved keys. make a key on the api keys page for apps.';
     notice.hidden = false;
   }
 
@@ -411,7 +411,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
               if (!keys.some(function (x) { return x.id === k.id; })) {
                 say('revoked "' + k.name + '".');
               } else {
-                say('could not confirm the revocation of "' + k.name + '". ' + e.message + ' the list has been refreshed — check it before trying again.', true);
+                say('could not confirm the revocation of "' + k.name + '". ' + e.message + ' the list has been refreshed. check it before trying again.', true);
               }
             }).catch(function (re) {
               say('could not confirm the revocation of "' + k.name + '", and refreshing the list failed (' + re.message + '). reload the page and check before trying again.', true);
@@ -452,13 +452,13 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
         reveal.hidden = false;
         nameInput.value = '';
         revealCopy.querySelector('span').textContent = 'copy';
-        say('copy the key below — it will not be shown again.');
+        say('copy the key below: it will not be shown again.');
         return load();
       })
       .catch(function (e) {
         // A failed POST may still have committed server-side; reconcile from GET, never auto-repeat.
         return load(true).then(function () {
-          say('could not confirm the key was created. ' + e.message + ' the list has been refreshed — if an unexpected key appears, revoke it and create a new one; a full key that was never shown cannot be recovered.', true);
+          say('could not confirm the key was created. ' + e.message + ' the list has been refreshed. if an unexpected key appears, revoke it and create a new one; a full key that was never shown cannot be recovered.', true);
         }).catch(function (re) {
           say('could not confirm the key was created, and refreshing the list failed (' + re.message + '). reload the page and check the list before trying again; a full key that was never shown cannot be recovered.', true);
         });
@@ -471,7 +471,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
       revealCopy.querySelector('span').textContent = 'copied';
       setTimeout(function () { revealCopy.querySelector('span').textContent = 'copy'; }, 1200);
     }).catch(function () {
-      say('clipboard blocked — select the key text and copy it manually.', true);
+      say('clipboard blocked. select the key text and copy it manually.', true);
     });
   });
 

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Aqua — your models. one endpoint.</title>
+<title>aqua - your models. one endpoint.</title>
 <meta name="description" content="use the models available to your account through one openai-compatible api.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -130,7 +130,7 @@ h1 .dot { color:var(--accent); }
   </div>
 
   <div class="scene in in-3" aria-label="example request and answer">
-    <div class="bar"><i></i><i></i><i></i><span class="t">example — one request, one streamed answer</span></div>
+    <div class="bar"><i></i><i></i><i></i><span class="t">example: one request, one streamed answer</span></div>
     <pre class="req"><span class="m">POST</span> /v1/chat/completions
 authorization: bearer aqua_sk_…
 {
@@ -138,7 +138,7 @@ authorization: bearer aqua_sk_…
   "stream": true,
   "messages": [{"role": "user", "content": "explain sql joins in one line"}]
 }</pre>
-    <pre class="ans"><span class="lbl">200 — streamed</span>
+    <pre class="ans"><span class="lbl">200 · streamed</span>
 a join combines rows from two tables by matching
 a shared key, so related data reads as one result.<span class="caret"></span></pre>
   </div>
@@ -161,7 +161,7 @@ a shared key, so related data reads as one result.<span class="caret"></span></p
 </main>
 
 <footer class="foot">
-  <span>aqua — invite-only model gateway</span>
+  <span>aqua · invite-only model gateway</span>
   <div class="r"><a href="/console.html">console</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a></div>
 </footer>
 
