@@ -468,6 +468,24 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         return spend_admin(&mut stream,&shared,&req,&token,cors);
     }
 
+    // Usage aggregates (summary/series) are not served by this gateway; usage
+    // analytics live on the live-box lineage. Owner session or admin key only,
+    // same guard shape as /v1/admin/providers: a present Authorization header
+    // is authoritative, so a bad bearer stays 401 even with a valid cookie.
+    // 501 (not 401) for authenticated callers so the usage page shows its
+    // graceful empty state instead of a false "session expired".
+    if req.method == "GET" && matches!(req.path.as_str(), "/v1/admin/usage/summary" | "/v1/admin/usage/series") {
+        if auth_throttled(&shared, &token) { return write_json(&mut stream,429,&err_body("too many failed attempts","rate_limit_error"),cors); }
+        let admin_ok = !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key;
+        let cookie_owner = !req.headers.contains_key("authorization")
+            && auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id)).map(|(_,r)| r==Role::Owner).unwrap_or(false);
+        if !admin_ok && !cookie_owner {
+            record_auth_failure(&shared, &token);
+            return write_json(&mut stream, 401, &err_body("invalid api key","auth_error"),cors);
+        }
+        return write_json(&mut stream, 501, &err_body("usage aggregates are not served by this gateway","not_implemented"),cors);
+    }
+
     if req.method == "GET" && req.path == "/v1/admin/providers" {
         // Throttle check first: admin-key guessing must hit the same 429 wall as API keys.
         if auth_throttled(&shared, &token) {
@@ -536,6 +554,15 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         let strict=ops_login.as_ref().is_some_and(|name|store.ledger.preferences.get(name).is_some_and(|p|p.zdr_only));
         drop(store);
         return write_json(&mut stream,200,&resolve_model(&shared,requested,strict,Role::Owner),cors);
+    }
+
+    // Unknown non-API GETs (favicon, webfont paths on hosts that do not serve
+    // them, crawler probes) are not credential attempts: plain 404, recorded
+    // nowhere, so they cannot spend the shared empty-bearer throttle and 429
+    // legitimate cookie traffic. /v1/* and every method other than GET keep
+    // the full gate below; this adds no route and bypasses no auth.
+    if req.method == "GET" && !req.path.starts_with("/v1/") {
+        return write_json(&mut stream, 404, &err_body("not found","not_found"), cors);
     }
 
     // A present Authorization header is authoritative, even if malformed.
@@ -1699,7 +1726,44 @@ mod reviewer_regressions {
     }
 
     #[test]
-    fn spend_admin_cookie_route_requires_owner_and_explicit_csrf_safe_origin() {
+    fn usage_aggregates_are_guarded_and_501_when_authenticated() {
+        let mut state = shared();state.config.allowed_origin="https://aqua.test".into();
+        state.config.admin_key="admintest".into();
+        let state=Arc::new(state);
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        for path in ["/v1/admin/usage/summary?hours=24","/v1/admin/usage/series?hours=24&bucket=hour"] {
+            let admin=browser_api(state.clone(),"GET",path,"",None,"none",Some("Bearer admintest"),"");
+            assert!(admin.starts_with("HTTP/1.1 501"),"{path} admin bearer: {}",&admin[..20]);
+            let own=browser_api(state.clone(),"GET",path,&owner,None,"same-site",None,"");
+            assert!(own.starts_with("HTTP/1.1 501"),"{path} owner session: {}",&own[..20]);
+            assert!(browser_api(state.clone(),"GET",path,&friend,None,"same-site",None,"").starts_with("HTTP/1.1 401"),"{path} friend");
+            // Explicit bearer is authoritative: bad bearer 401s even with an owner cookie.
+            assert!(browser_api(state.clone(),"GET",path,&owner,None,"same-site",Some("Bearer wrong"),"").starts_with("HTTP/1.1 401"),"{path} bad bearer precedence");
+        }
+    }
+
+    #[test]
+    fn unknown_static_gets_are_404_and_never_spend_the_empty_token_throttle() {
+        let mut state = shared();state.config.admin_key="admintest".into();
+        let state=Arc::new(state);
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        // Well past AUTH_FAIL_LIMIT: anonymous probes of unknown static paths
+        // must 404 without recording credential failures.
+        for path in ["/favicon.ico","/fonts/f00.woff2","/fonts/f04.woff2","/favicon.ico","/fonts/f00.woff2","/favicon.ico","/robots.txt"] {
+            assert!(browser_api(state.clone(),"GET",path,"",None,"none",None,"").starts_with("HTTP/1.1 404"),"{path}");
+        }
+        // Cookie traffic (empty bearer fingerprint) is untouched by those probes.
+        assert!(browser_api(state.clone(),"GET","/v1/admin/providers",&owner,None,"same-site",None,"").starts_with("HTTP/1.1 200"));
+        // The API gate is unchanged: unknown /v1 paths still 401 and still count.
+        assert!(browser_api(state.clone(),"GET","/v1/nope","",None,"none",None,"").starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state.clone(),"GET","/v1/models","",None,"none",Some("Bearer bad"),"").starts_with("HTTP/1.1 401"));
+        // POST to an unknown static path keeps the full gate (no bypass added).
+        assert!(browser_api(state.clone(),"POST","/favicon.ico","",None,"none",None,"").starts_with("HTTP/1.1 401"));
+    }
+
+    #[test]
+        fn spend_admin_cookie_route_requires_owner_and_explicit_csrf_safe_origin() {
         let mut state = shared();state.config.allowed_origin="https://aqua.test".into();
         let state=Arc::new(state);
         let owner=state.auth.create_session("luke",Role::Owner).unwrap();
