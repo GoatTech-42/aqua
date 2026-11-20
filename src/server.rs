@@ -3508,3 +3508,926 @@ mod sse_commit_health_tests {
         assert!(cooldown(&state).is_none(), "valid completion clears the soft cooldown");
     }
 }
+
+// Transport deadline matrix (providers-lane item 4): one aggregate upstream
+// budget per request, shared across attempts, with a per-read idle floor.
+// The NIM owner 120s window is pinned purely at the provider_remaining_budget
+// boundary (no 120s sleeps); live loopback pins use small configured windows.
+#[cfg(test)]
+mod transport_deadline_tests {
+    use super::*;
+    use super::reviewer_regressions::{browser_api, keys_shared};
+    use std::io::ErrorKind;
+
+    // NIM + owner gets a 120s window regardless of the configured budget;
+    // the window ends exactly at 120s of elapsed request time.
+    #[test]
+    fn nim_owner_window_is_120s_at_the_boundary() {
+        let configured = Duration::from_secs(300);
+        assert_eq!(provider_remaining_budget("nim", true, configured, Duration::ZERO),
+            Some(Duration::from_secs(120)), "NIM owner window is 120s regardless of configured budget");
+        assert_eq!(provider_remaining_budget("nim", true, configured, Duration::from_secs(119)),
+            Some(Duration::from_secs(1)));
+        assert_eq!(provider_remaining_budget("nim", true, configured, Duration::from_secs(120)), None);
+        assert_eq!(provider_remaining_budget("nim", true, configured, Duration::from_secs(121)), None);
+    }
+
+    // Every other route (and NIM for a non-owner) gets the configured window,
+    // ending exactly at the configured elapsed time.
+    #[test]
+    fn configured_window_boundaries_and_non_owner_nim_window() {
+        let configured = Duration::from_secs(300);
+        assert_eq!(provider_remaining_budget("nim", false, configured, Duration::ZERO), Some(configured),
+            "non-owner NIM never gets the owner 120s window");
+        assert_eq!(provider_remaining_budget("inferbase", true, configured, Duration::ZERO), Some(configured));
+        assert_eq!(provider_remaining_budget("inferbase", true, configured, configured - Duration::from_millis(1)),
+            Some(Duration::from_millis(1)));
+        assert_eq!(provider_remaining_budget("inferbase", true, configured, configured), None);
+        assert_eq!(provider_remaining_budget("inferbase", true, configured, configured + Duration::from_secs(1)), None);
+    }
+
+    const VALID: &str = r#"{"id":"offline-chat","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"valid offline output"},"finish_reason":"stop"}]}"#;
+
+    fn leaked(s: String) -> &'static str { Box::leak(s.into_boxed_str()) }
+
+    // Counting JSON stub: serves VALID to every accepted connection, bounded,
+    // drains the accept backlog after the stop flag so a queued dispatch is
+    // still counted; the test joins before reading the final count.
+    fn counting_json_stub(hits: Arc<AtomicUsize>, stop: Arc<AtomicBool>) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                match listener.accept() {
+                    Ok((mut socket, _)) => {
+                        hits.fetch_add(1, Ordering::SeqCst);
+                        socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                        socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                        let _ = read_request(&mut socket);
+                        let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}", VALID.len(), VALID);
+                    }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                        if stop.load(Ordering::SeqCst) {
+                            let drain_until = Instant::now() + Duration::from_millis(100);
+                            while Instant::now() < drain_until {
+                                match listener.accept() {
+                                    Ok((mut socket, _)) => {
+                                        hits.fetch_add(1, Ordering::SeqCst);
+                                        socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                                        socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                                        let _ = read_request(&mut socket);
+                                        let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}", VALID.len(), VALID);
+                                    }
+                                    Err(e) if e.kind() == ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(2)),
+                                    Err(_) => break,
+                                }
+                            }
+                            break;
+                        }
+                        assert!(Instant::now() < deadline, "counting stub outlived its deadline");
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        (url, worker)
+    }
+
+    // NIM with a trial-eligible upstream model; the only route configured.
+    fn nim_state(url: String) -> Arc<Shared> {
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = Duration::from_secs(5);
+        state.config.upstream_idle = Duration::from_secs(5);
+        state.config.providers = vec![crate::config::Provider {
+            id: "nim".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: url, models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "z-ai/glm-5.3-flash".into(), context: None,
+            }],
+        }];
+        Arc::new(state)
+    }
+
+    fn chat_once(state: Arc<Shared>, role: Role) -> String {
+        let cookie = state.auth.create_session("luke", role).unwrap();
+        browser_api(state, "POST", "/v1/chat/completions", &cookie,
+            Some("https://aqua.test"), "same-site", None,
+            r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline fixture"}],"stream":false}"#)
+    }
+
+    // Owner-trial accounts never serve friends: a non-owner request must not
+    // even reach the NIM account.
+    #[test]
+    fn non_owner_never_dispatches_owner_trial_nim() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (url, stub) = counting_json_stub(hits.clone(), stop.clone());
+        let state = nim_state(url);
+        let response = chat_once(state, Role::Friend);
+        stop.store(true, Ordering::SeqCst);
+        stub.join().unwrap();
+        assert!(!response.starts_with("HTTP/1.1 200"), "a friend must not be served by an owner-trial account: {response:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 0, "non-owner request must never reach the NIM account");
+    }
+
+    // Positive control: the same fixture is owner-eligible, so the pin above
+    // targets the role gate and not a broken fixture.
+// One failing route configured, budget/idle set small and explicit.
+    fn deadline_state(providers: Vec<crate::config::Provider>, budget: Duration, idle: Duration) -> Arc<Shared> {
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = budget;
+        state.config.upstream_idle = idle;
+        state.config.providers = providers;
+        Arc::new(state)
+    }
+
+    fn deadline_provider(id: &str, url: String) -> crate::config::Provider {
+        crate::config::Provider {
+            id: id.into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: url, models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-chat-upstream".into(), context: None,
+            }],
+        }
+    }
+
+    fn failed_attempt(state: &Arc<Shared>, response: &str, provider: &str) {
+        assert!(response.starts_with("HTTP/1.1 503"), "attempt must fail closed: {response:?}");
+        let health = state.observations.lock().unwrap().aggregate(
+            [(provider, "fixture-chat", "fixture-chat-upstream")].into_iter());
+        assert!(health["healthy_routes"] == 0 && health["failed_routes"] == 1, "route recorded failed: {health}");
+        assert!(state.health.lock().unwrap().get(provider).is_some_and(|c| c.until > Instant::now()),
+            "timed-out attempt must cool the route");
+    }
+
+    // Scripted single-connection stub: optional head first, a stall, then the
+    // body. Writes tolerate the client having gone away (deadline fired).
+    fn stall_stub(head: Option<String>, stall: Duration, body: &'static str) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let mut socket = accept_one(&listener);
+            socket.set_nonblocking(false).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut socket);
+            if let Some(h) = head { let _ = socket.write_all(h.as_bytes()); }
+            thread::sleep(stall);
+            let _ = socket.write_all(body.as_bytes());
+        });
+        (url, worker)
+    }
+
+    // Drip-feed stub: head, then one byte per interval for `rounds` (faster
+    // than the idle floor, so per-read never fires), then the rest. Writes
+    // tolerate the client having gone away.
+    fn drip_stub(body: &'static str, interval: Duration, rounds: usize) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let mut socket = accept_one(&listener);
+            socket.set_nonblocking(false).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut socket);
+            let _ = socket.write_all(json_head(body.len()).as_bytes());
+            let bytes = body.as_bytes();
+            for chunk in bytes[..rounds].chunks(1) {
+                if socket.write_all(chunk).is_err() { return; }
+                thread::sleep(interval);
+            }
+            let _ = socket.write_all(&bytes[rounds..]);
+        });
+        (url, worker)
+    }
+
+    fn json_head(len: usize) -> String {
+        format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", len)
+    }
+
+    fn accept_one(listener: &TcpListener) -> TcpStream {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            match listener.accept() {
+                Ok((s, _)) => return s,
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline, "stub received no dispatch");
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(e) => panic!("stub accept: {e}"),
+            }
+        }
+    }
+
+    // No headers at all: the per-read idle floor kills the attempt before the
+    // late body can arrive, even though the aggregate budget would allow it.
+    #[test]
+    fn no_headers_attempt_dies_on_idle_floor() {
+        // silent 300ms, then a valid head and body; idle 100ms, aggregate 400ms
+        let (url, stub) = stall_stub(None, Duration::from_millis(300), leaked(format!("{}{}", json_head(VALID.len()), VALID)));
+        let state = deadline_state(vec![deadline_provider("inferbase", url)], Duration::from_millis(400), Duration::from_millis(100));
+        let started = Instant::now();
+        let response = chat_once(state.clone(), Role::Owner);
+        let elapsed = started.elapsed();
+        stub.join().unwrap();
+        assert!(elapsed < Duration::from_millis(350),
+            "died before the 400ms aggregate could fire, so the idle floor is the killer: {elapsed:?}");
+        failed_attempt(&state, &response, "inferbase");
+    }
+
+    // Headers arrive, body stalls: the idle floor restarts per read and still
+    // kills the attempt before the late body, under a wide aggregate budget.
+    #[test]
+    fn headers_then_stalled_body_dies_on_idle_floor() {
+        // head now, body at 400ms; idle 100ms, aggregate 2s
+        let (url, stub) = stall_stub(Some(json_head(VALID.len())), Duration::from_millis(400), VALID);
+        let state = deadline_state(vec![deadline_provider("inferbase", url)], Duration::from_secs(2), Duration::from_millis(100));
+        let started = Instant::now();
+        let response = chat_once(state.clone(), Role::Owner);
+        let elapsed = started.elapsed();
+        stub.join().unwrap();
+        assert!(elapsed < Duration::from_millis(1000),
+            "died far inside the 2s aggregate, so the per-read idle floor is the killer: {elapsed:?}");
+        failed_attempt(&state, &response, "inferbase");
+    }
+
+    // Aggregate-budget regression guard: a steady drip faster than the idle
+    // floor dies inside the aggregate window, mid-stream.
+    #[test]
+    fn drip_faster_than_idle_dies_on_aggregate_budget() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let stub = thread::spawn(move || {
+            let mut socket = accept_one(&listener);
+            socket.set_nonblocking(false).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut socket);
+            let _ = socket.write_all(json_head(VALID.len()).as_bytes());
+            let bytes = VALID.as_bytes();
+            // 16 drips of 1 byte, 50ms apart: faster than the 100ms idle floor,
+            // 800ms in total, past the 400ms aggregate budget.
+            for chunk in bytes[..16].chunks(1) {
+                if socket.write_all(chunk).is_err() { return; }
+                thread::sleep(Duration::from_millis(50));
+            }
+            let _ = socket.write_all(&bytes[16..]);
+        });
+        let state = deadline_state(vec![deadline_provider("inferbase", url)], Duration::from_millis(400), Duration::from_millis(100));
+        let started = Instant::now();
+        let response = chat_once(state.clone(), Role::Owner);
+        let elapsed = started.elapsed();
+        stub.join().unwrap();
+        // Died inside the aggregate window, before the 800ms body completed.
+        // A long scheduling pause could land in the same window, so this pins
+        // the aggregate regression, not a unique attribution to it.
+        assert!(elapsed >= Duration::from_millis(300) && elapsed < Duration::from_millis(750),
+            "died inside the aggregate window, mid-stream: {elapsed:?}");
+        failed_attempt(&state, &response, "inferbase");
+    }
+
+    // Healthy control: the same drip pattern completes when the whole body
+    // lands inside the aggregate budget, isolating the kill above to the budget.
+    #[test]
+    fn drip_faster_than_idle_completes_within_budget() {
+        let (url, stub) = drip_stub(VALID, Duration::from_millis(50), 4);
+        let state = deadline_state(vec![deadline_provider("inferbase", url)], Duration::from_millis(400), Duration::from_millis(100));
+        let response = chat_once(state.clone(), Role::Owner);
+        stub.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 200") && response.contains("valid offline output"),
+            "a drip that lands inside the aggregate budget completes: {response:?}");
+        let health = state.observations.lock().unwrap().aggregate(
+            [("inferbase", "fixture-chat", "fixture-chat-upstream")].into_iter());
+        assert_eq!(health["healthy_routes"], 1, "route recorded healthy: {health}");
+    }
+
+    // The fallback attempt inherits only the remaining aggregate window: the
+    // first attempt burns 300ms of the 1000ms budget on the idle floor, and
+    // the fallback drips for 800ms (faster than the 300ms idle floor, so only
+    // the aggregate budget can end it), outlasting the remaining ~700ms.
+    #[test]
+    fn fallback_gets_only_the_remaining_aggregate_budget() {
+        let (a_url, a_stub) = stall_stub(Some(json_head(VALID.len())), Duration::from_millis(1200), VALID);
+        let (b_url, b_stub) = drip_stub(VALID, Duration::from_millis(100), 8);
+        let state = deadline_state(
+            vec![deadline_provider("inferbase", a_url), deadline_provider("orcarouter", b_url)],
+            Duration::from_millis(1000), Duration::from_millis(300));
+        let started = Instant::now();
+        let response = chat_once(state.clone(), Role::Owner);
+        let elapsed = started.elapsed();
+        a_stub.join().unwrap();
+        b_stub.join().unwrap();
+        // The fallback outlived its own 300ms idle floor and died near the
+        // 1000ms aggregate: the attempt ran on the remaining window.
+        assert!(elapsed >= Duration::from_millis(850) && elapsed < Duration::from_millis(1600),
+            "fallback ran into the remaining aggregate window: {elapsed:?}");
+        assert!(response.starts_with("HTTP/1.1 503"), "fallback inside only the remaining budget must fail: {response:?}");
+        for p in ["inferbase", "orcarouter"] {
+            let health = state.observations.lock().unwrap().aggregate(
+                [(p, "fixture-chat", "fixture-chat-upstream")].into_iter());
+            assert!(health["failed_routes"] == 1, "{p} recorded failed: {health}");
+        }
+    }
+
+    #[test]
+    fn owner_dispatches_eligible_nim_model() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (url, stub) = counting_json_stub(hits.clone(), stop.clone());
+        let state = nim_state(url);
+        let response = chat_once(state, Role::Owner);
+        stop.store(true, Ordering::SeqCst);
+        stub.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"), "owner request on an eligible NIM model: {response:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 1, "exactly one dispatch to the account");
+    }
+}
+
+// Permit lifetime/release matrix (providers-lane item 3): the per-account
+// slot is held for the whole attempt and released on every exit path. A busy
+// account is skipped without 429 evidence or cooldown. JSON-bodied busy
+// outcomes can be schedule-dependent (the first call may complete before the
+// second arrives); the SSE mid-stream case is the decisive busy-skip
+// observation.
+#[cfg(test)]
+mod permit_lifetime_tests {
+    use super::*;
+    use super::reviewer_regressions::{browser_api, keys_shared};
+    use std::io::ErrorKind;
+    use std::sync::mpsc::channel;
+
+    const VALID: &str = r#"{"id":"offline-chat","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"valid offline output"},"finish_reason":"stop"}]}"#;
+
+    fn slot<'a>(state: &'a Arc<Shared>, provider: &str) -> &'a AtomicBool {
+        match provider {
+            "zai" => &state.zai_in_flight,
+            "openrouter" => &state.openrouter_in_flight,
+            "nim" => &state.nim_in_flight,
+            "radeon" => &state.radeon_in_flight,
+            "logfare" => &state.logfare_in_flight,
+            _ => panic!("not a slot-limited provider: {provider}"),
+        }
+    }
+
+    fn slot_state(provider: &str, upstream_model: &str, url: String) -> Arc<Shared> {
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = Duration::from_secs(5);
+        state.config.upstream_idle = Duration::from_secs(5);
+        state.config.providers = vec![crate::config::Provider {
+            id: provider.into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: url, models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: upstream_model.into(), context: None,
+            }],
+        }];
+        Arc::new(state)
+    }
+
+    fn chat(state: Arc<Shared>) -> String {
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        browser_api(state, "POST", "/v1/chat/completions", &cookie,
+            Some("https://aqua.test"), "same-site", None,
+            r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline fixture"}],"stream":false}"#)
+    }
+
+    // Counting gated stub: the first connection gets the head, a report-in,
+    // then parks on the gate before the body. Any further connection is only
+    // counted (a busy-skip violation reaches the account at TCP level even if
+    // nobody answers it), and the backlog is drained after the stop flag so a
+    // queued connection is still counted; the test joins before the count.
+    fn counting_gated_stub(body: &'static str) -> (String, JoinHandle<()>, std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>, Arc<AtomicUsize>, Arc<AtomicBool>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let extra = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (in_tx, in_rx) = channel();
+        let (gate_tx, gate_rx) = channel();
+        let extra2 = extra.clone();
+        let stop2 = stop.clone();
+        let worker = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut socket = loop {
+                match listener.accept() {
+                    Ok((s, _)) => break s,
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline, "stub received no dispatch");
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(e) => panic!("stub accept: {e}"),
+                }
+            };
+            socket.set_nonblocking(false).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut socket);
+            write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", body.len()).expect("head write");
+            in_tx.send(()).unwrap();
+            gate_rx.recv_timeout(Duration::from_secs(10)).expect("gate release");
+            socket.write_all(body.as_bytes()).expect("body write");
+            drop(socket);
+            while !stop2.load(Ordering::SeqCst) && Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((s, _)) => { extra2.fetch_add(1, Ordering::SeqCst); drop(s); }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(2)),
+                    Err(_) => break,
+                }
+            }
+            let drain_until = Instant::now() + Duration::from_millis(100);
+            while Instant::now() < drain_until {
+                match listener.accept() {
+                    Ok((s, _)) => { extra2.fetch_add(1, Ordering::SeqCst); drop(s); }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(2)),
+                    Err(_) => break,
+                }
+            }
+        });
+        (url, worker, in_rx, gate_tx, extra, stop)
+    }
+
+const STREAM_BODY: &str = r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline fixture"}],"stream":true}"#;
+    const VALID_DELTA: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}\n\n";
+    const TERMINAL: &str = "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"stop\"}]}\n\n";
+    const DONE: &str = "data: [DONE]\n\n";
+
+    // Counting gated SSE stub: first connection gets an SSE head + phase1,
+    // parks on the gate, then phase2. Further connections are only counted,
+    // with a backlog drain after the stop flag; the test joins before counting.
+    fn counting_gated_sse_stub(phase1: &'static str, phase2: &'static str) -> (String, JoinHandle<()>, std::sync::mpsc::Receiver<()>, std::sync::mpsc::Sender<()>, Arc<AtomicUsize>, Arc<AtomicBool>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let extra = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (in_tx, in_rx) = channel();
+        let (gate_tx, gate_rx) = channel();
+        let extra2 = extra.clone();
+        let stop2 = stop.clone();
+        let worker = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut socket = loop {
+                match listener.accept() {
+                    Ok((s, _)) => break s,
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline, "stub received no dispatch");
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(e) => panic!("stub accept: {e}"),
+                }
+            };
+            socket.set_nonblocking(false).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut socket);
+            write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", phase1.len() + phase2.len()).expect("head write");
+            socket.write_all(phase1.as_bytes()).expect("phase1 write");
+            in_tx.send(()).unwrap();
+            gate_rx.recv_timeout(Duration::from_secs(10)).expect("gate release");
+            socket.write_all(phase2.as_bytes()).expect("phase2 write");
+            drop(socket);
+            while !stop2.load(Ordering::SeqCst) && Instant::now() < deadline {
+                match listener.accept() {
+                    Ok((s, _)) => { extra2.fetch_add(1, Ordering::SeqCst); drop(s); }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(2)),
+                    Err(_) => break,
+                }
+            }
+            let drain_until = Instant::now() + Duration::from_millis(100);
+            while Instant::now() < drain_until {
+                match listener.accept() {
+                    Ok((s, _)) => { extra2.fetch_add(1, Ordering::SeqCst); drop(s); }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(2)),
+                    Err(_) => break,
+                }
+            }
+        });
+        (url, worker, in_rx, gate_tx, extra, stop)
+    }
+
+    // Raw streaming client on a worker thread: reads the response head and one
+    // SSE frame, reports in, waits for the release, then reads to EOF.
+    fn streaming_client(state: Arc<Shared>, framed: std::sync::mpsc::Sender<()>, release: std::sync::mpsc::Receiver<()>) -> JoinHandle<String> {
+        thread::spawn(move || {
+            let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = thread::spawn(move || handle(listener.accept().unwrap().0, state));
+            let mut c = TcpStream::connect(address).unwrap();
+            c.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+            write!(c, "POST /v1/chat/completions HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\nsec-fetch-site: same-site\r\norigin: https://aqua.test\r\ncontent-length: {}\r\n\r\n{STREAM_BODY}", STREAM_BODY.len()).unwrap();
+            let mut buf = Vec::new();
+            let mut tmp = [0u8; 4096];
+            let mut frames = 0;
+            loop {
+                let n = c.read(&mut tmp).unwrap();
+                assert!(n > 0, "server closed before the first frame");
+                buf.extend_from_slice(&tmp[..n]);
+                frames = buf.windows(2).filter(|w| *w == b"\n\n").count();
+                if frames >= 1 && buf.windows(4).any(|w| w == b"\r\n\r\n") { break; }
+            }
+            framed.send(()).unwrap();
+            release.recv_timeout(Duration::from_secs(10)).expect("release");
+            loop {
+                match c.read(&mut tmp) {
+                    Ok(0) => break,
+                    Ok(n) => buf.extend_from_slice(&tmp[..n]),
+                    Err(e) => panic!("downstream read: {e}"),
+                }
+            }
+            server.join().unwrap();
+            String::from_utf8_lossy(&buf).into_owned()
+        })
+    }
+
+    // While a streaming attempt holds the account (downstream has provably
+    // consumed the head and one frame), a second call must busy-skip: it never
+    // reaches the account, fails closed, and leaves no cooldown. This
+    // interleaving is what catches a slot released at header commit.
+    #[test]
+    fn busy_account_is_skipped_mid_stream_zai() {
+        let (url, worker, _accepted, gate, extra, stop) = counting_gated_sse_stub(VALID_DELTA, leaked(format!("{TERMINAL}{DONE}")));
+        let state = slot_state("zai", "fixture-chat-upstream", url);
+        let (framed_tx, framed_rx) = channel();
+        let (release_tx, release_rx) = channel();
+        let first = streaming_client(state.clone(), framed_tx, release_rx);
+        framed_rx.recv_timeout(Duration::from_secs(5)).expect("first stream delivered a frame");
+        assert!(slot(&state, "zai").load(Ordering::SeqCst), "slot held while the stream is open");
+        let second = chat(state.clone());
+        assert!(second.starts_with("HTTP/1.1 503"), "busy account skipped, no other route: {second:?}");
+        assert!(state.health.lock().unwrap().get("zai").is_none(), "busy-skip adds no cooldown");
+        gate.send(()).unwrap();
+        release_tx.send(()).unwrap();
+        let body = first.join().unwrap();
+        assert!(body.contains("data: [DONE]"), "first stream completes: {}", body.len());
+        stop.store(true, Ordering::SeqCst);
+        worker.join().unwrap();
+        assert!(!slot(&state, "zai").load(Ordering::SeqCst), "slot released after completion");
+        assert_eq!(extra.load(Ordering::SeqCst), 0, "no second connection ever reached the account");
+        let health = state.observations.lock().unwrap().aggregate(
+            [("zai", "fixture-chat", "fixture-chat-upstream")].into_iter());
+        assert!(health["healthy_routes"] == 1 && health["failed_routes"] == 0, "only the first, completed stream counts: {health}");
+    }
+
+    fn leaked(s: String) -> &'static str { Box::leak(s.into_boxed_str()) }
+
+    // Same busy-skip contract for every slot-limited provider, with its actual
+    // eligible upstream model and owner role. OpenRouter needs its spend gate
+    // enabled (verified day, allowance, durable store) like the existing
+    // fixtures.
+    fn busy_state(provider: &str, upstream_model: &str, url: String) -> (Arc<Shared>, Option<std::path::PathBuf>) {
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = Duration::from_secs(5);
+        state.config.upstream_idle = Duration::from_secs(5);
+        let mut spend_path = None;
+        if provider == "openrouter" {
+            let path = std::env::temp_dir().join(format!("aqua-permit-busy-{}-{}.json",
+                std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+            state.spend = Mutex::new(crate::spend::Store::open(Some(path.clone())).unwrap());
+            state.config.spend.account_verified_day = chrono_day();
+            state.config.spend.openrouter_allowance = 40;
+            spend_path = Some(path);
+        }
+        state.config.providers = vec![crate::config::Provider {
+            id: provider.into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: url, models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: upstream_model.into(), context: None,
+            }],
+        }];
+        (Arc::new(state), spend_path)
+    }
+
+    fn busy_account_is_skipped(provider: &str, upstream_model: &str) {
+        let (url, worker, accepted, gate, extra, stop) = counting_gated_stub(VALID);
+        let (state, spend_path) = busy_state(provider, upstream_model, url);
+        let first = { let s = state.clone(); thread::spawn(move || chat(s)) };
+        accepted.recv_timeout(Duration::from_secs(5)).expect("first call reached the account");
+        assert!(slot(&state, provider).load(Ordering::SeqCst), "slot held once the account is engaged");
+        let second = chat(state.clone());
+        assert!(second.starts_with("HTTP/1.1 503"), "busy account skipped, no other route: {second:?}");
+        assert!(state.health.lock().unwrap().get(provider).is_none(), "busy-skip adds no cooldown");
+        gate.send(()).unwrap();
+        assert!(first.join().unwrap().starts_with("HTTP/1.1 200"), "first call completes");
+        stop.store(true, Ordering::SeqCst);
+        worker.join().unwrap();
+        assert!(!slot(&state, provider).load(Ordering::SeqCst), "slot released after completion");
+        assert_eq!(extra.load(Ordering::SeqCst), 0, "no second connection ever reached the account");
+        if let Some(path) = spend_path { let _ = std::fs::remove_file(path); }
+    }
+
+    #[test]
+    fn busy_account_is_skipped_nim() { busy_account_is_skipped("nim", "z-ai/glm-5.3-flash"); }
+
+    #[test]
+    fn busy_account_is_skipped_radeon() { busy_account_is_skipped("radeon", "GLM-5.3-Flash"); }
+
+    #[test]
+    fn busy_account_is_skipped_logfare() { busy_account_is_skipped("logfare", "qwen-3.8-27b"); }
+
+    #[test]
+    fn busy_account_is_skipped_openrouter() { busy_account_is_skipped("openrouter", "cohere/north-mini-code:free"); }
+
+    // Release matrix: after every exit path the account slot must be free, so
+    // a follow-up call reaches the account and succeeds. Each stub serves the
+    // scripted failure to connection 1 and VALID to connection 2. Cooldowns
+    // from the failure are soft (no Retry-After), which never blocks dispatch,
+    // so dispatch on call 2 isolates the slot. A hard 429+Retry-After
+    // cooldown would block call 2 before the slot check, so that shape cannot
+    // observe the slot and is intentionally not used here.
+    enum Behavior { Raw(&'static str), Close, Stall(Duration) }
+
+    fn sequence_stub(behaviors: Vec<Behavior>, hits: Arc<AtomicUsize>) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            for behavior in behaviors {
+                let deadline = Instant::now() + Duration::from_secs(10);
+                let mut socket = loop {
+                    match listener.accept() {
+                        Ok((s, _)) => break s,
+                        Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                            assert!(Instant::now() < deadline, "stub received no dispatch");
+                            thread::sleep(Duration::from_millis(2));
+                        }
+                        Err(e) => panic!("stub accept: {e}"),
+                    }
+                };
+                hits.fetch_add(1, Ordering::SeqCst);
+                socket.set_nonblocking(false).unwrap();
+                socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                let _ = read_request(&mut socket);
+                match behavior {
+                    Behavior::Raw(response) => { let _ = socket.write_all(response.as_bytes()); }
+                    Behavior::Close => drop(socket),
+                    Behavior::Stall(d) => {
+                        // Never respond, but notice the peer going away: probe
+                        // with a short-timeout read (FIN shows as Ok(0)) so the
+                        // stub is ready for the next connection promptly while
+                        // the client still fails purely on its idle floor.
+                        socket.set_read_timeout(Some(Duration::from_millis(5))).unwrap();
+                        let until = Instant::now() + d;
+                        let mut probe = [0u8; 1];
+                        loop {
+                            match socket.read(&mut probe) {
+                                Ok(0) => break,
+                                _ => assert!(Instant::now() < until, "stall probe outlived its deadline"),
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        (url, worker)
+    }
+
+    fn raw_json(status: u16, body: &str) -> String {
+        format!("HTTP/1.1 {} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}", status, body.len(), body)
+    }
+
+    fn leaked_raw(response: String) -> &'static str { Box::leak(response.into_boxed_str()) }
+
+    fn release_state(url: String, idle: Duration) -> Arc<Shared> {
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = Duration::from_secs(5);
+        state.config.upstream_idle = idle;
+        state.config.providers = vec![crate::config::Provider {
+            id: "zai".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: url, models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-chat-upstream".into(), context: None,
+            }],
+        }];
+        Arc::new(state)
+    }
+
+    // Core: path shapes connection 1, then call 2 must reach the account.
+    fn released_after(behaviors: Vec<Behavior>, idle: Duration, first_expect: &str) {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let (url, worker) = sequence_stub(behaviors, hits.clone());
+        let state = release_state(url, idle);
+        let first = chat(state.clone());
+        assert!(first.starts_with(first_expect), "first call takes the scripted path: {first:?}");
+        assert!(!slot(&state, "zai").load(Ordering::SeqCst), "slot released after the attempt ended");
+        let second = chat(state.clone());
+        worker.join().unwrap();
+        assert!(second.starts_with("HTTP/1.1 200") && second.contains("valid offline output"),
+            "follow-up call must reach the account after the slot is released: {second:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 2, "both calls reached the account");
+    }
+
+    #[test]
+    fn slot_released_after_429_zai() {
+        released_after(vec![
+            Behavior::Raw(leaked_raw(raw_json(429, r#"{"error":{"message":"slow down"}}"#))),
+            Behavior::Raw(leaked_raw(raw_json(200, VALID))),
+        ], Duration::from_secs(5), "HTTP/1.1 429");
+    }
+
+    #[test]
+    fn slot_released_after_500_zai() {
+        released_after(vec![
+            Behavior::Raw(leaked_raw(raw_json(500, r#"{"error":{"message":"blown"}}"#))),
+            Behavior::Raw(leaked_raw(raw_json(200, VALID))),
+        ], Duration::from_secs(5), "HTTP/1.1 503");
+    }
+
+    #[test]
+    fn slot_released_after_malformed_json_zai() {
+        released_after(vec![
+            Behavior::Raw(leaked_raw(raw_json(200, "{"))),
+            Behavior::Raw(leaked_raw(raw_json(200, VALID))),
+        ], Duration::from_secs(5), "HTTP/1.1 503");
+    }
+
+    #[test]
+    fn slot_released_after_transport_close_zai() {
+        released_after(vec![
+            Behavior::Close,
+            Behavior::Raw(leaked_raw(raw_json(200, VALID))),
+        ], Duration::from_secs(5), "HTTP/1.1 503");
+    }
+
+    #[test]
+    fn slot_released_after_idle_timeout_zai() {
+        released_after(vec![
+            Behavior::Stall(Duration::from_millis(1200)),
+            Behavior::Raw(leaked_raw(raw_json(200, VALID))),
+        ], Duration::from_millis(100), "HTTP/1.1 503");
+    }
+
+    #[test]
+    fn slot_released_after_normal_json_zai() {
+        released_after(vec![
+            Behavior::Raw(leaked_raw(raw_json(200, VALID))),
+            Behavior::Raw(leaked_raw(raw_json(200, VALID))),
+        ], Duration::from_secs(5), "HTTP/1.1 200");
+    }
+
+    // Streaming completion: the slot must be free once the SSE stream ends.
+    #[test]
+    fn slot_released_after_normal_sse_zai() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let (url, worker) = sequence_stub(vec![
+            Behavior::Raw(leaked(format!("HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{VALID_DELTA}{TERMINAL}{DONE}", VALID_DELTA.len() + TERMINAL.len() + DONE.len()))),
+            Behavior::Raw(leaked_raw(raw_json(200, VALID))),
+        ], hits.clone());
+        let state = release_state(url, Duration::from_secs(5));
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let first = browser_api(state.clone(), "POST", "/v1/chat/completions", &cookie,
+            Some("https://aqua.test"), "same-site", None, STREAM_BODY);
+        assert!(first.starts_with("HTTP/1.1 200") && first.contains("data: [DONE]"), "stream completes: {first:?}");
+        assert!(!slot(&state, "zai").load(Ordering::SeqCst), "slot released after the stream ended");
+        let second = chat(state.clone());
+        worker.join().unwrap();
+        assert!(second.starts_with("HTTP/1.1 200"), "follow-up reaches the account: {second:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 2);
+    }
+
+    // Downstream disconnect: the client goes away mid-stream on an explicit
+    // close command. The test proves slot release across the close
+    // interleaving: the joined handler result carries no error, no
+    // upstream-failure evidence is recorded (the healthy-observation outcome
+    // of the abandoned stream is timing-dependent and not pinned), and a
+    // follow-up call reaches the account on a live second listener
+    // connection, returning 200.
+    #[test]
+    fn slot_released_after_downstream_disconnect_zai() {
+        let (url, worker, gate, hits) = disconnect_stub();
+        let state = slot_state("zai", "fixture-chat-upstream", url);
+        let (framed_tx, framed_rx) = channel();
+        let (close_tx, close_rx) = channel();
+        let client = disconnecting_client(state.clone(), framed_tx, close_rx);
+        framed_rx.recv_timeout(Duration::from_secs(5)).expect("stream delivered a frame");
+        assert!(slot(&state, "zai").load(Ordering::SeqCst), "slot held while the stream is open");
+        close_tx.send(()).unwrap(); // explicit client close
+        gate.send(()).unwrap();     // upstream bytes give the handler a write to fail on
+        let handler_result = client.join().unwrap();
+        assert!(handler_result.is_ok(), "client-gone path ends without a handler error: {handler_result:?}");
+        assert!(!slot(&state, "zai").load(Ordering::SeqCst), "slot released after the client went away");
+        // No upstream-failure evidence: whether the abandoned stream records a
+        // healthy observation depends on when the kernel reports the close, so
+        // the pinned guarantee is failure-side only.
+        let health = state.observations.lock().unwrap().aggregate(
+            [("zai", "fixture-chat", "fixture-chat-upstream")].into_iter());
+        assert_eq!(health["failed_routes"], 0,
+            "client disconnect records no upstream failure: {health}");
+        assert!(state.health.lock().unwrap().get("zai").is_none(),
+            "client disconnect is not upstream-failure evidence: no cooldown");
+        // The follow-up call must run before the stub join: connection 2 is
+        // what the stub is waiting for.
+        let second = chat(state.clone());
+        worker.join().unwrap();
+        assert!(second.starts_with("HTTP/1.1 200") && second.contains("valid offline output"),
+            "follow-up call must reach the account after the slot is released: {second:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 2, "both calls reached the account");
+    }
+
+    // Two-connection stub for the disconnect pin: connection 1 is a gated SSE
+    // stream, connection 2 serves VALID JSON. hits counts accepted connections.
+    fn disconnect_stub() -> (String, JoinHandle<()>, std::sync::mpsc::Sender<()>, Arc<AtomicUsize>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let (gate_tx, gate_rx) = channel();
+        let hits = Arc::new(AtomicUsize::new(0));
+        let hits2 = hits.clone();
+        let worker = thread::spawn(move || {
+            let mut first = take_one(&listener);
+            hits2.fetch_add(1, Ordering::SeqCst);
+            first.set_nonblocking(false).unwrap();
+            first.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            first.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut first);
+            let phase2 = format!("{TERMINAL}{DONE}");
+            write!(first, "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", VALID_DELTA.len() + phase2.len()).expect("head write");
+            first.write_all(VALID_DELTA.as_bytes()).expect("delta write");
+            gate_rx.recv_timeout(Duration::from_secs(10)).expect("gate release");
+            // The client is gone by now: tolerate the failed write.
+            let _ = first.write_all(phase2.as_bytes());
+            drop(first);
+            let mut second = take_one(&listener);
+            hits2.fetch_add(1, Ordering::SeqCst);
+            second.set_nonblocking(false).unwrap();
+            second.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            second.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut second);
+            let _ = second.write_all(leaked_raw(raw_json(200, VALID)).as_bytes());
+        });
+        (url, worker, gate_tx, hits)
+    }
+
+    fn take_one(listener: &TcpListener) -> TcpStream {
+        let deadline = Instant::now() + Duration::from_secs(10);
+        loop {
+            match listener.accept() {
+                Ok((s, _)) => return s,
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline, "stub received no dispatch");
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(e) => panic!("stub accept: {e}"),
+            }
+        }
+    }
+
+    // Streaming client that closes on command: reads the head and one frame,
+    // reports in, waits for the close command, drops its socket, and returns
+    // the joined handler result.
+    fn disconnecting_client(state: Arc<Shared>, framed: std::sync::mpsc::Sender<()>, close: std::sync::mpsc::Receiver<()>) -> JoinHandle<std::io::Result<()>> {
+        thread::spawn(move || {
+            let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let address = listener.local_addr().unwrap();
+            let server = thread::spawn(move || handle(listener.accept().unwrap().0, state));
+            let mut c = TcpStream::connect(address).unwrap();
+            c.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+            write!(c, "POST /v1/chat/completions HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\nsec-fetch-site: same-site\r\norigin: https://aqua.test\r\ncontent-length: {}\r\n\r\n{STREAM_BODY}", STREAM_BODY.len()).unwrap();
+            let mut buf = Vec::new();
+            let mut tmp = [0u8; 4096];
+            loop {
+                let n = c.read(&mut tmp).unwrap();
+                assert!(n > 0, "server closed before the first frame");
+                buf.extend_from_slice(&tmp[..n]);
+                if buf.windows(2).any(|w| w == b"\n\n") && buf.windows(4).any(|w| w == b"\r\n\r\n") { break; }
+            }
+            framed.send(()).unwrap();
+            close.recv_timeout(Duration::from_secs(10)).expect("close command");
+            let _ = c.shutdown(std::net::Shutdown::Both);
+            drop(c);
+            server.join().unwrap()
+        })
+    }
+
+    // While one attempt holds the account mid-body, a second call must skip
+    // the busy account: it never reaches the stub, fails closed with no
+    // cooldown and no 429 evidence.
+    #[test]
+    fn busy_account_is_skipped_without_cooldown_zai() {
+        let (url, worker, accepted, gate, extra, stop) = counting_gated_stub(VALID);
+        let state = slot_state("zai", "fixture-chat-upstream", url);
+        let first = { let s = state.clone(); thread::spawn(move || chat(s)) };
+        accepted.recv_timeout(Duration::from_secs(5)).expect("first call reached the account");
+        // Pinned interleaving: the second call runs while the first attempt is
+        // parked after the upstream sent its response headers but before the
+        // body completes, where the slot is unconditionally held. Whether the
+        // attempt thread has consumed those headers is not observable at this
+        // checkpoint; a slot released at header commit is caught by the
+        // downstream-observable SSE variant below.
+        assert!(slot(&state, "zai").load(Ordering::SeqCst), "slot held once the account is engaged");
+        let second = chat(state.clone());
+        assert!(second.starts_with("HTTP/1.1 503"), "busy account skipped, no other route: {second:?}");
+        assert!(state.health.lock().unwrap().get("zai").is_none(), "busy-skip adds no cooldown");
+        let health = state.observations.lock().unwrap().aggregate(
+            [("zai", "fixture-chat", "fixture-chat-upstream")].into_iter());
+        assert!(health["healthy_routes"] == 0 && health["failed_routes"] == 0, "busy-skip records no attempt outcome: {health}");
+        gate.send(()).unwrap();
+        assert!(first.join().unwrap().starts_with("HTTP/1.1 200"), "first call completes");
+        stop.store(true, Ordering::SeqCst);
+        worker.join().unwrap();
+        assert!(!slot(&state, "zai").load(Ordering::SeqCst), "slot released after completion");
+        assert_eq!(extra.load(Ordering::SeqCst), 0, "no second connection ever reached the account");
+    }
+}
