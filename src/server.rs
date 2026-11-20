@@ -425,8 +425,9 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     // bound downstream writes: a client that stops reading must not pin this
     // worker (and its in-flight quota slot) forever. Per write operation, so
     // healthy long streams are never cut; upstream IO carries its own
-    // aggregate budget. No claim of a whole-request wall clock.
-    let _ = stream.set_write_timeout(Some(shared.config.upstream_budget));
+    // aggregate budget. No claim of a whole-request wall clock. If the timeout
+    // cannot be installed, fail the request rather than allow unbounded writes.
+    stream.set_write_timeout(Some(shared.config.upstream_budget))?;
     let budget = Duration::from_millis(shared.read_budget_ms.load(Ordering::SeqCst));
     let req = match read_request_within(&mut stream, budget) {
         Ok(r) => r,
