@@ -2,7 +2,7 @@
 
 Two separate surfaces, two mechanisms.
 
-## API (`/v1/*`): per-person bearer keys — settled, implemented
+## API (`/v1/*`): per-person bearer keys: settled, implemented
 
 Standard OpenAI clients authenticate with `Authorization: Bearer <key>` and nothing
 else. Any scheme that adds a second header, a cookie, or an interactive flow breaks
@@ -17,7 +17,7 @@ those clients, so the API keeps plain bearer keys.
   per token).
 - AQUA_DAILY_LIMIT applies per key.
 
-## Web console (landing / console / playground): GitHub OAuth — implemented
+## Web console (landing / console / playground): GitHub OAuth: implemented
 
 Luke already signs into other services (e.g. Cloudflare) with GitHub, and the
 account system question ("how will I log in") lands here.
@@ -25,13 +25,13 @@ account system question ("how will I log in") lands here.
 Implemented in `src/auth.rs` + routes in `src/server.rs`, hand-rolled on top of
 `ureq` (two HTTPS calls) rather than the `oauth2` crate: the backend is a
 deliberately minimal hand-rolled HTTP server, and the exchange is a single
-form POST plus one authenticated GET — not worth ~30 transitive crates.
+form POST plus one authenticated GET, not worth ~30 transitive crates.
 `axum-login`/`tower-sessions` were already ruled out (not axum; axum-login is in
 a maintainer transition).
 
-- `GET /login/github` — 302 to GitHub authorize with a single-use state (10 min
+- `GET /login/github`: 302 to GitHub authorize with a single-use state (10 min
   TTL). 503 when OAuth env is not configured (login fails closed).
-- `GET /auth/github/callback` — verifies state before any network call, exchanges
+- `GET /auth/github/callback`: verifies state before any network call, exchanges
   the code, reads the user login, checks the allowlist (`AQUA_GITHUB_OWNERS` /
   `AQUA_GITHUB_FRIENDS`, case-insensitive), then sets the session cookie and 302s
   to the console. Unknown GitHub accounts get 403.
@@ -47,7 +47,7 @@ a maintainer transition).
   (`fetch(..., {credentials:'include'})`). CORS allows exactly the Pages origin
   and sends `access-control-allow-credentials: true`.
 - CSRF: `SameSite=Lax` already strips the cookie from cross-site POSTs; the one
-  cookie-authenticated mutation (`POST /auth/logout`) additionally rejects
+  cookie-authenticated mutation (`POST /auth/logout`) rejects
   `Sec-Fetch-Site: cross-site` for browsers that send fetch metadata.
 - The backend also serves the three pages same-origin (`/`, `/console.html`,
   `/playground.html`) for local development; the pages stay public shells and
@@ -56,7 +56,7 @@ a maintainer transition).
   `AQUA_PUBLIC_URL` / `AQUA_CONSOLE_URL` / `AQUA_GITHUB_OWNERS` /
   `AQUA_GITHUB_FRIENDS`. The GitHub OAuth app itself is created at deploy time;
   its client secret goes in the vault, never in the repo.
-- The API keeps bearer keys regardless — friends using scripts never touch OAuth.
+- The API keeps bearer keys regardless: friends using scripts never touch OAuth.
 
 ## Why not Cloudflare Access in front of the API
 

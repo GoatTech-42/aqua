@@ -12,7 +12,7 @@ his friends get Aqua keys; provider keys never leave the server.
   reach clients. Errors to clients are generic.
 - The public model name never contains the provider id (enforced in config parsing
   and by test). Serving-provider content inside model prose itself is out of scope
-  for redaction - the guarantee covers routing metadata, not what a model says.
+  for redaction: the guarantee covers routing metadata, not what a model says.
 
 ## Model catalog
 
@@ -43,7 +43,7 @@ estimated (no tokenizer); unknown context means no rejection.
 
 Provider health is passive: real request outcomes cool an account briefly (15s
 after errors, 60s after a bare 429), and a provider-sent Retry-After (delta seconds or
-IMF-fixdate, bounded to 1h) marks the account hard-limited until it lapses - hard-limited accounts
+IMF-fixdate, bounded to 1h) marks the account hard-limited until it lapses: hard-limited accounts
 are never retried, even as a last resort. Cooldowns are account-scope: a 429 on
 one model keeps the gateway from hammering that account's other models. No
 probing or inference calls are made to test availability.
@@ -63,7 +63,7 @@ verify against the provider before adding; do not invent ids.
 - The SSE rewriter caps one pending (undelimited) event at 256 KiB, independent
   of how the network chunked it. An upstream that never terminates an event
   gets its stream cut: the client response headers are already committed at
-  that point, so there is no failover mid-response - the stream ends honestly,
+  that point, so there is no failover mid-response: the stream ends honestly,
   without a fabricated [DONE].
 - Responses are capped at 4 MiB total, streamed or not.
 
@@ -147,11 +147,11 @@ bodies never reach the client. Hard 4 MB cap on bytes to the client.
 Request framing: HTTP/1.1 with an explicit Content-Length only. Chunked bodies
 are rejected with 400 (never guessed); duplicate Content-Length is rejected;
 headers over 64 KB are rejected even when terminated. Quota is reserved only
-after a request parses and routes - malformed 400s and unroutable 503s never burn
+after a request parses and routes: malformed 400s and unroutable 503s never burn
 quota. Daily quota counters live in memory and reset on restart (beta). Failed auth
 is throttled per token (5/min, then 429) with a bounded failure map.
 
-Logs: one line per request - timestamp, key name, provider id, stream flag.
+Logs: one line per request: timestamp, key name, provider id, stream flag.
 Prompts and responses are never logged.
 
 ## Deployment shape
@@ -162,7 +162,7 @@ Split hosting, per the owner's ask: static console on Cloudflare Pages at
 Same registrable domain, so the host-only `SameSite=Lax` session cookie flows on
 credentialed cross-origin fetches; CORS answers exactly one origin with
 `access-control-allow-credentials: true`, and cookie-authenticated mutations
-additionally reject `Sec-Fetch-Site: cross-site`. The backend still serves the
+reject `Sec-Fetch-Site: cross-site`. The backend still serves the
 three pages itself for local dev and same-origin use; Pages is canonical in prod.
 The pages pick their API base by hostname (`aqua.goattech.us` -> the `api.` host,
 anything else -> same origin), with the localStorage override kept for testing.
