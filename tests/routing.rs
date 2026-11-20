@@ -1780,3 +1780,110 @@ fn oversize_headers_get_413() {
     let resp = raw_http(&srv.base, req.as_bytes());
     assert!(resp.starts_with("HTTP/1.1 413"), "oversize headers must map to 413: {:?}", &resp[..resp.len().min(120)]);
 }
+
+// ---------- terminal error envelope ----------
+
+fn sentinel_reply(status: u16, sentinel: &str) -> MockReply {
+    MockReply {
+        status,
+        headers: vec![("content-type".into(), "application/json".into())],
+        body: format!("{{\"error\":\"{sentinel}\"}}"),
+    }
+}
+
+fn assert_standard_json_headers(res: &ureq::http::Response<ureq::Body>) {
+    let h = res.headers();
+    let get = |k: &str| h.get(k).and_then(|v| v.to_str().ok());
+    assert_eq!(get("content-type"), Some("application/json"));
+    assert_eq!(get("cache-control"), Some("no-store"));
+    assert_eq!(get("x-content-type-options"), Some("nosniff"));
+    assert_eq!(get("referrer-policy"), Some("no-referrer"));
+}
+
+#[test]
+fn terminal_503_is_gateway_envelope_and_never_forwards_upstream_bodies() {
+    let p1 = mock_upstream(|_| sentinel_reply(500, "sentinel-body-one-7f3a"));
+    let p2 = mock_upstream(|_| sentinel_reply(502, "sentinel-body-two-9b1c"));
+    let srv = serve(config(
+        vec![
+            provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)]),
+            provider("p2", &p2.url, Status::Friends, vec![("coder-a", "p2/a", None)]),
+        ],
+        vec!["coder-a"],
+    ));
+    let mut res = chat(&client(), &srv.base, "ownerkey", pin_msg("coder-a"));
+    assert_eq!(res.status(), 503);
+    assert_standard_json_headers(&res);
+    let raw = res.body_mut().read_to_string().unwrap();
+    let body: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(body, serde_json::json!({"error":{"message":"no models available","type":"upstream_unavailable"}}));
+    assert!(!raw.contains("sentinel-body-one-7f3a") && !raw.contains("sentinel-body-two-9b1c"),
+        "upstream error text must never reach the client: {raw}");
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 1);
+    assert_eq!(p2.hits.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn terminal_429_is_gateway_envelope_and_never_forwards_upstream_bodies() {
+    let p1 = mock_upstream(|_| sentinel_reply(429, "sentinel-body-429-5d0e"));
+    let srv = serve(config(
+        vec![provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)])],
+        vec!["coder-a"],
+    ));
+    let mut res = chat(&client(), &srv.base, "ownerkey", pin_msg("coder-a"));
+    assert_eq!(res.status(), 429);
+    assert_standard_json_headers(&res);
+    let raw = res.body_mut().read_to_string().unwrap();
+    let body: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(body, serde_json::json!({"error":{"message":"rate limit exceeded","type":"rate_limit_error"}}));
+    assert!(!raw.contains("sentinel-body-429-5d0e"),
+        "upstream error text must never reach the client: {raw}");
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 1, "the only provider was tried exactly once");
+}
+
+#[test]
+fn terminal_429_wins_over_generic_failure_and_still_forwards_nothing() {
+    let p1 = mock_upstream(|_| sentinel_reply(500, "sentinel-body-500-22aa"));
+    let p2 = mock_upstream(|_| sentinel_reply(429, "sentinel-body-429-33bb"));
+    let srv = serve(config(
+        vec![
+            provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)]),
+            provider("p2", &p2.url, Status::Friends, vec![("coder-a", "p2/a", None)]),
+        ],
+        vec!["coder-a"],
+    ));
+    let mut res = chat(&client(), &srv.base, "ownerkey", pin_msg("coder-a"));
+    assert_eq!(res.status(), 429);
+    assert_standard_json_headers(&res);
+    let raw = res.body_mut().read_to_string().unwrap();
+    let body: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(body, serde_json::json!({"error":{"message":"rate limit exceeded","type":"rate_limit_error"}}));
+    assert!(!raw.contains("sentinel-body-500-22aa") && !raw.contains("sentinel-body-429-33bb"),
+        "upstream error text must never reach the client: {raw}");
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 1, "the 500 provider was tried exactly once");
+    assert_eq!(p2.hits.load(Ordering::SeqCst), 1, "the 429 provider was tried exactly once");
+}
+
+#[test]
+fn terminal_429_precedence_does_not_depend_on_provider_order() {
+    // Reverse mix: the 429 provider first in config order, the 500 second.
+    let p1 = mock_upstream(|_| sentinel_reply(429, "sentinel-body-429-44cc"));
+    let p2 = mock_upstream(|_| sentinel_reply(500, "sentinel-body-500-55dd"));
+    let srv = serve(config(
+        vec![
+            provider("p1", &p1.url, Status::Friends, vec![("coder-a", "p1/a", None)]),
+            provider("p2", &p2.url, Status::Friends, vec![("coder-a", "p2/a", None)]),
+        ],
+        vec!["coder-a"],
+    ));
+    let mut res = chat(&client(), &srv.base, "ownerkey", pin_msg("coder-a"));
+    assert_eq!(res.status(), 429);
+    assert_standard_json_headers(&res);
+    let raw = res.body_mut().read_to_string().unwrap();
+    let body: serde_json::Value = serde_json::from_str(&raw).unwrap();
+    assert_eq!(body, serde_json::json!({"error":{"message":"rate limit exceeded","type":"rate_limit_error"}}));
+    assert!(!raw.contains("sentinel-body-429-44cc") && !raw.contains("sentinel-body-500-55dd"),
+        "upstream error text must never reach the client: {raw}");
+    assert_eq!(p1.hits.load(Ordering::SeqCst), 1, "the 429 provider was tried exactly once");
+    assert_eq!(p2.hits.load(Ordering::SeqCst), 1, "the 500 provider was tried exactly once");
+}
