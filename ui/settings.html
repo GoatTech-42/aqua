@@ -741,6 +741,22 @@ h2 { margin-top:2rem; }
   var pRefresh = document.getElementById('aqua-p-refresh');
   /* ---- models (model-first) ---- */
   var mStatus = document.getElementById('aqua-m-status');
+  /* stamp honesty: live relative age + absolute UTC title + clock-skew rule (same rule as the console sync stamp) */
+  function stampRel(ageMs) {
+    var mins = Math.floor(ageMs / 60000), hrs = Math.floor(ageMs / 3600000), days = Math.floor(ageMs / 86400000);
+    return ageMs < 120000 ? 'just now' : ageMs < 3600000 ? mins + ' min ago' : ageMs < 172800000 ? hrs + (hrs === 1 ? ' hour ago' : ' hours ago') : days + (days === 1 ? ' day ago' : ' days ago');
+  }
+  function paintStamp(el) {
+    if (el._syncAt == null) return;
+    var ageMs = Date.now() - el._syncAt;
+    if (ageMs < -300000) { el.textContent = el._stampBase + ' updated, clock skew / age unknown'; el.title = 'recorded update time is in the future'; return; }
+    el.textContent = el._stampBase + ' updated ' + stampRel(Math.max(0, ageMs));
+    el.title = 'last updated ' + new Date(el._syncAt).toUTCString().replace('GMT', 'UTC');
+  }
+  var stampEls = [];
+  function markStamp(el, base) { el._syncAt = Date.now(); el._stampBase = base; if (stampEls.indexOf(el) < 0) stampEls.push(el); paintStamp(el); }
+  function clearStamp(el) { var i = stampEls.indexOf(el); if (i >= 0) stampEls.splice(i, 1); el._syncAt = null; el._stampBase = null; el.title = ''; }
+  setInterval(function () { stampEls.forEach(paintStamp); }, 30000);
   var mRows = document.getElementById('aqua-m-rows');
   var mEmpty = document.getElementById('aqua-m-empty');
   // Retention provenance (route-retention audit, checked 2026-11-18): one plain caveat line
@@ -783,13 +799,14 @@ h2 { margin-top:2rem; }
   function renderModels(models) {
     mRows.textContent = '';
     if (!Array.isArray(models)) {
+      clearStamp(mStatus);
       mStatus.textContent = 'this backend does not report the merged model view yet.';
       mStatus.className = 'stateline';
       mEmpty.hidden = true;
       return;
     }
     if (!models.length) {
-      mStatus.textContent = 'no models reported. updated ' + new Date().toLocaleTimeString().toLowerCase() + '.';
+      markStamp(mStatus, 'no models reported.');
       mStatus.className = 'stateline';
       mEmpty.hidden = false;
       return;
@@ -862,7 +879,7 @@ h2 { margin-top:2rem; }
       det.appendChild(wrap);
       mRows.appendChild(det);
     });
-    mStatus.textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + '. duplicate routes merged.';
+    markStamp(mStatus, models.length + ' model' + (models.length === 1 ? '' : 's') + '. duplicate routes merged.');
     mStatus.className = 'stateline';
   }
   /* ---- request-name resolve (read-only; never dispatches) ---- */
@@ -961,11 +978,13 @@ h2 { margin-top:2rem; }
         });
       }
       renderModels(body && body.models);
-      pStatus.textContent = providers.length + ' provider' + (providers.length === 1 ? '' : 's') + '. updated ' + new Date().toLocaleTimeString().toLowerCase() + '.';
+      markStamp(pStatus, providers.length + ' provider' + (providers.length === 1 ? '' : 's') + '.');
       pStatus.className = 'stateline';
     }).catch(function (e) {
+      clearStamp(pStatus);
       pStatus.textContent = 'could not load providers. ' + e.message;
       pStatus.className = 'stateline err';
+      clearStamp(mStatus);
       mStatus.textContent = 'could not load models. ' + e.message;
       mStatus.className = 'stateline err';
     }).finally(function () { pRefresh.disabled = false; });
