@@ -1842,6 +1842,94 @@ mod reviewer_regressions {
         assert_eq!(req.body, b"{\"a\"", "handler must see exactly content-length bytes");
     }
 
+    fn write_async(mut client: TcpStream, bytes: Vec<u8>) -> thread::JoinHandle<()> {
+        // bounded concurrent writer: fixtures larger than a socket buffer
+        // must not depend on the server draining mid-write
+        thread::spawn(move || {
+            let _ = client.write_all(&bytes);
+            let _ = client.flush();
+        })
+    }
+
+    #[test]
+    fn declared_body_at_the_cap_reads_in_full() {
+        // boundary: len == the cap passes; the full body must arrive.
+        // Literal value, not MAX_BODY, so a cap change fails this test.
+        const CAP: usize = 1_000_000;
+        assert_eq!(CAP, MAX_BODY, "fixture drifted from the standing cap");
+        let (client, mut server) = req_pair();
+        let mut bytes = format!("POST /x HTTP/1.1\r\nhost: x\r\ncontent-length: {}\r\n\r\n", CAP).into_bytes();
+        bytes.extend(std::iter::repeat(b'x').take(CAP));
+        let writer = write_async(client, bytes);
+        let req = read_request_within(&mut server, Duration::from_secs(10)).unwrap();
+        assert_eq!(req.body.len(), CAP);
+        writer.join().unwrap();
+    }
+
+    #[test]
+    fn declared_body_one_over_the_cap_rejected_by_bytes_not_time() {
+        // boundary: len == cap + 1 is refused on the header alone.
+        // Literal value, not MAX_BODY, so a cap change fails this test.
+        const CAP: usize = 1_000_000;
+        assert_eq!(CAP, MAX_BODY, "fixture drifted from the standing cap");
+        let (client, mut server) = req_pair();
+        let writer = write_async(client, format!("POST /x HTTP/1.1\r\nhost: x\r\ncontent-length: {}\r\n\r\n", CAP + 1).into_bytes());
+        let started = Instant::now();
+        let err = read_request_within(&mut server, Duration::from_millis(500)).err().unwrap();
+        assert_eq!(err, "too large");
+        assert!(started.elapsed() < Duration::from_millis(500), "rejection must come from the byte cap, not the deadline");
+        drop(server);
+        writer.join().unwrap();
+    }
+
+    fn head_with_terminator_at(p: usize) -> Vec<u8> {
+        let prefix = "POST /x HTTP/1.1\r\nhost: x\r\nx-pad: ";
+        let suffix = "\r\ncontent-length: 2\r\n\r\n";
+        // terminator starts 4 bytes before the end of the suffix, so the pad
+        // absorbs those 4 to land the terminator exactly at p
+        let pad = p + 4 - prefix.len() - suffix.len();
+        let mut bytes = format!("{}{}{}", prefix, "a".repeat(pad), suffix).into_bytes();
+        bytes.extend_from_slice(b"{}");
+        // fixture self-check: the terminator must sit exactly at p
+        assert!(bytes.windows(4).position(|w| w == b"\r\n\r\n") == Some(p), "fixture math");
+        bytes
+    }
+
+    #[test]
+    fn head_terminator_at_the_cap_reads_in_full() {
+        // boundary: terminator at exactly 64KiB passes (check is strict >)
+        let (client, mut server) = req_pair();
+        let writer = write_async(client, head_with_terminator_at(64 * 1024));
+        let req = read_request_within(&mut server, Duration::from_secs(5)).unwrap();
+        assert_eq!(req.body, b"{}");
+        writer.join().unwrap();
+    }
+
+    #[test]
+    fn head_terminator_one_past_the_cap_rejected_by_bytes_not_time() {
+        // boundary: terminator at 64KiB + 1 is refused on arrival
+        let (client, mut server) = req_pair();
+        let writer = write_async(client, head_with_terminator_at(64 * 1024 + 1));
+        let started = Instant::now();
+        let err = read_request_within(&mut server, Duration::from_millis(500)).err().unwrap();
+        assert_eq!(err, "headers too large");
+        assert!(started.elapsed() < Duration::from_millis(500), "rejection must come from the byte cap, not the deadline");
+        drop(server);
+        writer.join().unwrap();
+    }
+
+    #[test]
+    fn large_headers_under_the_cap_read_in_full() {
+        // mid-range passing control
+        let (client, mut server) = req_pair();
+        let big = format!("POST /x HTTP/1.1\r\nhost: x\r\nx-pad: {}\r\ncontent-length: 2\r\n\r\n{{}}", "a".repeat(32 * 1024));
+        let writer = write_async(client, big.into_bytes());
+        let req = read_request_within(&mut server, Duration::from_secs(5)).unwrap();
+        assert_eq!(req.headers.get("x-pad").unwrap().len(), 32 * 1024);
+        assert_eq!(req.body, b"{}");
+        writer.join().unwrap();
+    }
+
     #[test]
     fn in_flight_guard_counts_a_completed_handler() {
         let counter = Arc::new(AtomicUsize::new(0));

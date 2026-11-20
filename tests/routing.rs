@@ -1740,3 +1740,43 @@ fn dripping_stream_still_capped_by_aggregate_budget() {
     assert!(started.elapsed() < Duration::from_secs(4), "aggregate ceiling did not bind the drip: {:?}", started.elapsed());
     assert!(!body.contains("[DONE]"), "stream past the aggregate budget must be cut honestly: {body:?}");
 }
+
+// -- request byte caps -> 413 (read_request_within -> handle mapping) --
+// The caps themselves are standing policy (64KB head, 1MB declared body);
+// these pin the end-to-end 413 mapping at the HTTP layer.
+
+fn raw_http(base: &str, req: &[u8]) -> String {
+    let addr = base.trim_start_matches("http://");
+    // connect, write and read all carry their own timeouts: a server that
+    // never drains, never answers or hangs mid-response fails the test
+    // instead of hanging it. The fixture content itself is still finite.
+    let mut s = TcpStream::connect_timeout(&addr.parse().unwrap(), Duration::from_secs(5)).unwrap();
+    s.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+    s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+    s.write_all(req).expect("server did not drain the request within 5s");
+    let mut buf = Vec::new();
+    let mut tmp = [0u8; 8192];
+    loop {
+        match s.read(&mut tmp) {
+            Ok(0) => break,
+            Ok(n) => buf.extend_from_slice(&tmp[..n]),
+            Err(e) => panic!("server left the connection open past 5s: {e}"),
+        }
+    }
+    String::from_utf8_lossy(&buf).to_string()
+}
+
+#[test]
+fn oversize_declared_body_gets_413() {
+    let srv = serve(config(vec![], vec![]));
+    let resp = raw_http(&srv.base, b"POST /v1/chat/completions HTTP/1.1\r\nhost: x\r\nauthorization: Bearer ownerkey\r\ncontent-length: 2000000\r\n\r\n");
+    assert!(resp.starts_with("HTTP/1.1 413"), "oversize declared body must map to 413: {:?}", &resp[..resp.len().min(120)]);
+}
+
+#[test]
+fn oversize_headers_get_413() {
+    let srv = serve(config(vec![], vec![]));
+    let req = format!("POST /v1/chat/completions HTTP/1.1\r\nhost: x\r\nauthorization: Bearer ownerkey\r\nx-pad: {}\r\ncontent-length: 2\r\n\r\n{{}}", "a".repeat(70 * 1024));
+    let resp = raw_http(&srv.base, req.as_bytes());
+    assert!(resp.starts_with("HTTP/1.1 413"), "oversize headers must map to 413: {:?}", &resp[..resp.len().min(120)]);
+}
