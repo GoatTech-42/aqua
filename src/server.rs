@@ -295,7 +295,7 @@ fn read_request_within(stream: &mut TcpStream, budget: Duration) -> Result<Reque
                     return Err("bad request"); // duplicate Content-Length: ambiguous framing, reject
                 }
                 seen_len = true;
-                let raw = v.trim();
+                let raw = v.trim_matches(|c| c == ' ' || c == '\t');
                 if raw.is_empty() || !raw.bytes().all(|b| b.is_ascii_digit()) {
                     return Err("bad length");
                 }
@@ -5430,6 +5430,18 @@ mod framing_matrix_tests {
     fn content_length_overflow_and_nondigits_rejected() {
         for raw in ["99999999999999999999999999999999", "-2", "2x", "2,2", "２", ""] {
             rejects(format!("content-length: {raw}\r\n"), "bad length");
+        }
+    }
+
+    #[test]
+    fn content_length_non_ows_whitespace_rejected() {
+        for raw in ["\u{a0}2\u{a0}", "\u{2003}2\u{2003}", "\u{b}2\u{b}", "\u{c}2\u{c}"] {
+            let (mut client, mut server) = pair();
+            write!(client, "POST /x HTTP/1.1\r\ncontent-length: {raw}\r\n\r\n{{}}").unwrap();
+            client.shutdown(Shutdown::Write).unwrap();
+            let parse_error = read_request_within(&mut server, Duration::from_secs(2)).err();
+            rejects(format!("content-length: {raw}\r\n"), "bad length");
+            assert_eq!(parse_error, Some("bad length"));
         }
     }
 
