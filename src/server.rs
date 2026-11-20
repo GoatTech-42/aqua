@@ -214,6 +214,7 @@ fn status_text(code: u16) -> &'static str {
         401 => "Unauthorized",
         403 => "Forbidden",
         404 => "Not Found",
+        405 => "Method Not Allowed",
         413 => "Payload Too Large",
         429 => "Too Many Requests",
         502 => "Bad Gateway",
@@ -253,7 +254,7 @@ fn cors_headers(cors: Option<&str>) -> String {
 fn write_html(stream: &mut TcpStream, body: &str, cors: Option<&str>) -> std::io::Result<()> {
     write!(
         stream,
-        "HTTP/1.1 200 OK\r\ncontent-type: text/html; charset=utf-8\r\nx-content-type-options: nosniff\r\nreferrer-policy: no-referrer\r\ncache-control: no-store\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
+        "HTTP/1.1 200 OK\r\ncontent-type: text/html; charset=utf-8\r\nx-frame-options: DENY\r\ncontent-security-policy: frame-ancestors 'none'\r\nx-content-type-options: nosniff\r\nreferrer-policy: no-referrer\r\ncache-control: no-store\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}",
         body.len(),
         cors_headers(cors),
         body
@@ -270,6 +271,11 @@ fn write_redirect(stream: &mut TcpStream, location: &str, cookies: &[String]) ->
         "HTTP/1.1 302 Found\r\nlocation: {}\r\ncontent-length: 0\r\nconnection: close\r\n{}\r\n",
         location, extra
     )
+}
+
+fn write_method_not_allowed(stream: &mut TcpStream, allow: &str, cors: Option<&str>) -> std::io::Result<()> {
+    let body = err_body("method not allowed", "invalid_request").to_string();
+    write!(stream, "HTTP/1.1 405 Method Not Allowed\r\nallow: {}\r\ncontent-type: application/json\r\ncache-control: no-store\r\nx-content-type-options: nosniff\r\nreferrer-policy: no-referrer\r\ncontent-length: {}\r\nconnection: close\r\n{}\r\n{}", allow, body.len(), cors_headers(cors), body)
 }
 
 fn write_no_content(stream: &mut TcpStream, cookies: &[String], cors: Option<&str>) -> std::io::Result<()> {
@@ -483,7 +489,17 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 })
             })
             .collect();
-        return write_json(&mut stream, 200, &json!({ "providers": providers }), cors);
+        let mut models: Vec<Value> = Vec::new();
+        for p in &cfg.providers {
+            for m in &p.models {
+                let route = json!({"provider":p.id,"upstream":m.upstream,"status":p.status.as_str(),"configured":!p.api_key.is_empty(),"retention":crate::preferences::facts(&p.id)});
+                if let Some(row) = models.iter_mut().find(|row|row["id"].as_str()==Some(&m.public)) {
+                    row["routes"].as_array_mut().unwrap().push(route);
+                    row["binding_count"] = json!(row["routes"].as_array().unwrap().len());
+                } else { models.push(json!({"id":m.public,"routes":[route],"binding_count":1})); }
+            }
+        }
+        return write_json(&mut stream, 200, &json!({ "providers": providers, "models": models }), cors);
     }
 
     // A present Authorization header is authoritative, even if malformed.
@@ -857,9 +873,14 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             fresh.sort_by_key(|(p,m)|latency.get(&(p.id.clone(),m.public.clone())).copied().unwrap_or(u64::MAX));
             drop(latency);
             immediate += fresh.len() + cooled.len();
+            let start = candidates.len();
             candidates.extend(fresh);
             candidates.extend(cooled.into_iter().map(|(c, _)| c));
             candidates.extend(deferred);
+            // The 1017 snapshot is failover, never a latency-promoted primary.
+            if name == "deepseek-v4.1-flash" {
+                candidates[start..].sort_by_key(|(_,m)|m.upstream == "deepseek-v4.1-flash-1017");
+            }
         };
         if requested == ALIAS {
             for name in &shared.config.auto_shortlist {
