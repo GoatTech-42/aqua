@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -46,6 +46,7 @@ struct Shared {
     agent: ureq::Agent,
     auth: Auth,
     in_flight: Arc<AtomicUsize>,
+    read_budget_ms: AtomicU64,
     quotas: Mutex<HashMap<String, Quota>>,
     // Standard Z.AI account limit is one active inference, across all models.
     zai_in_flight: AtomicBool,
@@ -85,6 +86,12 @@ impl Server {
 
     pub fn set_drain_timeout(&mut self, drain: Duration) {
         self.drain = drain;
+    }
+
+    // Overall wall-clock budget for reading one request's head + body, for
+    // tests that must not wait out the production 30s.
+    pub fn set_request_read_budget(&self, budget: Duration) {
+        self.shared.read_budget_ms.store(budget.as_millis() as u64, Ordering::SeqCst);
     }
 
     // Live handler count, for tests observing drain behavior.
@@ -146,6 +153,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         spend: Mutex::new(spend),
         unknown_owner_requests: Mutex::new(0),
         in_flight: Arc::new(AtomicUsize::new(0)),
+        read_budget_ms: AtomicU64::new(REQUEST_READ_BUDGET.as_millis() as u64),
         auth: Auth::new(config.oauth.clone()),
         config,
         agent,
@@ -196,12 +204,29 @@ struct Request {
     body: Vec<u8>,
 }
 
+// Overall budget policy for reading one request's head + body. The per-read
+// timeout bounds a single syscall; a client trickling a byte at a time stays
+// under it, so an aggregate budget is what bounds a slow client. 30s is a new
+// aggregate policy (chosen to match the per-read timeout's scale), not
+// measured upload compatibility. Subject to OS scheduling and timer
+// granularity: a policy bound, not a guaranteed wall-clock deadline.
+const REQUEST_READ_BUDGET: Duration = Duration::from_secs(30);
+
+#[cfg(test)]
 fn read_request(stream: &mut TcpStream) -> Result<Request, &'static str> {
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
+    read_request_within(stream, REQUEST_READ_BUDGET)
+}
+
+fn read_request_within(stream: &mut TcpStream, budget: Duration) -> Result<Request, &'static str> {
+    let deadline = Instant::now() + budget;
     let mut buf = Vec::new();
     let mut tmp = [0u8; 8192];
+    // One read bounded by the remaining overall budget (never more than the
+    // standing 30s per-read timeout), so the deadline bites mid-read instead
+    // of only between reads. A trickling client resets nothing: the deadline
+    // is fixed at entry.
     let header_end = loop {
-        let n = stream.read(&mut tmp).map_err(|_| "read")?;
+        let n = read_within(stream, &mut tmp, deadline)?;
         if n == 0 {
             return Err("closed");
         }
@@ -250,13 +275,33 @@ fn read_request(stream: &mut TcpStream) -> Result<Request, &'static str> {
     }
     let mut body = buf[header_end + 4..].to_vec();
     while body.len() < len {
-        let n = stream.read(&mut tmp).map_err(|_| "read")?;
+        let n = read_within(stream, &mut tmp, deadline)?;
         if n == 0 {
             return Err("closed");
         }
         body.extend_from_slice(&tmp[..n]);
     }
+    // A read can return more than Content-Length promised; the handler sees
+    // exactly the declared body, never trailing bytes.
+    body.truncate(len);
     Ok(Request { method, path, query, headers, body })
+}
+
+fn read_within(stream: &mut TcpStream, buf: &mut [u8], deadline: Instant) -> Result<usize, &'static str> {
+    let remaining = deadline.saturating_duration_since(Instant::now());
+    if remaining.is_zero() {
+        return Err("timeout");
+    }
+    // If the timeout cannot be installed, fail the request rather than allow
+    // an unbounded read.
+    stream
+        .set_read_timeout(Some(remaining.min(Duration::from_secs(30))))
+        .map_err(|_| "read")?;
+    match stream.read(buf) {
+        Ok(n) => Ok(n),
+        Err(e) if e.kind() == std::io::ErrorKind::WouldBlock || e.kind() == std::io::ErrorKind::TimedOut => Err("timeout"),
+        Err(_) => Err("read"),
+    }
 }
 
 fn status_text(code: u16) -> &'static str {
@@ -269,6 +314,7 @@ fn status_text(code: u16) -> &'static str {
         403 => "Forbidden",
         404 => "Not Found",
         405 => "Method Not Allowed",
+        408 => "Request Timeout",
         413 => "Payload Too Large",
         429 => "Too Many Requests",
         502 => "Bad Gateway",
@@ -381,8 +427,12 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     // healthy long streams are never cut; upstream IO carries its own
     // aggregate budget. No claim of a whole-request wall clock.
     let _ = stream.set_write_timeout(Some(shared.config.upstream_budget));
-    let req = match read_request(&mut stream) {
+    let budget = Duration::from_millis(shared.read_budget_ms.load(Ordering::SeqCst));
+    let req = match read_request_within(&mut stream, budget) {
         Ok(r) => r,
+        Err("timeout") => {
+            return write_json(&mut stream, 408, &err_body("request took too long to arrive", "invalid_request"), None)
+        }
         Err("too large") | Err("headers too large") => {
             return write_json(&mut stream, 413, &err_body("request too large", "invalid_request"), None)
         }
@@ -1630,6 +1680,7 @@ mod reviewer_regressions {
             spend: Mutex::new(crate::spend::Store::open(None).unwrap()),
             unknown_owner_requests: Mutex::new(0),
             in_flight: Arc::new(AtomicUsize::new(0)),
+            read_budget_ms: AtomicU64::new(REQUEST_READ_BUDGET.as_millis() as u64),
             auth: Auth::new(config.oauth.clone()),
             config,
             agent: ureq::Agent::new_with_defaults(),
@@ -1700,6 +1751,75 @@ mod reviewer_regressions {
         drop(client); // so the child's read fails immediately once it runs
         gate_tx.send(()).unwrap();
         child.join().unwrap();
+    }
+
+    fn req_pair() -> (TcpStream, TcpStream) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let (server, _) = listener.accept().unwrap();
+        (client, server)
+    }
+
+    #[test]
+    fn silent_client_hits_the_overall_read_deadline() {
+        let (mut client, mut server) = req_pair();
+        client.write_all(b"POST /v1/chat/completions HTTP/1.1\r\nhost: x\r\n").unwrap();
+        let started = Instant::now();
+        let err = read_request_within(&mut server, Duration::from_millis(200)).err().unwrap();
+        assert_eq!(err, "timeout");
+        let elapsed = started.elapsed();
+        assert!(elapsed >= Duration::from_millis(200), "took {elapsed:?}");
+        assert!(elapsed < Duration::from_secs(2), "must not wait out the per-read timeout, took {elapsed:?}");
+    }
+
+    #[test]
+    fn trickling_client_hits_the_overall_read_deadline() {
+        // One byte every 50ms: each read succeeds well under any per-read
+        // timeout, so only the overall deadline can stop this.
+        let (mut client, mut server) = req_pair();
+        let trickler = thread::spawn(move || {
+            for _ in 0..20 {
+                if client.write_all(b"x").is_err() {
+                    break;
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+        });
+        let started = Instant::now();
+        let err = read_request_within(&mut server, Duration::from_millis(220)).err().unwrap();
+        assert_eq!(err, "timeout", "a trickle that beats per-read timeouts must still hit the overall deadline");
+        assert!(started.elapsed() < Duration::from_secs(2));
+        trickler.join().unwrap();
+    }
+
+    #[test]
+    fn stalled_body_hits_the_overall_read_deadline() {
+        let (mut client, mut server) = req_pair();
+        client.write_all(b"POST /v1/chat/completions HTTP/1.1\r\nhost: x\r\ncontent-length: 10\r\n\r\n{\"me").unwrap();
+        let started = Instant::now();
+        let err = read_request_within(&mut server, Duration::from_millis(200)).err().unwrap();
+        assert_eq!(err, "timeout");
+        assert!(started.elapsed() >= Duration::from_millis(200));
+    }
+
+    #[test]
+    fn healthy_request_reads_in_full_under_budget() {
+        let (mut client, mut server) = req_pair();
+        client.write_all(b"POST /v1/chat/completions?stream=1 HTTP/1.1\r\nhost: x\r\ncontent-length: 5\r\nx-extra: yes\r\n\r\n{\"a\":").unwrap();
+        let req = read_request_within(&mut server, Duration::from_secs(5)).unwrap();
+        assert_eq!(req.method, "POST");
+        assert_eq!(req.path, "/v1/chat/completions");
+        assert_eq!(req.query, "stream=1");
+        assert_eq!(req.headers.get("x-extra").unwrap(), "yes");
+        assert_eq!(req.body, b"{\"a\":");
+    }
+
+    #[test]
+    fn body_is_trimmed_to_content_length_after_an_over_read() {
+        let (mut client, mut server) = req_pair();
+        client.write_all(b"POST /x HTTP/1.1\r\ncontent-length: 4\r\n\r\n{\"a\":1}EXTRA").unwrap();
+        let req = read_request_within(&mut server, Duration::from_secs(5)).unwrap();
+        assert_eq!(req.body, b"{\"a\"", "handler must see exactly content-length bytes");
     }
 
     #[test]

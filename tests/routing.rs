@@ -1041,6 +1041,27 @@ fn server_drop_waits_for_a_counted_blocked_handler() {
 }
 
 #[test]
+fn slow_client_gets_408_connection_close_and_burns_no_state() {
+    let up=mock_upstream(|_|json_reply(chat_json("real","ok")));
+    let srv=serve(spend_cfg(&up.url));
+    srv._h.set_request_read_budget(Duration::from_millis(300));
+    let mut raw=TcpStream::connect(srv.base.trim_start_matches("http://")).unwrap();
+    // Fixture-side cap so a regression hangs this read for seconds, not forever.
+    raw.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+    raw.write_all(b"POST /v1/chat/completions HTTP/1.1\r\nauthorization: Bearer friendkey\r\ncontent-length: 50\r\n\r\n{}").unwrap();
+    // read_to_string only returns at EOF: the server must close after the 408
+    // (responses already carry connection: close; there is no keep-alive).
+    let mut resp=String::new();
+    raw.read_to_string(&mut resp).unwrap();
+    assert!(resp.starts_with("HTTP/1.1 408"),"got: {resp:?}");
+    assert!(resp.contains("connection: close"),"got: {resp:?}");
+    assert_eq!(up.hits.load(Ordering::SeqCst),0,"a timed-out request must never reach a provider");
+    let agent=client();
+    let usage:serde_json::Value=agent.get(&format!("{}/v1/admin/usage",srv.base)).header("authorization","Bearer adminsecret").call().unwrap().body_mut().read_json().unwrap();
+    assert!(usage["users"].as_object().unwrap().is_empty(),"a timed-out request must not record usage: {usage}");
+}
+
+#[test]
 fn server_drop_returns_within_the_drain_window_when_a_handler_is_stuck() {
     let (entered_tx, entered_rx) = channel();
     let (release_tx, release_rx) = channel();
