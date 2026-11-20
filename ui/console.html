@@ -809,12 +809,33 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     return fetch(base + '/models', { credentials: 'include', cache: 'no-store', headers: { 'content-type': 'application/json' } });
   }
 
+  // Sync stamp: honest relative age refreshed every 30s, absolute UTC in the
+  // tooltip. A sync time in the future (device clock ahead) is shown as clock
+  // skew, never as "just now".
+  var syncAt = 0;
+  function renderSync() {
+    var el = document.getElementById('aqua-sync');
+    if (!el || !syncAt) return;
+    var ageMs = Date.now() - syncAt;
+    if (ageMs < -300000) {
+      el.textContent = 'connected, clock skew / age unknown';
+      el.title = 'last synced ' + new Date(syncAt).toUTCString().replace('GMT', 'UTC');
+      return;
+    }
+    var mins = Math.floor(ageMs / 60000), hrs = Math.floor(ageMs / 3600000), days = Math.floor(ageMs / 86400000);
+    var rel = ageMs < 120000 ? 'just now' : ageMs < 3600000 ? mins + ' min ago' : ageMs < 172800000 ? hrs + (hrs === 1 ? ' hour ago' : ' hours ago') : days + (days === 1 ? ' day ago' : ' days ago');
+    el.textContent = 'connected ' + rel;
+    el.title = 'last synced ' + new Date(syncAt).toUTCString().replace('GMT', 'UTC');
+  }
+  window.renderSync = renderSync;
+
   listModels().then(function (r) {
     if (!r.ok) { throw new Error('http ' + r.status); }
     return r.json();
   }).then(function (j) {
     var models = (j.data || []);
-    document.getElementById('aqua-sync').textContent = 'connected just now';
+    syncAt = Date.now(); renderSync();
+    setInterval(renderSync, 30000);
     document.getElementById('aqua-finding').textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + ' listed for your account, behind one endpoint. listed does not confirm access, remaining quota or consent.';
     rows.textContent = '';
     if (!models.length) {
