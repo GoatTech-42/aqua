@@ -2508,6 +2508,50 @@ mod live_port_tests {
     }
 
     #[test]
+    fn auth_failure_map_sweeps_expired_entries_without_clearing_fresh_ones() {
+        // Sweep and clear-all must be distinguishable: a fresh survivor entry
+        // proves the expired entries left via the sweep, not via clear().
+        let state=keys_shared();
+        {
+            let mut failures=state.auth_failures.lock().unwrap();
+            // Exactly CAP entries before the record: reachable even under a
+            // strict insert-time cap, so the check at CAP is what triggers.
+            for n in 0..AUTH_FAIL_MAP_CAP-3 {
+                failures.insert(format!("stale-{n}"),(1,Instant::now()-Duration::from_secs(120)));
+            }
+            // 60s cutoff probes: 59s must be kept, 61s must be swept
+            // (1s margins, never a race against the retain instant)
+            failures.insert("edge-kept".into(),(1,Instant::now()-Duration::from_secs(59)));
+            failures.insert("edge-dropped".into(),(1,Instant::now()-Duration::from_secs(61)));
+            failures.insert("survivor".into(),(7,Instant::now()));
+            assert_eq!(failures.len(),AUTH_FAIL_MAP_CAP,"fixture must sit exactly at the cap");
+        }
+        record_auth_failure(&state,"fresh-token");
+        let failures=state.auth_failures.lock().unwrap();
+        assert_eq!(failures.len(),3,"stale entries swept, fresh entries kept: {}",failures.len());
+        assert_eq!(failures.get("survivor").map(|(n,_)|*n),Some(7),"a fresh entry must survive the sweep");
+        assert!(failures.contains_key("edge-kept"),"59s-old entry is inside the window");
+        assert!(!failures.contains_key("edge-dropped"),"61s-old entry is outside the window");
+        assert!(!failures.contains_key("stale-0"),"120s-old entry must be swept");
+        assert!(failures.contains_key(&crate::keys::fingerprint("fresh-token")));
+    }
+
+    #[test]
+    fn auth_failure_map_clears_all_only_when_full_of_fresh_entries() {
+        let state=keys_shared();
+        {
+            let mut failures=state.auth_failures.lock().unwrap();
+            for n in 0..AUTH_FAIL_MAP_CAP {
+                failures.insert(format!("f-{n}"),(1,Instant::now()));
+            }
+        }
+        record_auth_failure(&state,"fresh-token");
+        let failures=state.auth_failures.lock().unwrap();
+        assert_eq!(failures.len(),1,"a full fresh map must clear, then hold only the new entry");
+        assert_eq!(failures.get(&crate::keys::fingerprint("fresh-token")).map(|(n,_)|*n),Some(1));
+    }
+
+    #[test]
     fn resolve_privacy_and_eligibility_are_fail_closed() {
         let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
         let mut empty=bp("empty",Status::Personal,"model","http://localhost");empty.api_key.clear();
