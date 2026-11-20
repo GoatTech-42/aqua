@@ -4431,3 +4431,311 @@ const STREAM_BODY: &str = r#"{"model":"fixture-chat","messages":[{"role":"user",
         assert_eq!(extra.load(Ordering::SeqCst), 0, "no second connection ever reached the account");
     }
 }
+
+// Cooldown / 429 hard-limit lock (providers-lane item 5): pin the current
+// behavior so a regression trips a test. A Retry-After on a 429 is a hard
+// limit: the account is skipped across ALL its models with no extra
+// admission until it lifts. Hard deadlines are never shortened; soft
+// evidence never touches a hard limit. Missing/invalid Retry-After on a 429
+// is the soft 60s default, 503 is the soft 15s default, and a usable
+// Retry-After clamps at 1h. Client disconnect is never upstream-failure
+// evidence (pinned in permit_lifetime_tests). No production change.
+#[cfg(test)]
+mod cooldown_lock_tests {
+    use super::*;
+    use super::reviewer_regressions::{browser_api, keys_shared};
+    use std::io::ErrorKind;
+
+    const ERR: &str = r#"{"error":{"message":"fixture limited","type":"rate_limit"}}"#;
+
+    // Literal pins with drift guards: these durations are the locked policy.
+    #[test]
+    fn cooldown_constants_match_the_locked_policy() {
+        assert_eq!(COOLDOWN_SOFT_SECS, 15, "generic failure cooldown is 15s");
+        assert_eq!(COOLDOWN_429_DEFAULT_SECS, 60, "429 without usable Retry-After is 60s");
+        assert_eq!(RETRY_AFTER_MAX_SECS, 3600, "Retry-After is clamped at 1h");
+    }
+
+    // IMF-fixdate parsing: exact epoch for the classic RFC example, junk
+    // rejected (weekday must match the date, fields exact-width).
+    #[test]
+    fn imf_fixdate_parsing_is_exact() {
+        assert_eq!(parse_imf_fixdate("Sun, 06 Nov 1994 08:49:37 GMT"), Some(784111777));
+        assert_eq!(parse_imf_fixdate("Mon, 06 Nov 1994 08:49:37 GMT"), None, "wrong weekday rejected");
+        assert_eq!(parse_imf_fixdate("06 Nov 1994 08:49:37 GMT"), None, "missing weekday rejected");
+        assert_eq!(parse_imf_fixdate("garbage"), None);
+    }
+
+    fn remaining_secs(state: &Arc<Shared>, provider: &str) -> u64 {
+        state.health.lock().unwrap().get(provider).unwrap().until
+            .saturating_duration_since(Instant::now()).as_secs()
+    }
+
+    fn is_hard(state: &Arc<Shared>, provider: &str) -> bool {
+        state.health.lock().unwrap().get(provider).unwrap().hard
+    }
+
+    // Sequential state-transition coverage of the monotonic rules (not a
+    // concurrency proof): an active cooldown is never shortened, soft
+    // evidence never softens/extends a hard limit, hard evidence only ever
+    // extends.
+    #[test]
+    fn cooldowns_are_monotonic_and_never_shortened() {
+        let state = keys_shared();
+        set_cooldown(&state, "zai", 60, false);
+        assert!(!is_hard(&state, "zai"));
+        assert!((58..=60).contains(&remaining_secs(&state, "zai")), "fresh soft insert: {}", remaining_secs(&state, "zai"));
+        set_cooldown(&state, "zai", 10, false);
+        assert!((58..=60).contains(&remaining_secs(&state, "zai")), "earlier soft evidence must not shorten");
+        set_cooldown(&state, "zai", 90, false);
+        assert!((88..=90).contains(&remaining_secs(&state, "zai")), "later soft evidence extends");
+        set_cooldown(&state, "zai", 30, true);
+        assert!(is_hard(&state, "zai"), "hard evidence upgrades the flag");
+        assert!((88..=90).contains(&remaining_secs(&state, "zai")), "hard upgrade keeps the longer deadline");
+        set_cooldown(&state, "zai", 500, false);
+        assert!(is_hard(&state, "zai"), "soft evidence never softens a hard limit");
+        assert!((88..=90).contains(&remaining_secs(&state, "zai")), "soft evidence never extends a hard limit");
+        set_cooldown(&state, "zai", 300, true);
+        assert!((298..=300).contains(&remaining_secs(&state, "zai")), "later hard evidence extends");
+        set_cooldown(&state, "zai", 20, true);
+        assert!((298..=300).contains(&remaining_secs(&state, "zai")), "earlier hard evidence must not shorten");
+    }
+
+    #[test]
+    fn clear_cooldown_removes_soft_but_keeps_hard() {
+        let state = keys_shared();
+        set_cooldown(&state, "zai", 60, false);
+        set_cooldown(&state, "inferbase", 60, true);
+        clear_cooldown(&state, "zai");
+        clear_cooldown(&state, "inferbase");
+        let health = state.health.lock().unwrap();
+        assert!(health.get("zai").is_none(), "soft cooldown clears on success");
+        assert!(health.get("inferbase").is_some_and(|cd| cd.hard), "a hard limit survives success");
+    }
+
+    // Serves `count` scripted status responses (optional Retry-After header,
+    // JSON error body), counting accepted connections.
+    fn status_stub(status: u16, retry_after: Option<&'static str>, count: usize, hits: Arc<AtomicUsize>) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut served = 0;
+            while served < count {
+                match listener.accept() {
+                    Ok((mut socket, _)) => {
+                        hits.fetch_add(1, Ordering::SeqCst);
+                        socket.set_nonblocking(false).unwrap();
+                        socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                        socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                        let _ = read_request(&mut socket);
+                        let ra = retry_after.map(|v| format!("retry-after: {v}\r\n")).unwrap_or_default();
+                        let _ = write!(socket, "HTTP/1.1 {status} Limited\r\ncontent-type: application/json\r\ncontent-length: {}\r\n{ra}connection: close\r\n\r\n{ERR}", ERR.len());
+                        served += 1;
+                    }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline, "status stub outlived its deadline");
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(e) => panic!("stub accept: {e}"),
+                }
+            }
+        });
+        (url, worker)
+    }
+
+
+    const VALID_OK: &str = r#"{"id":"offline-chat","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"valid offline output"},"finish_reason":"stop"}]}"#;
+
+    // Sets the stub stop flag even when the test panics mid-assertion, so
+    // the responder never spins to its deadline after a failure.
+    struct StopGuard(Arc<AtomicBool>);
+    impl Drop for StopGuard {
+        fn drop(&mut self) { self.0.store(true, Ordering::SeqCst); }
+    }
+
+    // Live responder: connection 1 gets 429 + Retry-After 120, every later
+    // connection gets a 200 VALID body. Accepts until the stop flag, then
+    // drains the backlog so a queued dispatch is still counted; the test
+    // joins before reading the final count.
+    fn live_limited_stub(hits: Arc<AtomicUsize>, stop: Arc<AtomicBool>) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            let mut served = 0usize;
+            loop {
+                match listener.accept() {
+                    Ok((mut socket, _)) => {
+                        hits.fetch_add(1, Ordering::SeqCst);
+                        socket.set_nonblocking(false).unwrap();
+                        socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                        socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                        let _ = read_request(&mut socket);
+                        if served == 0 {
+                            let _ = write!(socket, "HTTP/1.1 429 Limited\r\ncontent-type: application/json\r\ncontent-length: {}\r\nretry-after: 120\r\nconnection: close\r\n\r\n{ERR}", ERR.len());
+                        } else {
+                            let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{VALID_OK}", VALID_OK.len());
+                        }
+                        served += 1;
+                    }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                        if stop.load(Ordering::SeqCst) {
+                            let drain_until = Instant::now() + Duration::from_millis(100);
+                            while Instant::now() < drain_until {
+                                match listener.accept() {
+                                    Ok((mut socket, _)) => {
+                                        hits.fetch_add(1, Ordering::SeqCst);
+                                        socket.set_nonblocking(false).unwrap();
+                                        socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+                                        socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+                                        let _ = read_request(&mut socket);
+                                        let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{VALID_OK}", VALID_OK.len());
+                                    }
+                                    Err(e) if e.kind() == ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(2)),
+                                    Err(_) => break,
+                                }
+                            }
+                            break;
+                        }
+                        assert!(Instant::now() < deadline, "live limited stub outlived its deadline");
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(e) => panic!("stub accept: {e}"),
+                }
+            }
+        });
+        (url, worker)
+    }
+
+    fn lock_state(url: String, models: &[&str]) -> Arc<Shared> {
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers = vec![crate::config::Provider {
+            id: "zai".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: url, models: models.iter().map(|m| crate::config::ModelEntry {
+                public: (*m).to_string(), upstream: format!("{m}-upstream"), context: None,
+            }).collect(),
+        }];
+        Arc::new(state)
+    }
+
+    fn call(state: Arc<Shared>, model: &str) -> String {
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        browser_api(state, "POST", "/v1/chat/completions", &cookie,
+            Some("https://aqua.test"), "same-site", None,
+            &format!(r#"{{"model":"{model}","messages":[{{"role":"user","content":"offline fixture"}}],"stream":false}}"#))
+    }
+
+    // One limited call with the given Retry-After, then inspect the installed
+    // cooldown. The gateway forwards the upstream 429 status to the client.
+    fn limited_once(retry_after: Option<&'static str>, status: u16) -> (Arc<Shared>, String) {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let (url, stub) = status_stub(status, retry_after, 1, hits);
+        let state = lock_state(url, &["fixture-chat"]);
+        let response = call(state.clone(), "fixture-chat");
+        stub.join().unwrap();
+        let expected = format!("HTTP/1.1 {status}");
+        assert!(response.starts_with(&expected), "limited call returns the upstream status: {response:?}");
+        (state, response)
+    }
+
+    // Retry-After: 120 installs a hard limit: the account is skipped across
+    // every one of its models, with no extra admission while it is cooled.
+    // The responder stays LIVE across the cooled calls (bounded accept
+    // window), so a regression that dispatched would be counted and served;
+    // a healthy uncooled control call proves the listener still answers.
+    #[test]
+    fn retry_after_120_hard_skips_all_models_with_no_extra_admission() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (url, stub) = live_limited_stub(hits.clone(), stop.clone());
+        let _stop_guard = StopGuard(stop.clone());
+        let state = lock_state(url, &["fixture-chat", "fixture-alt"]);
+        let first = call(state.clone(), "fixture-chat");
+        assert!(first.starts_with("HTTP/1.1 429"), "first call forwards the upstream 429: {first:?}");
+        assert!(is_hard(&state, "zai"), "Retry-After installs a hard limit");
+        assert!((115..=120).contains(&remaining_secs(&state, "zai")), "hard limit honors 120s: {}", remaining_secs(&state, "zai"));
+        for model in ["fixture-chat", "fixture-alt"] {
+            let again = call(state.clone(), model);
+            assert!(again.starts_with("HTTP/1.1 429"),
+                "cooled account is skipped on {model} with a synthesized 429 before any admission: {again:?}");
+        }
+        assert_eq!(hits.load(Ordering::SeqCst), 1,
+            "no extra admission while the hard limit stands (responder live and counting)");
+        // Healthy control: lift the limit, the live listener must answer 200.
+        state.health.lock().unwrap().remove("zai");
+        let ok = call(state.clone(), "fixture-chat");
+        stop.store(true, Ordering::SeqCst);
+        stub.join().unwrap();
+        assert!(ok.starts_with("HTTP/1.1 200") && ok.contains("valid offline output"),
+            "uncooled control call reaches the live responder: {ok:?}");
+        assert_eq!(hits.load(Ordering::SeqCst), 2, "exactly the first call and the control reached the account");
+    }
+
+    #[test]
+    fn plain_429_without_retry_after_is_soft_60s() {
+        let (state, _) = limited_once(None, 429);
+        assert!(!is_hard(&state, "zai"), "no Retry-After: soft evidence only");
+        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "soft 60s default: {}", remaining_secs(&state, "zai"));
+    }
+
+    #[test]
+    fn invalid_retry_after_is_soft_60s() {
+        let (state, _) = limited_once(Some("soon"), 429);
+        assert!(!is_hard(&state, "zai"), "unparseable Retry-After is not limit evidence");
+        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "soft 60s default: {}", remaining_secs(&state, "zai"));
+    }
+
+    #[test]
+    fn overflowing_retry_after_is_soft_60s() {
+        let (state, _) = limited_once(Some("99999999999999999999999999"), 429);
+        assert!(!is_hard(&state, "zai"), "digit overflow carries no usable evidence");
+        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "soft 60s default: {}", remaining_secs(&state, "zai"));
+    }
+
+    #[test]
+    fn zero_retry_after_is_a_hard_minimum() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let (url, stub) = status_stub(429, Some("0"), 1, hits);
+        let state = lock_state(url, &["fixture-chat"]);
+        let before = Instant::now();
+        let response = call(state.clone(), "fixture-chat");
+        let after = Instant::now();
+        stub.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 429"), "limited call forwards the 429: {response:?}");
+        let until = state.health.lock().unwrap().get("zai").unwrap().until;
+        assert!(is_hard(&state, "zai"), "Retry-After 0 is hard-limit evidence");
+        assert!(until >= before + Duration::from_secs(1) && until <= after + Duration::from_secs(1),
+            "exactly the 1s floor, pinned against the pre-call instant");
+    }
+
+    #[test]
+    fn large_retry_after_clamps_at_one_hour() {
+        let (state, _) = limited_once(Some("7200"), 429);
+        assert!(is_hard(&state, "zai"));
+        assert!((3595..=3600).contains(&remaining_secs(&state, "zai")), "clamped at 1h: {}", remaining_secs(&state, "zai"));
+    }
+
+    #[test]
+    fn past_date_retry_after_is_soft_60s() {
+        let (state, _) = limited_once(Some("Sun, 06 Nov 1994 08:49:37 GMT"), 429);
+        assert!(!is_hard(&state, "zai"), "a past date is no evidence of a future limit");
+        assert!((55..=60).contains(&remaining_secs(&state, "zai")), "soft 60s default: {}", remaining_secs(&state, "zai"));
+    }
+
+    #[test]
+    fn future_date_retry_after_is_hard_and_clamped() {
+        let (state, _) = limited_once(Some("Wed, 01 Jan 2042 00:00:00 GMT"), 429);
+        assert!(is_hard(&state, "zai"), "a future date is hard-limit evidence");
+        assert!((3595..=3600).contains(&remaining_secs(&state, "zai")), "far future clamps at 1h: {}", remaining_secs(&state, "zai"));
+    }
+
+    #[test]
+    fn plain_503_is_soft_15s() {
+        let (state, _) = limited_once(None, 503);
+        assert!(!is_hard(&state, "zai"), "503 is soft evidence");
+        assert!((10..=15).contains(&remaining_secs(&state, "zai")), "soft 15s default: {}", remaining_secs(&state, "zai"));
+    }
+}
