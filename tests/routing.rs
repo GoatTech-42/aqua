@@ -1106,13 +1106,13 @@ fn wave2_openrouter_paid_or_unlisted_route_never_dispatches() {
 #[test]
 fn wave2_openrouter_missing_current_remote_allowance_never_dispatches() {
     let up=mock_upstream(|_|json_reply(chat_json("raw","ok")));
-    let srv=serve(config(vec![provider("openrouter",&up.url,Status::Friends,vec![("candidate","google/gemma-4-31b-it:free",None)])],vec![]));
+    let srv=serve(config(vec![provider("openrouter",&up.url,Status::Friends,vec![("candidate","cohere/north-mini-code:free",None)])],vec![]));
     assert_eq!(chat(&client(),&srv.base,"ownerkey",pin_msg("candidate")).status(),503);
     assert_eq!(up.hits.load(Ordering::SeqCst),0);
 }
 
 fn wave2_config(up:&Mock,path:&std::path::Path)->Config {
-    let mut cfg=config(vec![provider("openrouter",&up.url,Status::Friends,vec![("candidate","google/gemma-4-31b-it:free",None)])],vec![]);
+    let mut cfg=config(vec![provider("openrouter",&up.url,Status::Friends,vec![("candidate","cohere/north-mini-code:free",None)])],vec![]);
     cfg.spend.path=Some(path.into());
     cfg.spend.account_verified_day=String::from_utf8(std::process::Command::new("date").args(["-u","+%Y-%m-%d"]).output().unwrap().stdout).unwrap().trim().into();
     cfg.spend.openrouter_allowance=4;

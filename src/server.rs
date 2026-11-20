@@ -965,10 +965,19 @@ fn resolve_model(shared: &Shared, requested: &str, strict: bool, role: Role) -> 
 
 // Hidden legacy request names map to the canonical model before access and
 // spend checks. Shared by chat dispatch and the read-only resolve diagnostic.
+// Request-side alias parity with the live lineage's canonical_model table
+// (live config.rs, sha 407b2f3f verified): every alias live accepted resolves
+// to the same canonical model here. deepseek-v4.1-flash-route-b is kept from
+// this lineage; live mapped the -route-c spelling and the 1017 snapshot name.
+// Alias coverage only: no catalog merge, no pricing reshape (A9b decision).
 fn legacy_request_name(name:&str)->&str {
     match name {
-        "deepseek-v4.1-flash-route-b" => "deepseek-v4.1-flash",
-        "deepseek-v4-flash:fp8" => "deepseek-v4-flash",
+        "deepseek-v4.1-flash-1017" | "deepseek-v4.1-flash-route-b" | "deepseek-v4.1-flash-route-c" => "deepseek-v4.1-flash",
+        "deepseek-v4-flash:fp8" | "deepseek-v4-flash-route-b" => "deepseek-v4-flash",
+        "glm-5.3-flash-route-b" | "glm-5.3-flash-route-c" => "glm-5.3-flash",
+        "qwen-3.8-27b-route-b" => "qwen-3.8-27b",
+        "nemotron-3-ultra-550b-a55b-route-b" => "nemotron-3-ultra-550b-a55b",
+        "nemotron-3.5-super-vl-route-b" => "nemotron-3.5-super-vl",
         other => other,
     }
 }
@@ -1383,9 +1392,14 @@ fn provider_remaining_budget(id:&str,owner:bool,configured:Duration,elapsed:Dura
     window.checked_sub(elapsed).filter(|d|!d.is_zero())
 }
 
+// gemma stays OUT of the OpenRouter free gate: A9a is HELD for Luke, so no
+// gemma upstream is admitted here until he decides. Scope: this removal is
+// fail-closed for the OpenRouter provider only. It is NOT equivalent to the
+// live lineage's family-wide exclusion (config.rs exclude_gemma, a policy
+// this lineage does not have); A9a parity remains open.
 const OPENROUTER_FREE: &[&str]=&[
     "cohere/north-mini-code:free", "nvidia/nemotron-3-ultra-550b-a55b:free",
-    "nvidia/nemotron-3.5-super-vl:free", "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3.5-super-vl:free",
 ];
 fn bounded_text_messages(payload: &Value)->bool {
     // This byte limit is a conservative transport restriction, not a tokenizer.
@@ -1726,7 +1740,36 @@ mod reviewer_regressions {
     }
 
     #[test]
-    fn usage_aggregates_are_guarded_and_501_when_authenticated() {
+    fn legacy_request_name_covers_the_full_live_alias_table() {
+        // Parity with the live lineage canonical_model table (A9b request-side
+        // decision): every live alias resolves to the same canonical name.
+        for (alias, canonical) in [
+            ("deepseek-v4.1-flash-1017", "deepseek-v4.1-flash"),
+            ("deepseek-v4.1-flash-route-b", "deepseek-v4.1-flash"),
+            ("deepseek-v4.1-flash-route-c", "deepseek-v4.1-flash"),
+            ("deepseek-v4-flash:fp8", "deepseek-v4-flash"),
+            ("deepseek-v4-flash-route-b", "deepseek-v4-flash"),
+            ("glm-5.3-flash-route-b", "glm-5.3-flash"),
+            ("glm-5.3-flash-route-c", "glm-5.3-flash"),
+            ("qwen-3.8-27b-route-b", "qwen-3.8-27b"),
+            ("nemotron-3-ultra-550b-a55b-route-b", "nemotron-3-ultra-550b-a55b"),
+            ("nemotron-3.5-super-vl-route-b", "nemotron-3.5-super-vl"),
+        ] {
+            assert_eq!(legacy_request_name(alias), canonical, "{alias}");
+        }
+        // Canonical names and unknowns pass through untouched.
+        for name in ["deepseek-v4.1-flash","glm-5.3-flash","auto","no-such-model"] {
+            assert_eq!(legacy_request_name(name), name, "{name}");
+        }
+    }
+
+    #[test]
+    fn gemma_stays_out_of_the_openrouter_free_gate() {
+        assert!(!OPENROUTER_FREE.iter().any(|m| m.to_ascii_lowercase().contains("gemma")));
+    }
+
+    #[test]
+        fn usage_aggregates_are_guarded_and_501_when_authenticated() {
         let mut state = shared();state.config.allowed_origin="https://aqua.test".into();
         state.config.admin_key="admintest".into();
         let state=Arc::new(state);

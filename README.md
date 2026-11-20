@@ -308,8 +308,9 @@ metadata for spend reservations; missing metadata continues to fail closed.
 ## Account-wide free-route admission (wave 2, not enabled)
 
 OpenRouter uses only these exact upstream IDs: `cohere/north-mini-code:free`,
-`nvidia/nemotron-3-ultra-550b-a55b:free`, `nvidia/nemotron-3.5-super-vl:free`, and
-`google/gemma-4-31b-it:free`. Requests force zero prompt/completion max price,
+`nvidia/nemotron-3-ultra-550b-a55b:free`, `nvidia/nemotron-3.5-super-vl:free`. The `google/gemma-4-31b-it:free`
+candidate is held out of the gate pending the owner's A9a decision. Requests
+force zero prompt/completion max price,
 no provider fallback, and required parameter support. User plugins, tools,
 model-fallback arrays, and search options are not forwarded. Initial input is
 text-only, at most 64 messages and 8192 serialized bytes. This is a transport
