@@ -866,7 +866,7 @@ fn spend_cfg(up: &str) -> Config {
 
 #[test]
 fn spend_friend_cap_stops_at_boundary_but_owner_is_uncapped_and_usage_visible() {
-    let up = mock_upstream(|_| json_reply(serde_json::json!({"model":"m", "choices":[], "usage":{"prompt_tokens":10,"completion_tokens":10}})));
+    let up = mock_upstream(|_| json_reply(serde_json::json!({"model":"m", "choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}], "usage":{"prompt_tokens":10,"completion_tokens":10}})));
     let srv = serve(spend_cfg(&up.url));
     let agent = client();
     assert_eq!(chat(&agent, &srv.base, "friendkey", pin_msg("coder-a")).status(), 200);
@@ -925,7 +925,7 @@ fn spend_admin_can_persist_caps_and_friends_cannot_change_them() {
 
 #[test]
 fn spend_denial_does_not_burn_request_quota() {
-    let up = mock_upstream(|_| json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}})));
+    let up = mock_upstream(|_| json_reply(serde_json::json!({"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}})));
     let mut cfg = spend_cfg(&up.url);
     cfg.daily_limit = 1;
     cfg.spend.default_caps = aqua::SpendCaps { daily:0, monthly:0 };
@@ -967,7 +967,7 @@ fn spend_stream_truncated_after_partial_usage_retains_the_full_hold() {
 #[test]
 fn spend_parallel_http_requests_share_one_atomic_account_budget() {
     let gate=Arc::new((Mutex::new(false),std::sync::Condvar::new())); let g=gate.clone();
-    let up=mock_upstream(move |_| { let(lock,cv)=&*g;let mut open=lock.lock().unwrap();while !*open {open=cv.wait(open).unwrap();} json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":10}})) });
+    let up=mock_upstream(move |_| { let(lock,cv)=&*g;let mut open=lock.lock().unwrap();while !*open {open=cv.wait(open).unwrap();} json_reply(serde_json::json!({"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":10,"completion_tokens":10}})) });
     let srv=serve(spend_cfg(&up.url)); let base=srv.base.clone();
     let first=thread::spawn(move ||chat(&client(),&base,"friendkey",pin_msg("coder-a")).status());
     let deadline=Instant::now()+Duration::from_secs(2);
@@ -1092,7 +1092,7 @@ fn server_drop_returns_within_the_drain_window_when_a_handler_is_stuck() {
 
 #[test]
 fn spend_http_cap_edit_and_usage_survive_server_restart() {
-    let up=mock_upstream(|_|json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":10}})));
+    let up=mock_upstream(|_|json_reply(serde_json::json!({"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":10,"completion_tokens":10}})));
     let path=std::env::temp_dir().join(format!("aqua-http-ledger-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
     let mut cfg=spend_cfg(&up.url);cfg.spend.path=Some(path.clone());
     {
@@ -1225,7 +1225,7 @@ fn mutation_broad_retry_is_killed_by_the_non_lock_control() {
 
 #[test]
 fn spend_owner_stays_uncapped_on_storage_failure_but_usage_gap_is_visible() {
-    let up=mock_upstream(|_|json_reply(serde_json::json!({"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":1}})));
+    let up=mock_upstream(|_|json_reply(serde_json::json!({"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}})));
     let dir=std::env::temp_dir().join(format!("aqua-storage-fault-{}-{}",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));std::fs::create_dir(&dir).unwrap();
     let mut cfg=spend_cfg(&up.url);cfg.spend.path=Some(dir.join("state.json"));let srv=serve(cfg);
     std::fs::remove_file(dir.join("state.lock")).unwrap();std::fs::remove_file(dir.join("state.keys.lock")).unwrap();std::fs::remove_dir(&dir).unwrap();

@@ -1399,6 +1399,21 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                 continue;
             };
+            // A parseable body is not yet a completion: providers answer 2xx
+            // with error envelopes, nulls and empty objects. Only a real
+            // completion (non-empty choices, no top-level error) may commit
+            // downstream; anything else takes the same fail-closed path as an
+            // unparseable body, so no success is recorded and a live cooldown
+            // is preserved. This is a narrow envelope check, not full schema
+            // validation of the completion, and it is not applied to SSE
+            // streams (the SseRewriter validates streamed frames separately).
+            if json.get("error").is_some()
+                || json.get("choices").and_then(Value::as_array).is_none_or(|c| c.is_empty())
+            {
+                shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
+                set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+                continue;
+            }
             shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,status==200);
             record_route_latency(shared,&p.id,&m.public,header_latency);
             if let Some(guard) = spend.as_mut() { guard.finish(crate::spend::usage(&json)); }
@@ -2401,7 +2416,7 @@ mod fastest_dispatch_tests {
         let (tx,rx)=std::sync::mpsc::channel();let mut providers=vec![];
         for (id,millis) in [("slow",100),("fast",20)] {
             let listener=TcpListener::bind("127.0.0.1:0").unwrap();let url=format!("http://{}",listener.local_addr().unwrap());let tx=tx.clone();
-            thread::spawn(move||{let(mut socket,_)=listener.accept().unwrap();let _=read_request(&mut socket);tx.send(id).unwrap();let body=r#"{"model":"private","choices":[]}"#;write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",body.len()).unwrap();});
+            thread::spawn(move||{let(mut socket,_)=listener.accept().unwrap();let _=read_request(&mut socket);tx.send(id).unwrap();let body=r#"{"model":"private","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}]}"#;write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",body.len()).unwrap();});
             providers.push(crate::config::Provider{id:id.into(),base_url:url,api_key:"fixture".into(),status:Status::Friends,models:vec![crate::config::ModelEntry{public:"same".into(),upstream:"private".into(),context:None}]});
             let _=millis;
         }
@@ -2756,5 +2771,230 @@ mod exchange_tests {
         let got = github_exchange(&old_style_agent(), &cfg, "code", &tok, &user);
         assert_eq!(got, Ok("testuser".to_string()), "mutant control must differ: {got:?}");
         assert!(started.elapsed() >= Duration::from_secs(3));
+    }
+}
+
+// Test-only priority-1 regression packet. All outbound sockets are loopback.
+#[cfg(test)]
+mod json_false_success_regressions {
+    use super::*;
+    use super::reviewer_regressions::{keys_shared, browser_api};
+
+    fn stub(status: u16, body: &'static str) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let mut socket = loop {
+                match listener.accept() {
+                    Ok((s, _)) => break s,
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline, "stub received no dispatch");
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(e) => panic!("stub accept: {e}"),
+                }
+            };
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let request = read_request(&mut socket).expect("stub requires real HTTP request");
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/chat/completions");
+            write!(socket, "HTTP/1.1 {status} Test\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).unwrap();
+        });
+        (url, worker)
+    }
+
+    fn provider(id: &str, url: String) -> crate::config::Provider {
+        crate::config::Provider {
+            id: id.into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: url, models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-chat-upstream".into(), context: None,
+            }],
+        }
+    }
+
+    fn request(state: Arc<Shared>) -> String {
+        let owner = state.auth.create_session("luke", Role::Owner).unwrap();
+        browser_api(state, "POST", "/v1/chat/completions", &owner,
+            Some("https://aqua.test"), "same-site", None,
+            r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline fixture"}],"stream":false}"#)
+    }
+
+    fn rejected_json(status: u16, body: &'static str) {
+        let (url, worker) = stub(status, body);
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = Duration::from_secs(3);
+        state.config.providers = vec![provider("inferbase", url)];
+        // Soft cooling must not block the attempt, but false success must not erase it.
+        set_cooldown(&state, "inferbase", 60, false);
+        let state = Arc::new(state);
+        let response = request(state.clone());
+        worker.join().expect("fixture server completed");
+        let health = state.observations.lock().unwrap().aggregate(
+            [("inferbase", "fixture-chat", "fixture-chat-upstream")].into_iter());
+        let cooled = state.health.lock().unwrap().get("inferbase")
+            .is_some_and(|c| c.until > Instant::now());
+        // One assertion reports all three independent acceptance conditions.
+        assert!(response.starts_with("HTTP/1.1 503")
+            && health["healthy_routes"] == 0 && health["failed_routes"] == 1 && cooled,
+            "invalid upstream result must fail closed, record failure, and retain cooldown: status={status}, response={response:?}, health={health}, cooled={cooled}");
+        assert!(state.route_latency.lock().unwrap().is_empty(), "invalid output is not a successful latency sample");
+    }
+
+    macro_rules! rejection {
+        ($name:ident, $status:expr, $body:expr) => {
+            #[test] fn $name() { rejected_json($status, $body); }
+        };
+    }
+    rejection!(json_200_error, 200, r#"{"error":{"message":"unavailable","code":429}}"#);
+    rejection!(json_200_null, 200, "null");
+    rejection!(json_200_empty_object, 200, "{}");
+    rejection!(json_200_malformed, 200, "{");
+    rejection!(json_201_error, 201, r#"{"error":{"message":"unavailable"}}"#);
+    rejection!(json_201_null, 201, "null");
+    rejection!(json_201_empty_object, 201, "{}");
+    rejection!(json_201_malformed, 201, "{");
+    rejection!(json_202_error, 202, r#"{"error":{"message":"unavailable"}}"#);
+    rejection!(json_202_null, 202, "null");
+    rejection!(json_202_empty_object, 202, "{}");
+    rejection!(json_202_malformed, 202, "{");
+    rejection!(json_206_error, 206, r#"{"error":{"message":"unavailable"}}"#);
+    rejection!(json_206_null, 206, "null");
+    rejection!(json_206_empty_object, 206, "{}");
+    rejection!(json_206_malformed, 206, "{");
+    rejection!(json_204_empty_body, 204, "");
+
+    const VALID: &str = r#"{"id":"offline-chat","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"valid offline output"},"finish_reason":"stop"}]}"#;
+
+    #[test]
+    fn json_valid_positive_control() {
+        let (url, worker) = stub(200, VALID);
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers = vec![provider("inferbase", url)];
+        set_cooldown(&state, "inferbase", 60, false);
+        let state = Arc::new(state);
+        let response = request(state.clone());
+        worker.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"));
+        assert!(response.contains("valid offline output"));
+        assert!(!state.health.lock().unwrap().contains_key("inferbase"));
+        let health = state.observations.lock().unwrap().aggregate(
+            [("inferbase", "fixture-chat", "fixture-chat-upstream")].into_iter());
+        assert_eq!(health["healthy_routes"], 1);
+    }
+
+    #[test]
+    fn json_error_falls_back_before_downstream_commit() {
+        let (bad_url, bad_worker) = stub(200, r#"{"error":{"message":"unavailable"}}"#);
+        let (good_url, good_worker) = stub(200, VALID);
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = Duration::from_secs(3);
+        state.config.providers = vec![provider("inferbase", bad_url), provider("orcarouter", good_url)];
+        let state = Arc::new(state);
+        let response = request(state.clone());
+        bad_worker.join().unwrap();
+        // Join even when dispatch is missing: bounded stub timeout exposes missed fallback.
+        let good_dispatched = good_worker.join().is_ok();
+        assert!(good_dispatched && response.starts_with("HTTP/1.1 200")
+            && response.contains("valid offline output"), "must discard error envelope then use valid exact-model fallback: {response:?}");
+    }
+}
+
+// Envelope edge pins for the non-stream completion check: the check is a
+// narrow envelope check, not full schema validation, and it is not applied
+// to SSE streams.
+#[cfg(test)]
+mod json_envelope_edge_tests {
+    use super::*;
+    use super::reviewer_regressions::{keys_shared, browser_api};
+
+    fn stub(body: &'static str) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(5);
+            let mut socket = loop {
+                match listener.accept() {
+                    Ok((s, _)) => break s,
+                    Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                        assert!(Instant::now() < deadline, "stub received no dispatch");
+                        thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(e) => panic!("stub accept: {e}"),
+                }
+            };
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let request = read_request(&mut socket).expect("stub requires real HTTP request");
+            assert_eq!(request.method, "POST");
+            assert_eq!(request.path, "/chat/completions");
+            write!(socket, "HTTP/1.1 200 Test\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}", body.len()).unwrap();
+        });
+        (url, worker)
+    }
+
+    fn edge_state(url: String) -> Arc<Shared> {
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = Duration::from_secs(3);
+        state.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: url, models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-chat-upstream".into(), context: None,
+            }],
+        }];
+        set_cooldown(&state, "inferbase", 60, false);
+        Arc::new(state)
+    }
+
+    fn request(state: Arc<Shared>) -> String {
+        let owner = state.auth.create_session("luke", Role::Owner).unwrap();
+        browser_api(state, "POST", "/v1/chat/completions", &owner,
+            Some("https://aqua.test"), "same-site", None,
+            r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline fixture"}],"stream":false}"#)
+    }
+
+    fn rejected(body: &'static str) {
+        let (url, worker) = stub(body);
+        let state = edge_state(url);
+        let response = request(state.clone());
+        worker.join().expect("fixture server completed");
+        let health = state.observations.lock().unwrap().aggregate(
+            [("inferbase", "fixture-chat", "fixture-chat-upstream")].into_iter());
+        let cooled = state.health.lock().unwrap().get("inferbase")
+            .is_some_and(|c| c.until > Instant::now());
+        assert!(response.starts_with("HTTP/1.1 503")
+            && health["healthy_routes"] == 0 && health["failed_routes"] == 1 && cooled,
+            "invalid envelope must fail closed, record failure, and retain cooldown: body={body}, response={response:?}, health={health}, cooled={cooled}");
+        assert!(state.route_latency.lock().unwrap().is_empty(), "invalid output is not a successful latency sample");
+    }
+
+    #[test]
+    fn json_200_empty_choices_rejected() { rejected(r#"{"choices":[]}"#); }
+
+    #[test]
+    fn json_200_null_choices_rejected() { rejected(r#"{"choices":null}"#); }
+
+    #[test]
+    fn json_200_non_array_choices_rejected() { rejected(r#"{"choices":"yes"}"#); }
+
+    #[test]
+    fn json_200_error_with_valid_choices_rejected() {
+        rejected(r#"{"error":{"message":"x"},"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":"ok"}}]}"#);
+    }
+
+    #[test]
+    fn json_200_tool_call_only_completion_accepted() {
+        let body = r#"{"id":"offline-tc","object":"chat.completion","choices":[{"index":0,"finish_reason":"tool_calls","message":{"role":"assistant","content":null,"tool_calls":[{"id":"call_1","type":"function","function":{"name":"f","arguments":"{}"}}]}}],"usage":{"prompt_tokens":3,"completion_tokens":2,"total_tokens":5}}"#;
+        let (url, worker) = stub(body);
+        let state = edge_state(url);
+        let response = request(state.clone());
+        worker.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"), "tool-call-only completion must commit: {response:?}");
+        assert!(response.contains("tool_calls"), "tool calls survive redaction: {response:?}");
+        assert!(!state.health.lock().unwrap().contains_key("inferbase"), "accepted completion clears the soft cooldown");
+        let health = state.observations.lock().unwrap().aggregate(
+            [("inferbase", "fixture-chat", "fixture-chat-upstream")].into_iter());
+        assert_eq!(health["healthy_routes"], 1);
     }
 }
