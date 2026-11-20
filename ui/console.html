@@ -380,6 +380,10 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .cl, .csrc { display:none; }
 .cdetail { display:none; min-width:0; max-width:100%; overflow-wrap:anywhere; }
 .mrow .c.show-src .cdetail { display:block; flex-basis:100%; min-width:0; max-width:100%; overflow-wrap:anywhere; color:var(--faint); font-size:0.8125rem; line-height:1.5; padding-top:0.125rem; text-align:left; }
+/* an expanded cell spans the full grid row so the inline detail is readable
+   at desktop width; inert in the mobile stacked layout where .mrow is display:block */
+.mrow .c.show-src { grid-column: 1 / -1; }
+.mrow .c-status.show-src { flex-wrap: wrap; justify-content: flex-start; }
 /* status pills: small dot + word, never fills. ok green / warn amber / bad red */
 .pill { display:inline-flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; font-weight:500; white-space:nowrap; }
 .pill::before { content:""; width:0.375rem; height:0.375rem; border-radius:50%; background:currentColor; flex:none; }
@@ -749,7 +753,22 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
       var allUnknown = h.healthy_routes === 0 && h.failed_routes === 0 && h.unknown_routes === h.eligible_routes && h.eligible_routes > 0;
       tp.push(allUnknown ? 'no recent observations on ' + h.eligible_routes + ' route' + (h.eligible_routes === 1 ? '' : 's') : h.healthy_routes + ' of ' + h.eligible_routes + ' routes answered 200');
     }
-    if (typeof h.observed_at === 'number' && Number.isSafeInteger(h.observed_at) && h.observed_at > 0) { var od = new Date(h.observed_at * 1000); if (Number.isFinite(od.getTime())) tp.push('last observed ' + od.toUTCString().replace('GMT', 'UTC')); }
+    if (typeof h.observed_at === 'number' && Number.isSafeInteger(h.observed_at) && h.observed_at > 0) {
+      var od = new Date(h.observed_at * 1000);
+      if (Number.isFinite(od.getTime())) {
+        var ageMs = Date.now() - od.getTime();
+        if (ageMs < -300000) {
+          // future timestamp beyond a 5 min tolerance: the gateway clock and this
+          // device disagree, so any relative age would be invented; show the
+          // absolute reading and say the age is unknown instead of "just now".
+          tp.push('last observed ' + od.toUTCString().replace('GMT', 'UTC') + ' (clock skew / age unknown)');
+        } else {
+          var rel = ageMs < 120000 ? 'just now' : ageMs < 3600000 ? Math.round(ageMs / 60000) + ' min ago' : ageMs < 172800000 ? Math.round(ageMs / 3600000) + ' hours ago' : Math.round(ageMs / 86400000) + ' days ago';
+          tp.push('last observed ' + rel + ' (' + od.toUTCString().replace('GMT', 'UTC') + ')');
+          if (ageMs > 86400000) tp.push('stale: the gateway records health passively from real traffic, so this reading may be out of date');
+        }
+      }
+    }
     else if (typeof h.observed_at === 'string' && h.observed_at) tp.push('last observed ' + h.observed_at);
     if (tp.length) { pill.title = tp.join(', '); addDetail(st, pill.title); }
     st.appendChild(pill); return st;
