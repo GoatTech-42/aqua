@@ -54,6 +54,7 @@ struct Shared {
     logfare_in_flight: AtomicBool,
     trial_recent: Mutex<HashMap<String,Vec<Instant>>>,
     route_latency: Mutex<HashMap<(String,String),u64>>,
+    observations: Mutex<crate::passive_health::Tracker>,
     auth_failures: Mutex<HashMap<String, (u32, Instant)>>,
     health: Mutex<HashMap<String, Cooldown>>,
     spend: Mutex<crate::spend::Store>,
@@ -113,6 +114,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         logfare_in_flight: AtomicBool::new(false),
         trial_recent: Mutex::new(HashMap::new()),
         route_latency: Mutex::new(HashMap::new()),
+        observations: Mutex::new(crate::passive_health::Tracker::default()),
         auth_failures: Mutex::new(HashMap::new()),
         health: Mutex::new(HashMap::new()),
     });
@@ -670,6 +672,9 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                     data.push(v);
                 }
             }
+            for model in &mut data {
+                model["health"] = model_health(&shared, model["id"].as_str().unwrap_or(""), strict);
+            }
             write_json(&mut stream, 200, &json!({ "object": "list", "data": data }), cors)
         }
         ("POST", "/v1/chat/completions") => chat(&mut stream, &shared, &req, entry, &quota_token, cors),
@@ -897,6 +902,23 @@ fn route_candidates<'a>(shared: &'a Shared, requested: &str, strict: bool)
         }
     }
     (candidates, immediate, hard_excluded)
+}
+
+// Match actual catalog/dispatch eligibility. A configured route with a stale
+// allowance, missing key, denied privacy or excluded model is not serving.
+fn model_health(shared:&Shared, model:&str, strict:bool) -> Value {
+    let store=shared.spend.lock().unwrap();
+    let openrouter_ok=shared.config.spend.account_verified_day==chrono_day()
+        && shared.config.spend.openrouter_allowance>0 && store.durable();
+    drop(store);
+    let routes=shared.config.providers.iter().filter(|p|route_eligible(p,strict)
+        && p.id!="cloudflare" && (p.id!="openrouter" || openrouter_ok))
+        .flat_map(|p|p.models.iter().filter(move |m|chat_model_eligible(&p.id,&m.upstream)
+            && (p.id!="openrouter" || OPENROUTER_FREE.contains(&m.upstream.as_str())))
+            .map(move |m|(p,m)))
+        .filter(|(_,m)|if model==ALIAS {shared.config.auto_shortlist.contains(&m.public)}else{m.public==model})
+        .map(|(p,m)|(p.id.as_str(),m.public.as_str(),m.upstream.as_str()));
+    shared.observations.lock().unwrap().aggregate(routes)
 }
 
 fn resolve_model(shared: &Shared, requested: &str, strict: bool) -> Value {
@@ -1160,6 +1182,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             Err((status,message,code)) => return write_json(stream,status,&spend_error(message,code),cors),
         };
         guard.dispatched = true;
+        shared.observations.lock().unwrap().attempt(&p.id,&m.public,&m.upstream);
         let attempt_started=Instant::now();
         let resp = attempt_agent
             .post(&url)
@@ -1169,13 +1192,16 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         let mut resp = match resp {
             Ok(r) => r,
             Err(_) => {
+                shared.observations.lock().unwrap().transport_failure(&p.id,&m.public,&m.upstream);
                 set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                 continue; // network failure: try the next provider
             }
         };
         let header_latency=attempt_started.elapsed();
         let status = resp.status().as_u16();
+        shared.observations.lock().unwrap().header(&p.id,&m.public,&m.upstream,status);
         if !(200..300).contains(&status) {
+            shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
             if matches!(status,400|401|403|404|422|429) {
                 if let Some(guard) = spend.as_mut() { guard.refund(); }
             }
@@ -1205,13 +1231,16 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         if !want_stream {
             let mut buf = Vec::new();
             if resp.body_mut().as_reader().take(MAX_RESPONSE as u64).read_to_end(&mut buf).is_err() {
+                shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
                 set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                 continue;
             }
             let Ok(json) = serde_json::from_slice::<Value>(&buf) else {
+                shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
                 set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                 continue;
             };
+            shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,status==200);
             record_route_latency(shared,&p.id,&m.public,header_latency);
             if let Some(guard) = spend.as_mut() { guard.finish(crate::spend::usage(&json)); }
             clear_cooldown(shared, &p.id);
@@ -1225,6 +1254,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         // streaming requested: require a real SSE stream, else fail over cleanly
         if !content_type.starts_with("text/event-stream") {
             let _ = resp.body_mut().as_reader().take(64 * 1024).read_to_end(&mut Vec::new());
+            shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
             set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
             continue;
         }
@@ -1243,10 +1273,12 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         let mut rewriter = SseRewriter::new(&m.public);
         let mut reader = resp.body_mut().as_reader();
         let mut sent = 0usize;
+        let mut clean_eof=false;
+        let mut upstream_failed=false;
         let mut chunk = [0u8; 8192];
         loop {
             match reader.read(&mut chunk) {
-                Ok(0) => break,
+                Ok(0) => {clean_eof=true;break;},
                 Ok(n) => {
                     let mut out = Vec::new();
                     if !rewriter.push(&chunk[..n], &mut out) {
@@ -1254,10 +1286,12 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                         // and stream headers are long committed, so never fail
                         // over mid-response: end the stream honestly (the
                         // client sees it terminate without [DONE])
+                        upstream_failed=true;
                         set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                         break;
                     }
                     if sent + out.len() > MAX_RESPONSE {
+                        upstream_failed=true;
                         break; // hard cap: stream just ends
                     }
                     if stream.write_all(&out).is_err() {
@@ -1268,11 +1302,14 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 }
                 Err(_) => {
                     // upstream died mid-stream: cool it for future requests
+                    upstream_failed=true;
                     set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                     break;
                 }
             }
         }
+        let completed=status==200 && clean_eof && !upstream_failed && rewriter.completed_for_health();
+        shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,completed);
         if let Some(guard) = spend.as_mut() { guard.finish(rewriter.usage()); }
         return Ok(());
     }
@@ -1508,6 +1545,7 @@ mod reviewer_regressions {
         logfare_in_flight: AtomicBool::new(false),
         trial_recent: Mutex::new(HashMap::new()),
         route_latency: Mutex::new(HashMap::new()),
+            observations: Mutex::new(crate::passive_health::Tracker::default()),
             auth_failures: Mutex::new(HashMap::new()),
             health: Mutex::new(HashMap::new()),
         }
@@ -1917,6 +1955,128 @@ mod fastest_dispatch_tests {
         let id=state.auth.create_session("sam",Role::Friend).unwrap();
         assert!(browser_api(state,"POST","/v1/chat/completions",&id,Some("https://aqua.test"),"same-site",None,r#"{"model":"same","messages":[]}"#).starts_with("HTTP/1.1 200"));
         assert_eq!(rx.recv_timeout(Duration::from_secs(2)).unwrap(),"fast");
+    }
+}
+
+#[cfg(test)]
+mod live_port_tests {
+    use super::*;
+    use super::reviewer_regressions::{browser_api,keys_shared};
+
+    fn response_body(response:&str)->Value{serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap()}
+
+    fn bp(id:&str,status:Status,model:&str,url:&str)->crate::config::Provider {
+        crate::config::Provider{id:id.into(),status,api_key:"secret-not-client".into(),base_url:url.into(),models:vec![crate::config::ModelEntry{public:model.into(),upstream:format!("raw-{model}"),context:None}]}
+    }
+
+    #[test]
+    fn passive_health_counts_only_eligible_routes_and_auto_shortlist() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers=vec![
+            bp("p1",Status::Personal,"model","http://127.0.0.1:1"),
+            bp("off",Status::Off,"model","http://127.0.0.1:1"),
+            bp("no-key",Status::Personal,"model","http://127.0.0.1:1"),
+            bp("openrouter",Status::Personal,"model","http://127.0.0.1:1"),
+            bp("other",Status::Personal,"other-model","http://127.0.0.1:1")];
+        state.config.providers[2].api_key.clear();
+        state.config.providers[3].models[0].upstream="cohere/north-mini-code:free".into();
+        state.config.auto_shortlist=vec!["model".into()];
+        let state=Arc::new(state);
+        assert_eq!(model_health(&state,"model",false)["eligible_routes"],1);
+        assert_eq!(model_health(&state,"auto",false)["eligible_routes"],1);
+        let p=&state.config.providers[0];let m=&p.models[0];
+        state.observations.lock().unwrap().header(&p.id,&m.public,&m.upstream,200);
+        state.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,true);
+        assert_eq!(model_health(&state,"model",false)["status"],"healthy");
+        assert_eq!(model_health(&state,"other-model",false)["status"],"unknown");
+        assert!(state.quotas.lock().unwrap().is_empty());
+        assert!(state.trial_recent.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn merged_snapshot_is_failover_even_when_faster_and_default_is_cooled() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        let mut snapshot=bp("snapshot",Status::Personal,"deepseek-v4.1-flash","http://127.0.0.1:1");
+        snapshot.models[0].upstream="deepseek-v4.1-flash-1017".into();
+        let default=bp("default",Status::Personal,"deepseek-v4.1-flash","http://127.0.0.1:1");
+        state.config.providers=vec![snapshot,default];
+        state.route_latency.get_mut().unwrap().insert(("snapshot".into(),"deepseek-v4.1-flash".into()),1);
+        state.route_latency.get_mut().unwrap().insert(("default".into(),"deepseek-v4.1-flash".into()),999);
+        let state=Arc::new(state);
+        for cooled in [false,true] {
+            if cooled {state.health.lock().unwrap().insert("default".into(),Cooldown{until:Instant::now()+Duration::from_secs(60),hard:false});}
+            let result=resolve_model(&state,"deepseek-v4.1-flash",false);
+            assert_eq!(result["candidates"].as_array().unwrap().iter().map(|c|c["provider"].as_str().unwrap()).collect::<Vec<_>>(),vec!["default","snapshot"]);
+        }
+    }
+
+    #[test]
+    fn embedded_pages_send_frame_deny_headers_and_json_or_redirects_do_not() {
+        let state=keys_shared();
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        for path in ["/","/landing.html","/console.html","/settings.html","/keys.html","/playground.html"] {
+            let cookie=if path=="/"||path=="/landing.html" {""} else {owner.as_str()};
+            let r=browser_api(state.clone(),"GET",path,cookie,None,"none",None,"");
+            assert!(r.starts_with("HTTP/1.1 200 "),"{path}: {r}");
+            assert!(r.contains("\r\nx-frame-options: DENY\r\n"),"{path}");
+            assert!(r.contains("\r\ncontent-security-policy: frame-ancestors 'none'\r\n"),"{path}");
+        }
+        let r=browser_api(state.clone(),"GET","/v1/models","",None,"none",Some("Bearer bad"),"");
+        assert!(!r.contains("x-frame-options:"));
+        let r=browser_api(state.clone(),"GET","/console.html","",None,"none",None,"");
+        assert!(r.starts_with("HTTP/1.1 302 "));
+        assert!(!r.contains("x-frame-options:"));
+    }
+
+    #[test]
+    fn resolve_gate_owner_paths_throttle_and_method_contract() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.keys.insert("owner-legacy".into(),crate::config::KeyEntry{name:"luke".into(),role:Role::Owner});
+        let generated=state.keys.get_mut().unwrap().create("luke","ops").unwrap();
+        let generated=format!("Bearer {}",generated["key"].as_str().unwrap());
+        let state=Arc::new(state);
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x",&owner,None,"same-site",None,"").starts_with("HTTP/1.1 200"));
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x",&friend,None,"same-site",None,"").starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",None,"").starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x",&owner,None,"same-site",Some("Bearer bad"),"").starts_with("HTTP/1.1 401"));
+        // Kept legacy owner-bearer paths (pending the owner-bearer question).
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",Some("Bearer owner-legacy"),"").starts_with("HTTP/1.1 200"));
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",Some(&generated),"").starts_with("HTTP/1.1 200"));
+        assert!(browser_api(state.clone(),"POST","/v1/admin/resolve?model=x",&owner,None,"same-site",None,"{").starts_with("HTTP/1.1 405"));
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve",&owner,None,"same-site",None,"").starts_with("HTTP/1.1 400"));
+        let overlong=format!("/v1/admin/resolve?model={}","x".repeat(257));
+        assert!(browser_api(state.clone(),"GET",&overlong,&owner,None,"same-site",None,"").starts_with("HTTP/1.1 400"));
+        for _ in 0..AUTH_FAIL_LIMIT {let _=browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",Some("Bearer throttle-this"),"");}
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",Some("Bearer throttle-this"),"").starts_with("HTTP/1.1 429"));
+    }
+
+    #[test]
+    fn resolve_privacy_and_eligibility_are_fail_closed() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        let mut empty=bp("empty",Status::Personal,"model","http://localhost");empty.api_key.clear();
+        state.config.providers=vec![empty,bp("good",Status::Personal,"model","http://localhost"),bp("off",Status::Off,"model","http://localhost")];
+        let mut pref=crate::preferences::Preferences::default();pref.zdr_only=true;
+        state.spend.get_mut().unwrap().ledger.preferences.insert("luke".into(),pref);
+        let state=Arc::new(state);
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let response=browser_api(state.clone(),"GET","/v1/admin/resolve?model=model",&owner,None,"same-site",None,"");
+        assert!(response.starts_with("HTTP/1.1 200"),"{response}");
+        assert_eq!(response_body(&response)["known"],false);
+        assert_eq!(resolve_model(&state,"model",false)["candidates"].as_array().unwrap().len(),1);
+        assert!(!response.contains("secret-not-client"));
+    }
+
+    #[test]
+    fn resolve_maps_legacy_request_names_like_dispatch() {
+        let state=keys_shared();
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let r=browser_api(state.clone(),"GET","/v1/admin/resolve?model=deepseek-v4-flash%3Afp8",&owner,None,"same-site",None,"");
+        let body=response_body(&r);
+        assert_eq!(body["requested"],"deepseek-v4-flash:fp8");
+        assert_eq!(body["canonical"],"deepseek-v4-flash");
+        assert_eq!(body["known"],false);
     }
 }
 

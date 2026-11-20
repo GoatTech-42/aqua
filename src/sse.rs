@@ -17,6 +17,9 @@ pub struct SseRewriter {
 }
 
 impl SseRewriter {
+    // True once the upstream stream delivered its terminal [DONE] marker.
+    pub fn completed_for_health(&self) -> bool { self.done }
+
     pub fn new(alias: &str) -> Self {
         SseRewriter { buf: Vec::new(), alias: alias.to_string(), usage: None, done: false, terminal_snapshot: false, after_done: false }
     }

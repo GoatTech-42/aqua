@@ -1,6 +1,7 @@
 mod image_transport;
 mod images;
 mod maker_pricing;
+mod passive_health;
 mod preferences;
 mod keys;
 pub mod auth;
