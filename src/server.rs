@@ -1433,7 +1433,6 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             continue;
         }
         record_route_latency(shared,&p.id,&m.public,header_latency);
-        clear_cooldown(shared, &p.id);
         println!(
             "{}",
             json!({ "ts": chrono_day(), "key": entry.name, "provider": p.id, "model": m.public, "stream": true })
@@ -1461,7 +1460,6 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                         // over mid-response: end the stream honestly (the
                         // client sees it terminate without [DONE])
                         upstream_failed=true;
-                        set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                         break;
                     }
                     if sent + out.len() > MAX_RESPONSE {
@@ -1475,9 +1473,8 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                     sent += out.len();
                 }
                 Err(_) => {
-                    // upstream died mid-stream: cool it for future requests
+                    // upstream died mid-stream
                     upstream_failed=true;
-                    set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
                     break;
                 }
             }
@@ -1485,6 +1482,15 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         let completed=status==200 && clean_eof && !upstream_failed && rewriter.completed_for_health();
         shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,completed);
         if let Some(guard) = spend.as_mut() { guard.finish(rewriter.usage()); }
+        // One accepted-completion predicate drives both health and the soft
+        // cooldown: a stream clears only what it proved, and a stream that
+        // fails after commit cools the route. clear_cooldown never removes a
+        // hard limit, and set_cooldown never shortens one.
+        if completed {
+            clear_cooldown(shared, &p.id);
+        } else {
+            set_cooldown(shared, &p.id, COOLDOWN_SOFT_SECS, false);
+        }
         return Ok(());
     }
 
