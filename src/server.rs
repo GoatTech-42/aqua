@@ -4846,7 +4846,8 @@ mod framing_matrix_tests {
         worker: Option<JoinHandle<()>>,
     }
     impl Responder {
-        fn start() -> Self {
+        fn start() -> Self { Self::start_status(None) }
+        fn start_status(first_status: Option<u16>) -> Self {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             listener.set_nonblocking(true).unwrap();
             let url = format!("http://{}", listener.local_addr().unwrap());
@@ -4861,11 +4862,16 @@ mod framing_matrix_tests {
                     // can be initiated. Drain already queued connections first.
                     match listener.accept() {
                         Ok((mut socket, _)) => {
-                            h.fetch_add(1, Ordering::SeqCst);
+                            let hit = h.fetch_add(1, Ordering::SeqCst);
                             socket.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
                             socket.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
                             if read_request_within(&mut socket, Duration::from_secs(2)).is_ok() {
-                                let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{VALID}", VALID.len());
+                                if let Some(status) = first_status.filter(|_| hit == 0) {
+                                    let private = r#"{"error":{"message":"private-upstream-body-sentinel"}}"#;
+                                    let _ = write!(socket, "HTTP/1.1 {status} Failure\r\ncontent-type: application/json\r\ncontent-length: {}\r\nx-private-upstream: private-header-sentinel\r\nwww-authenticate: Bearer private-challenge\r\nretry-after: 120\r\nconnection: close\r\n\r\n{private}", private.len());
+                                } else {
+                                    let _ = write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{VALID}", VALID.len());
+                                }
                             }
                         }
                         Err(e) if e.kind() == ErrorKind::WouldBlock => {
@@ -5143,5 +5149,54 @@ mod framing_matrix_tests {
     fn body_size_baseline_exact_cap() { body_size_baseline(1_000_000, true); }
     #[test]
     fn body_size_baseline_one_above_cap() { body_size_baseline(1_000_001, false); }
+
+    fn upstream_status_baseline(status: u16) {
+        let mut upstream = Responder::start_status(Some(status));
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: upstream.url.clone(), models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-upstream".into(), context: None,
+            }],
+        }];
+        let state = Arc::new(state);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let framing = format!("content-length: {}\r\n", BODY.len()+1);
+        let failed = gateway_call(state.clone(), request(&cookie, &framing));
+        let failure_hits = upstream.hits.load(Ordering::SeqCst);
+        let cooldown = state.health.lock().unwrap().get("inferbase").copied();
+        let checkpoint = Instant::now();
+        let healthy = gateway_call(state.clone(), request(&cookie, &framing));
+        upstream.finish();
+        assert!(failed.starts_with("HTTP/1.1 503"), "upstream {status} becomes generic gateway503: {failed:?}");
+        let (head, body) = failed.split_once("\r\n\r\n").unwrap();
+        let body: Value = serde_json::from_str(body).unwrap();
+        assert_eq!(body, json!({"error":{"message":"no models available","type":"upstream_unavailable"}}));
+        for sentinel in ["private-upstream-body-sentinel", "private-header-sentinel", "private-challenge"] {
+            assert!(!failed.contains(sentinel), "upstream {status} must not forward {sentinel}");
+        }
+        let headers = cors_headers_of(&failed);
+        for (key, value) in [("content-type", "application/json"), ("cache-control", "no-store"),
+                             ("x-content-type-options", "nosniff"), ("referrer-policy", "no-referrer")] {
+            cors_single_header(&headers, key, value);
+        }
+        for key in ["x-private-upstream", "www-authenticate", "retry-after"] {
+            assert!(!headers.contains_key(key), "non429 upstream header must not be forwarded: {head}");
+        }
+        let cd = cooldown.expect("failed attempt installs cooldown");
+        assert!(!cd.hard, "current non429 behavior is soft despite Retry-After");
+        let remaining = cd.until.saturating_duration_since(checkpoint);
+        assert!(remaining > Duration::from_secs(10) && remaining <= Duration::from_secs(15), "soft15s: {remaining:?}");
+        assert_eq!(failure_hits, 1, "the failure was actually dispatched");
+        assert!(healthy.starts_with("HTTP/1.1 200") && healthy.contains("framing healthy control"), "healthy follow-up: {healthy:?}");
+        assert_eq!(upstream.hits.load(Ordering::SeqCst), 2, "failure and healthy control both dispatched");
+    }
+    #[test] fn upstream_status_baseline_400() { upstream_status_baseline(400); }
+    #[test] fn upstream_status_baseline_401() { upstream_status_baseline(401); }
+    #[test] fn upstream_status_baseline_403() { upstream_status_baseline(403); }
+    #[test] fn upstream_status_baseline_404() { upstream_status_baseline(404); }
+    #[test] fn upstream_status_baseline_422() { upstream_status_baseline(422); }
+    #[test] fn upstream_status_baseline_503() { upstream_status_baseline(503); }
+    #[test] fn upstream_status_baseline_504() { upstream_status_baseline(504); }
 
 }
