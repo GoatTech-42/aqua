@@ -2998,3 +2998,446 @@ mod json_envelope_edge_tests {
         assert_eq!(health["healthy_routes"], 1);
     }
 }
+
+// SSE commit-time health pins (providers-lane items 1+2, QA AMEND 8.7): one
+// accepted-completion predicate drives both health and soft-cooldown clearing;
+// an accepted finish_reason + clean EOF without [DONE] is healthy and clears.
+#[cfg(test)]
+mod sse_commit_health_tests {
+    use super::*;
+    use super::reviewer_regressions::keys_shared;
+    use std::io::ErrorKind;
+    use std::sync::mpsc::{channel, Receiver};
+
+    const STREAM_BODY: &str = r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline fixture"}],"stream":true}"#;
+    const VALID_DELTA: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"hi\"}}]}\n\n";
+    const TERMINAL: &str = "data: {\"choices\":[{\"index\":0,\"finish_reason\":\"stop\"}]}\n\n";
+    const DONE: &str = "data: [DONE]\n\n";
+    const ERROR_FRAME: &str = "data: {\"error\":{\"message\":\"blown\"}}\n\n";
+    const EXTRA_FRAME: &str = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"late\"}}]}\n\n";
+    const MALFORMED_FRAME: &str = "data: {not-json\n\n";
+
+    fn leaked(s: String) -> &'static str { Box::leak(s.into_boxed_str()) }
+
+    fn sse_state(primary: String, fallback: Option<String>, idle: Duration) -> Arc<Shared> {
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget = Duration::from_secs(5);
+        state.config.upstream_idle = idle;
+        let mk = |id: &str, base_url: String| crate::config::Provider {
+            id: id.into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url, models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-chat-upstream".into(), context: None }],
+        };
+        state.config.providers = vec![mk("inferbase", primary)];
+        if let Some(url) = fallback { state.config.providers.push(mk("orcarouter", url)); }
+        Arc::new(state)
+    }
+
+    fn health_of(state: &Arc<Shared>) -> Value {
+        state.observations.lock().unwrap().aggregate(
+            [("inferbase", "fixture-chat", "fixture-chat-upstream")].into_iter())
+    }
+
+    fn cooldown(state: &Arc<Shared>) -> Option<Cooldown> {
+        state.health.lock().unwrap().get("inferbase").copied()
+    }
+
+    fn accept_one(listener: &TcpListener) -> TcpStream {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            match listener.accept() {
+                Ok((s, _)) => return s,
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                    assert!(Instant::now() < deadline, "stub received no dispatch");
+                    thread::sleep(Duration::from_millis(2));
+                }
+                Err(e) => panic!("stub accept: {e}"),
+            }
+        }
+    }
+
+    // Scripted SSE upstream: bounded accept, write head + phase1, wait for the
+    // gate (bounded), write phase2, close. All writes carry a write timeout.
+    fn sse_stub(phase1: &'static str, gate: Option<Receiver<()>>, phase2: &'static str) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let mut socket = accept_one(&listener);
+            socket.set_nonblocking(false).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let req = read_request(&mut socket).expect("stub requires real HTTP request");
+            assert_eq!(req.method, "POST");
+            assert_eq!(req.path, "/chat/completions");
+            write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", phase1.len() + phase2.len()).expect("head write");
+            socket.write_all(phase1.as_bytes()).expect("phase1 write");
+            if let Some(g) = gate { g.recv_timeout(Duration::from_secs(5)).expect("gate release"); }
+            socket.write_all(phase2.as_bytes()).expect("phase2 write");
+        });
+        (url, worker)
+    }
+
+    // Close-delimited stall variant (idle-timeout path): no content-length, or
+    // the client stops at the promised byte count and the stall is invisible.
+    fn sse_stall_stub(phase1: &'static str, stall: Duration) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let mut socket = accept_one(&listener);
+            socket.set_nonblocking(false).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut socket);
+            write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\n").expect("head write");
+            socket.write_all(phase1.as_bytes()).expect("phase1 write");
+            thread::sleep(stall);
+        });
+        (url, worker)
+    }
+
+    // Over-cap variant: offers phase1, tolerates the peer closing at the cap,
+    // and reports how many bytes were offered before any broken pipe/timeout.
+    fn sse_offer_stub(phase1: &'static str, offered: Arc<AtomicUsize>) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let mut socket = accept_one(&listener);
+            socket.set_nonblocking(false).unwrap();
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _ = read_request(&mut socket);
+            write!(socket, "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n", phase1.len()).expect("head write");
+            let bytes = phase1.as_bytes();
+            let mut written = 0usize;
+            while written < bytes.len() {
+                match socket.write(&bytes[written..]) {
+                    Ok(0) => break,
+                    Ok(n) => written += n,
+                    Err(e) if matches!(e.kind(), ErrorKind::BrokenPipe | ErrorKind::WouldBlock | ErrorKind::TimedOut) => break,
+                    Err(e) => panic!("offer write: {e}"),
+                }
+            }
+            offered.store(written, Ordering::SeqCst);
+        });
+        (url, worker)
+    }
+
+    // Bounded counting fallback: nonblocking accept until the stop flag or a
+    // deadline. On stop it drains the accept backlog for a short window before
+    // exiting, so a failover connection already queued by the kernel is still
+    // counted; the test joins the worker before reading the final count.
+    fn counting_stub(hits: Arc<AtomicUsize>, stop: Arc<AtomicBool>) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(10);
+            loop {
+                match listener.accept() {
+                    Ok((socket, _)) => { hits.fetch_add(1, Ordering::SeqCst); drop(socket); }
+                    Err(e) if e.kind() == ErrorKind::WouldBlock => {
+                        if stop.load(Ordering::SeqCst) {
+                            let drain_until = Instant::now() + Duration::from_millis(100);
+                            while Instant::now() < drain_until {
+                                match listener.accept() {
+                                    Ok((socket, _)) => { hits.fetch_add(1, Ordering::SeqCst); drop(socket); }
+                                    Err(e) if e.kind() == ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(2)),
+                                    Err(_) => break,
+                                }
+                            }
+                            break;
+                        }
+                        assert!(Instant::now() < deadline, "counting stub outlived its deadline");
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(_) => break,
+                }
+            }
+        });
+        (url, worker)
+    }
+
+    fn open_chat(state: Arc<Shared>, cookie: &str) -> (TcpStream, JoinHandle<std::io::Result<()>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let worker = thread::spawn(move || handle(listener.accept().unwrap().0, state));
+        let mut c = TcpStream::connect(address).unwrap();
+        c.set_read_timeout(Some(Duration::from_secs(10))).unwrap();
+        write!(c, "POST /v1/chat/completions HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\nsec-fetch-site: same-site\r\norigin: https://aqua.test\r\ncontent-length: {}\r\n\r\n{STREAM_BODY}", STREAM_BODY.len()).unwrap();
+        (c, worker)
+    }
+
+    fn read_head(c: &mut TcpStream) -> (String, Vec<u8>) {
+        let mut buf = Vec::new();
+        let mut tmp = [0u8; 4096];
+        loop {
+            let n = c.read(&mut tmp).unwrap();
+            assert!(n > 0, "server closed before the response head");
+            buf.extend_from_slice(&tmp[..n]);
+            if let Some(p) = buf.windows(4).position(|w| w == b"\r\n\r\n") {
+                let head = String::from_utf8_lossy(&buf[..p + 4]).into_owned();
+                return (head, buf[p + 4..].to_vec());
+            }
+        }
+    }
+
+    // Read one complete SSE frame (through its blank-line terminator).
+    fn read_frame(c: &mut TcpStream, rest: &mut Vec<u8>) -> String {
+        let mut tmp = [0u8; 4096];
+        loop {
+            if let Some(p) = rest.windows(2).position(|w| w == b"\n\n") {
+                let frame: Vec<u8> = rest.drain(..p + 2).collect();
+                return String::from_utf8_lossy(&frame).into_owned();
+            }
+            let n = c.read(&mut tmp).expect("frame read");
+            assert!(n > 0, "server closed before the first frame");
+            rest.extend_from_slice(&tmp[..n]);
+        }
+    }
+
+    fn read_body_to_eof(c: &mut TcpStream, rest: Vec<u8>) -> String {
+        let mut body = rest;
+        let mut tmp = [0u8; 8192];
+        loop {
+            match c.read(&mut tmp) {
+                Ok(0) => break,
+                Ok(n) => body.extend_from_slice(&tmp[..n]),
+                Err(e) => panic!("downstream read: {e}"),
+            }
+        }
+        String::from_utf8_lossy(&body).into_owned()
+    }
+
+    fn run_stream(state: Arc<Shared>) -> (String, String) {
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let (mut c, server) = open_chat(state, &cookie);
+        let (head, rest) = read_head(&mut c);
+        let body = read_body_to_eof(&mut c, rest);
+        server.join().unwrap().unwrap();
+        (head, body)
+    }
+
+    #[test]
+    fn sse_soft_cooldown_is_not_cleared_until_valid_completion() {
+        let (tx, rx) = channel();
+        let (url, upstream) = sse_stub(VALID_DELTA, Some(rx), leaked(format!("{TERMINAL}{DONE}")));
+        let state = sse_state(url, None, Duration::from_secs(5));
+        set_cooldown(&state, "inferbase", 60, false);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let (mut c, server) = open_chat(state.clone(), &cookie);
+        let (head, mut rest) = read_head(&mut c);
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        let frame = read_frame(&mut c, &mut rest);
+        assert!(frame.contains("data:"), "one delta parsed before commit state: {frame}");
+        // Headers committed and one valid delta seen, stream parked: the soft
+        // cooldown must still be standing and nothing healthy recorded yet.
+        assert!(cooldown(&state).is_some_and(|cd| cd.until > Instant::now()),
+            "soft cooldown must survive until the stream proves out");
+        assert_eq!(health_of(&state)["healthy_routes"], 0);
+        tx.send(()).unwrap();
+        let body = read_body_to_eof(&mut c, rest);
+        server.join().unwrap().unwrap();
+        upstream.join().unwrap();
+        assert!(body.contains("data: [DONE]"), "{body}");
+        assert!(cooldown(&state).is_none(), "valid completion clears the soft cooldown");
+        assert_eq!(health_of(&state)["healthy_routes"], 1);
+    }
+
+    #[test]
+    fn sse_completion_never_clears_a_hard_cooldown_installed_mid_stream() {
+        let (tx, rx) = channel();
+        let (url, upstream) = sse_stub(VALID_DELTA, Some(rx), leaked(format!("{TERMINAL}{DONE}")));
+        let state = sse_state(url, None, Duration::from_secs(5));
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let (mut c, server) = open_chat(state.clone(), &cookie);
+        let (head, mut rest) = read_head(&mut c);
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        let frame = read_frame(&mut c, &mut rest);
+        assert!(frame.contains("data:"), "one delta parsed before commit state: {frame}");
+        set_cooldown(&state, "inferbase", 120, true);
+        let installed = cooldown(&state).unwrap();
+        assert!(installed.hard);
+        tx.send(()).unwrap();
+        let _ = read_body_to_eof(&mut c, rest);
+        server.join().unwrap().unwrap();
+        upstream.join().unwrap();
+        let after = cooldown(&state).expect("a hard limit installed mid-stream must survive completion");
+        assert!(after.hard && after.until == installed.until, "hard limit cleared or shortened by completion");
+    }
+
+    // QA AMEND 8.7: one predicate. Accepted finish_reason + clean EOF without
+    // [DONE] is healthy AND clears the soft cooldown.
+    #[test]
+    fn sse_terminal_without_done_completes_and_clears_soft_cooldown() {
+        let (url, upstream) = sse_stub(leaked(format!("{VALID_DELTA}{TERMINAL}")), None, "");
+        let state = sse_state(url, None, Duration::from_secs(5));
+        set_cooldown(&state, "inferbase", 60, false);
+        let (head, body) = run_stream(state.clone());
+        upstream.join().unwrap();
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        assert!(!body.contains("[DONE]"), "no synthesized DONE: {body}");
+        assert_eq!(health_of(&state)["healthy_routes"], 1);
+        assert!(cooldown(&state).is_none(), "accepted terminal + clean EOF clears the soft cooldown");
+    }
+
+    // Framing negatives: a tainted stream is not accepted even with [DONE].
+    #[test]
+    fn sse_data_after_done_is_not_accepted_and_cools() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (fb_url, fb) = counting_stub(hits.clone(), stop.clone());
+        let (url, upstream) = sse_stub(leaked(format!("{VALID_DELTA}{TERMINAL}{DONE}{EXTRA_FRAME}")), None, "");
+        let state = sse_state(url, Some(fb_url), Duration::from_secs(5));
+        let (head, _body) = run_stream(state.clone());
+        upstream.join().unwrap();
+        stop.store(true, Ordering::SeqCst);
+        fb.join().unwrap();
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        assert_eq!(hits.load(Ordering::SeqCst), 0, "no failover once the response is committed");
+        let health = health_of(&state);
+        assert!(health["healthy_routes"] == 0 && health["failed_routes"] == 1, "post-DONE data is not accepted: {health}");
+        assert!(cooldown(&state).is_some_and(|cd| cd.until > Instant::now()), "tainted stream must cool the route");
+    }
+
+    #[test]
+    fn sse_malformed_frame_is_not_rescued_by_done() {
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (fb_url, fb) = counting_stub(hits.clone(), stop.clone());
+        let (url, upstream) = sse_stub(leaked(format!("{MALFORMED_FRAME}{VALID_DELTA}{TERMINAL}{DONE}")), None, "");
+        let state = sse_state(url, Some(fb_url), Duration::from_secs(5));
+        let (head, _body) = run_stream(state.clone());
+        upstream.join().unwrap();
+        stop.store(true, Ordering::SeqCst);
+        fb.join().unwrap();
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        assert_eq!(hits.load(Ordering::SeqCst), 0);
+        let health = health_of(&state);
+        assert!(health["healthy_routes"] == 0 && health["failed_routes"] == 1, "malformed is not rescued by DONE: {health}");
+        assert!(cooldown(&state).is_some_and(|cd| cd.until > Instant::now()), "tainted stream must cool the route");
+    }
+
+    // Item 2 failure matrix: after a committed 200, every failure ends the
+    // downstream honestly (no failover, no synthesized DONE), records the
+    // route failed, and leaves an active cooldown.
+    fn failure_case(phase1: &'static str, stall: Option<Duration>, idle: Duration) -> (Arc<Shared>, String, String, usize) {
+        let (url, upstream) = match stall {
+            Some(d) => sse_stall_stub(phase1, d),
+            None => sse_stub(phase1, None, ""),
+        };
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (fb_url, fb) = counting_stub(hits.clone(), stop.clone());
+        let state = sse_state(url, Some(fb_url), idle);
+        let (head, body) = run_stream(state.clone());
+        upstream.join().unwrap();
+        stop.store(true, Ordering::SeqCst);
+        fb.join().unwrap();
+        let final_hits = hits.load(Ordering::SeqCst);
+        (state, head, body, final_hits)
+    }
+
+    fn assert_failed_commit(state: &Arc<Shared>, head: &str, body: &str, final_hits: usize) {
+        assert!(head.starts_with("HTTP/1.1 200"), "headers were committed: {head}");
+        assert!(!body.contains("[DONE]"), "no synthesized DONE: {body}");
+        assert_eq!(final_hits, 0, "no failover once the response is committed");
+        let health = health_of(state);
+        assert!(health["healthy_routes"] == 0 && health["failed_routes"] == 1, "route recorded failed: {health}");
+        assert!(cooldown(state).is_some_and(|cd| cd.until > Instant::now()), "failure after commit must cool the route");
+    }
+
+    #[test]
+    fn sse_immediate_eof_after_commit_cools_and_never_fails_over() {
+        let (state, head, body, hits) = failure_case("", None, Duration::from_secs(5));
+        assert!(body.is_empty(), "{body}");
+        assert_failed_commit(&state, &head, &body, hits);
+    }
+
+    #[test]
+    fn sse_unterminated_event_eof_cools_and_never_fails_over() {
+        let (state, head, body, hits) = failure_case("data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"par", None, Duration::from_secs(5));
+        assert_failed_commit(&state, &head, &body, hits);
+    }
+
+    #[test]
+    fn sse_valid_delta_then_eof_without_terminal_cools_and_never_fails_over() {
+        let (state, head, body, hits) = failure_case(VALID_DELTA, None, Duration::from_secs(5));
+        assert!(body.contains("data:"), "the valid delta was forwarded: {body}");
+        assert_failed_commit(&state, &head, &body, hits);
+    }
+
+    #[test]
+    fn sse_error_envelope_cools_and_never_fails_over() {
+        let (state, head, body, hits) = failure_case(ERROR_FRAME, None, Duration::from_secs(5));
+        assert_failed_commit(&state, &head, &body, hits);
+    }
+
+    #[test]
+    fn sse_idle_timeout_after_valid_delta_cools_and_never_fails_over() {
+        let (state, head, body, hits) = failure_case(VALID_DELTA, Some(Duration::from_secs(1)), Duration::from_millis(100));
+        assert!(body.contains("data:"), "the valid delta was forwarded: {body}");
+        assert_failed_commit(&state, &head, &body, hits);
+    }
+
+    // Over-cap: 45 legal frames of ~100KB each (~4.5MB) against the literal
+    // 4_000_000-byte response cap. The ample idle budget (5s against a writer
+    // that finishes in milliseconds) plus the exact end-of-body window prove
+    // the cap ended the stream, not a timeout; offered > CAP proves the
+    // upstream still had bytes to give, so it was not an early EOF either.
+    #[test]
+    fn sse_over_cap_legal_events_cool_and_end_honestly() {
+        const CAP: usize = 4_000_000;
+        assert_eq!(CAP, MAX_RESPONSE, "fixture drifted from the standing cap");
+        let big = format!("data: {{\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"{}\"}}}}]}}\n\n", "a".repeat(100_000));
+        let mut phase = String::new();
+        for _ in 0..45 { phase.push_str(&big); }
+        let offered = Arc::new(AtomicUsize::new(0));
+        let (url, upstream) = sse_offer_stub(leaked(phase.clone()), offered.clone());
+        let hits = Arc::new(AtomicUsize::new(0));
+        let stop = Arc::new(AtomicBool::new(false));
+        let (fb_url, fb) = counting_stub(hits.clone(), stop.clone());
+        let state = sse_state(url, Some(fb_url), Duration::from_secs(5));
+        let (head, body) = run_stream(state.clone());
+        stop.store(true, Ordering::SeqCst);
+        fb.join().unwrap();
+        upstream.join().unwrap();
+        let final_hits = hits.load(Ordering::SeqCst);
+        assert!(body.len() <= CAP && body.len() + big.len() > CAP,
+            "body stopped exactly at the cap window: {} of {CAP}", body.len());
+        assert!(offered.load(Ordering::SeqCst) > CAP,
+            "upstream still had bytes to give when the stream ended: {}", offered.load(Ordering::SeqCst));
+        assert_failed_commit(&state, &head, &body, final_hits);
+    }
+
+    // Under-cap control: the same legal frames totalling just under the cap
+    // with a proper terminal and DONE must stream in full, record healthy and
+    // clear a standing soft cooldown, so size alone explains nothing above.
+    #[test]
+    fn sse_under_cap_stream_completes_healthy_and_clears_soft_cooldown() {
+        const CAP: usize = 4_000_000;
+        assert_eq!(CAP, MAX_RESPONSE, "fixture drifted from the standing cap");
+        let big = format!("data: {{\"choices\":[{{\"index\":0,\"delta\":{{\"content\":\"{}\"}}}}]}}\n\n", "a".repeat(100_000));
+        let mut phase = String::new();
+        for _ in 0..39 { phase.push_str(&big); }
+        phase.push_str(TERMINAL);
+        phase.push_str(DONE);
+        assert!(phase.len() < CAP, "control fixture must stay under the cap: {}", phase.len());
+        let offered = Arc::new(AtomicUsize::new(0));
+        let (url, upstream) = sse_offer_stub(leaked(phase.clone()), offered.clone());
+        let state = sse_state(url, None, Duration::from_secs(5));
+        set_cooldown(&state, "inferbase", 60, false);
+        let (head, body) = run_stream(state.clone());
+        upstream.join().unwrap();
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        assert!(body.contains("data: [DONE]"), "stream completed: {} bytes", body.len());
+        // Offered counts bytes the stub wrote to its socket, not proof of downstream
+        // consumption: it proves the server kept reading until the upstream finished.
+        assert_eq!(offered.load(Ordering::SeqCst), phase.len(), "server read the upstream to the end, no early stop");
+        let health = health_of(&state);
+        assert!(health["healthy_routes"] == 1 && health["failed_routes"] == 0, "under-cap stream is healthy: {health}");
+        assert!(cooldown(&state).is_none(), "valid completion clears the soft cooldown");
+    }
+}
