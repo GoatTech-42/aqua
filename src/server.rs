@@ -505,30 +505,19 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     }
 
     if req.path == "/v1/admin/resolve" {
-        // Read-only owner diagnostic. Auth accepts main's admin_key or an owner
-        // session cookie, and (kept pending the owner-bearer question) live's
-        // legacy paths: a generated aqua_sk_ key or a legacy config key whose
-        // resolved login currently holds the owner role.
+        // Read-only owner diagnostic.
         if auth_throttled(&shared, &token) {
             return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limit_error"), cors);
         }
+        // Main's auth only (main's scope decision, reversing the A8 keep-both):
+        // the admin key, or an owner session cookie. Legacy and generated
+        // bearer keys are NOT accepted on this route.
         let admin_ok = !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key;
-        let legacy_login: Option<String> = if req.headers.contains_key("authorization") {
-            if token.starts_with("aqua_sk_") {
-                shared.keys.lock().unwrap().resolve(&token).ok().flatten()
-                    .filter(|name| cfg.oauth.role_for(&name.to_ascii_lowercase())==Some(Role::Owner))
-            } else {
-                cfg.keys.get(&token)
-                    .filter(|_| !token.is_empty() && !token.eq_ignore_ascii_case("change-me"))
-                    .filter(|entry| entry.role==Role::Owner && cfg.oauth.role_for(&entry.name.to_ascii_lowercase())==Some(Role::Owner))
-                    .map(|entry| entry.name.to_ascii_lowercase())
-            }
-        } else { None };
         let cookie_login: Option<String> = if !req.headers.contains_key("authorization") {
             auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id))
                 .and_then(|(name,role)| if role==Role::Owner { Some(name) } else { None })
         } else { None };
-        let ops_login = legacy_login.or(cookie_login);
+        let ops_login = cookie_login;
         if !admin_ok && ops_login.is_none() {
             // Anonymous traffic must not lock out valid cookie sessions.
             if req.headers.contains_key("authorization") && !token.is_empty() { record_auth_failure(&shared, &token); }
@@ -546,7 +535,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         // Resolve honors the same login preference for keys and cookies.
         let strict=ops_login.as_ref().is_some_and(|name|store.ledger.preferences.get(name).is_some_and(|p|p.zdr_only));
         drop(store);
-        return write_json(&mut stream,200,&resolve_model(&shared,requested,strict),cors);
+        return write_json(&mut stream,200,&resolve_model(&shared,requested,strict,Role::Owner),cors);
     }
 
     // A present Authorization header is authoritative, even if malformed.
@@ -673,7 +662,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 }
             }
             for model in &mut data {
-                model["health"] = model_health(&shared, model["id"].as_str().unwrap_or(""), strict);
+                model["health"] = model_health(&shared, model["id"].as_str().unwrap_or(""), strict, entry.role);
             }
             write_json(&mut stream, 200, &json!({ "object": "list", "data": data }), cors)
         }
@@ -836,14 +825,31 @@ fn chrono_day() -> String {
     format!("{:04}-{:02}-{:02}", y, m, d)
 }
 
-// Catalog/dispatch eligibility for read-only diagnostics (owner perspective):
-// a configured route with a stale allowance, missing key, denied privacy or
-// excluded model is not serving. No requests, quotas, counters, or settings
-// mutations occur in this diagnostics path.
-fn route_eligible(p: &crate::config::Provider, strict: bool) -> bool {
+// One nonmutating eligibility shared by the resolve walk and model health:
+// held providers (cloudflare), stale, unfunded or undurable openrouter
+// accounts, off or unconfigured routes, denied privacy and role-based
+// restrictions all read as not serving. No requests, quotas, counters, or
+// settings mutations occur in this diagnostics path.
+fn openrouter_currently_serving(shared:&Shared) -> bool {
+    let store=shared.spend.lock().unwrap();
+    let ok=shared.config.spend.account_verified_day==chrono_day()
+        && shared.config.spend.openrouter_allowance>0 && store.durable();
+    drop(store);
+    ok
+}
+fn route_serving(p:&crate::config::Provider, role:Role, strict:bool, openrouter_ok:bool) -> bool {
     p.status != Status::Off
         && crate::preferences::allows(&p.id,strict) && !p.api_key.is_empty()
         && !p.base_url.is_empty() && !p.models.is_empty()
+        && (!owner_trial(&p.id) || role==Role::Owner)
+        && (role==Role::Owner || (p.status==Status::Friends && p.id!="zro"))
+        && p.id!="cloudflare"
+        && (p.id!="openrouter" || openrouter_ok)
+}
+fn route_model_serving(cfg:&crate::config::Config, p:&crate::config::Provider, m:&crate::config::ModelEntry, role:Role) -> bool {
+    chat_model_eligible(&p.id,&m.upstream)
+        && (p.id!="openrouter" || OPENROUTER_FREE.contains(&m.upstream.as_str()))
+        && (role==Role::Owner || !cfg.spend.restricted(&m.public))
 }
 fn chat_model_eligible(provider:&str,model:&str)->bool {
     !owner_trial(provider)||trial_model(provider,model)
@@ -851,9 +857,10 @@ fn chat_model_eligible(provider:&str,model:&str)->bool {
 
 // One candidate walk for read-only diagnostics, mirroring dispatch ordering.
 // The 1017 snapshot stays failover-only here exactly as in chat().
-fn route_candidates<'a>(shared: &'a Shared, requested: &str, strict: bool)
+fn route_candidates<'a>(shared: &'a Shared, requested: &str, strict: bool, role: Role)
     -> (Vec<(&'a crate::config::Provider, &'a crate::config::ModelEntry)>, usize, bool) {
-    let eligible = |p: &&crate::config::Provider| route_eligible(p,strict);
+    let openrouter_ok = openrouter_currently_serving(shared);
+    let eligible = |p: &&crate::config::Provider| route_serving(p,role,strict,openrouter_ok);
     let mut hard_excluded = false;
     let mut immediate = 0usize;
     let mut candidates: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
@@ -865,7 +872,7 @@ fn route_candidates<'a>(shared: &'a Shared, requested: &str, strict: bool)
             let mut cooled: Vec<(_, Instant)> = Vec::new();
             let mut deferred: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
             for p in shared.config.providers.iter().filter(eligible) {
-                for m in p.models.iter().filter(|m| m.public == name && chat_model_eligible(&p.id,&m.upstream)) {
+                for m in p.models.iter().filter(|m| m.public == name && route_model_serving(&shared.config,p,m,role)) {
                     match health.get(p.id.as_str()) {
                         Some(cd) if cd.until > now => {
                             if cd.hard {
@@ -906,24 +913,19 @@ fn route_candidates<'a>(shared: &'a Shared, requested: &str, strict: bool)
 
 // Match actual catalog/dispatch eligibility. A configured route with a stale
 // allowance, missing key, denied privacy or excluded model is not serving.
-fn model_health(shared:&Shared, model:&str, strict:bool) -> Value {
-    let store=shared.spend.lock().unwrap();
-    let openrouter_ok=shared.config.spend.account_verified_day==chrono_day()
-        && shared.config.spend.openrouter_allowance>0 && store.durable();
-    drop(store);
-    let routes=shared.config.providers.iter().filter(|p|route_eligible(p,strict)
-        && p.id!="cloudflare" && (p.id!="openrouter" || openrouter_ok))
-        .flat_map(|p|p.models.iter().filter(move |m|chat_model_eligible(&p.id,&m.upstream)
-            && (p.id!="openrouter" || OPENROUTER_FREE.contains(&m.upstream.as_str())))
+fn model_health(shared:&Shared, model:&str, strict:bool, role:Role) -> Value {
+    let openrouter_ok=openrouter_currently_serving(shared);
+    let routes=shared.config.providers.iter().filter(|p|route_serving(p,role,strict,openrouter_ok))
+        .flat_map(|p|p.models.iter().filter(move |m|route_model_serving(&shared.config,p,m,role))
             .map(move |m|(p,m)))
         .filter(|(_,m)|if model==ALIAS {shared.config.auto_shortlist.contains(&m.public)}else{m.public==model})
         .map(|(p,m)|(p.id.as_str(),m.public.as_str(),m.upstream.as_str()));
     shared.observations.lock().unwrap().aggregate(routes)
 }
 
-fn resolve_model(shared: &Shared, requested: &str, strict: bool) -> Value {
+fn resolve_model(shared: &Shared, requested: &str, strict: bool, role: Role) -> Value {
     let canonical = legacy_request_name(requested);
-    let (candidates, _, _) = route_candidates(shared, canonical, strict);
+    let (candidates, _, _) = route_candidates(shared, canonical, strict, role);
     let health = shared.health.lock().unwrap();
     let now = Instant::now();
     let rows: Vec<Value> = candidates.iter().map(|(p,m)| json!({
@@ -1982,13 +1984,13 @@ mod live_port_tests {
         state.config.providers[3].models[0].upstream="cohere/north-mini-code:free".into();
         state.config.auto_shortlist=vec!["model".into()];
         let state=Arc::new(state);
-        assert_eq!(model_health(&state,"model",false)["eligible_routes"],1);
-        assert_eq!(model_health(&state,"auto",false)["eligible_routes"],1);
+        assert_eq!(model_health(&state,"model",false,Role::Owner)["eligible_routes"],1);
+        assert_eq!(model_health(&state,"auto",false,Role::Owner)["eligible_routes"],1);
         let p=&state.config.providers[0];let m=&p.models[0];
         state.observations.lock().unwrap().header(&p.id,&m.public,&m.upstream,200);
         state.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,true);
-        assert_eq!(model_health(&state,"model",false)["status"],"healthy");
-        assert_eq!(model_health(&state,"other-model",false)["status"],"unknown");
+        assert_eq!(model_health(&state,"model",false,Role::Owner)["status"],"healthy");
+        assert_eq!(model_health(&state,"other-model",false,Role::Owner)["status"],"unknown");
         assert!(state.quotas.lock().unwrap().is_empty());
         assert!(state.trial_recent.lock().unwrap().is_empty());
     }
@@ -2005,7 +2007,7 @@ mod live_port_tests {
         let state=Arc::new(state);
         for cooled in [false,true] {
             if cooled {state.health.lock().unwrap().insert("default".into(),Cooldown{until:Instant::now()+Duration::from_secs(60),hard:false});}
-            let result=resolve_model(&state,"deepseek-v4.1-flash",false);
+            let result=resolve_model(&state,"deepseek-v4.1-flash",false,Role::Owner);
             assert_eq!(result["candidates"].as_array().unwrap().iter().map(|c|c["provider"].as_str().unwrap()).collect::<Vec<_>>(),vec!["default","snapshot"]);
         }
     }
@@ -2041,9 +2043,9 @@ mod live_port_tests {
         assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x",&friend,None,"same-site",None,"").starts_with("HTTP/1.1 401"));
         assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",None,"").starts_with("HTTP/1.1 401"));
         assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x",&owner,None,"same-site",Some("Bearer bad"),"").starts_with("HTTP/1.1 401"));
-        // Kept legacy owner-bearer paths (pending the owner-bearer question).
-        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",Some("Bearer owner-legacy"),"").starts_with("HTTP/1.1 200"));
-        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",Some(&generated),"").starts_with("HTTP/1.1 200"));
+        // Main's auth only: legacy and generated bearer keys are rejected.
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",Some("Bearer owner-legacy"),"").starts_with("HTTP/1.1 401"));
+        assert!(browser_api(state.clone(),"GET","/v1/admin/resolve?model=x","",None,"none",Some(&generated),"").starts_with("HTTP/1.1 401"));
         assert!(browser_api(state.clone(),"POST","/v1/admin/resolve?model=x",&owner,None,"same-site",None,"{").starts_with("HTTP/1.1 405"));
         assert!(browser_api(state.clone(),"GET","/v1/admin/resolve",&owner,None,"same-site",None,"").starts_with("HTTP/1.1 400"));
         let overlong=format!("/v1/admin/resolve?model={}","x".repeat(257));
@@ -2064,8 +2066,71 @@ mod live_port_tests {
         let response=browser_api(state.clone(),"GET","/v1/admin/resolve?model=model",&owner,None,"same-site",None,"");
         assert!(response.starts_with("HTTP/1.1 200"),"{response}");
         assert_eq!(response_body(&response)["known"],false);
-        assert_eq!(resolve_model(&state,"model",false)["candidates"].as_array().unwrap().len(),1);
+        assert_eq!(resolve_model(&state,"model",false,Role::Owner)["candidates"].as_array().unwrap().len(),1);
         assert!(!response.contains("secret-not-client"));
+    }
+
+    #[test]
+    fn resolve_and_health_never_count_held_cloudflare_routes() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers=vec![bp("cloudflare",Status::Personal,"model","http://127.0.0.1:1")];
+        let state=Arc::new(state);
+        assert_eq!(resolve_model(&state,"model",false,Role::Owner)["candidates"].as_array().unwrap().len(),0);
+        assert_eq!(resolve_model(&state,"model",false,Role::Owner)["known"],false);
+        assert_eq!(model_health(&state,"model",false,Role::Owner)["eligible_routes"],0);
+    }
+
+    #[test]
+    fn resolve_and_health_hold_openrouter_until_verified_funded_durable_and_free() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        let mut p=bp("openrouter",Status::Personal,"model","http://127.0.0.1:1");
+        p.models[0].upstream=OPENROUTER_FREE[0].into();
+        state.config.providers=vec![p];
+        let state=Arc::new(state);
+        // unverified day: held
+        assert_eq!(resolve_model(&state,"model",false,Role::Owner)["candidates"].as_array().unwrap().len(),0);
+        assert_eq!(model_health(&state,"model",false,Role::Owner)["eligible_routes"],0);
+        // verified day but zero allowance: held
+        let mut state=Arc::try_unwrap(state).ok().unwrap();
+        state.config.spend.account_verified_day=chrono_day();
+        state.config.spend.openrouter_allowance=0;
+        let state=Arc::new(state);
+        assert_eq!(resolve_model(&state,"model",false,Role::Owner)["candidates"].as_array().unwrap().len(),0);
+        // funded but a paid or unlisted upstream: held
+        let mut state=Arc::try_unwrap(state).ok().unwrap();
+        state.config.spend.openrouter_allowance=40;
+        state.config.providers[0].models[0].upstream="paid-model".into();
+        let state=Arc::new(state);
+        assert_eq!(resolve_model(&state,"model",false,Role::Owner)["candidates"].as_array().unwrap().len(),0);
+        assert_eq!(model_health(&state,"model",false,Role::Owner)["eligible_routes"],0);
+        // verified, funded, durable store, free upstream: serving
+        let mut state=Arc::try_unwrap(state).ok().unwrap();
+        state.config.providers[0].models[0].upstream=OPENROUTER_FREE[0].into();
+        let path=std::env::temp_dir().join(format!("aqua-openrouter-hold-{}-{}.json",std::process::id(),std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        state.spend=Mutex::new(crate::spend::Store::open(Some(path.clone())).unwrap());
+        let state=Arc::new(state);
+        let c=resolve_model(&state,"model",false,Role::Owner);
+        assert_eq!(c["candidates"].as_array().unwrap().iter().map(|v|v["provider"].as_str().unwrap()).collect::<Vec<_>>(),vec!["openrouter"]);
+        assert_eq!(model_health(&state,"model",false,Role::Owner)["eligible_routes"],1);
+        drop(state);let _=std::fs::remove_file(path.with_extension("lock"));let _=std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn resolve_and_health_apply_role_restrictions() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers=vec![
+            bp("test-personal",Status::Personal,"shared-model","http://127.0.0.1:1"),
+            bp("zro",Status::Friends,"shared-model","http://127.0.0.1:1"),
+            bp("inferbase",Status::Friends,"shared-model","http://127.0.0.1:1"),
+            bp("nim",Status::Personal,"shared-model","http://127.0.0.1:1")];
+        state.config.providers[3].models[0].upstream="nvidia/nemotron-3-ultra-550b-a55b".into();
+        let state=Arc::new(state);
+        // owner sees personal, zro and the trial route; friend sees only inferbase
+        assert_eq!(resolve_model(&state,"shared-model",false,Role::Owner)["candidates"].as_array().unwrap().len(),4);
+        let f=resolve_model(&state,"shared-model",false,Role::Friend);
+        assert_eq!(f["candidates"].as_array().unwrap().iter().map(|v|v["provider"].as_str().unwrap()).collect::<Vec<_>>(),vec!["inferbase"]);
+        assert_eq!(model_health(&state,"shared-model",false,Role::Owner)["eligible_routes"],4);
+        assert_eq!(model_health(&state,"shared-model",false,Role::Friend)["eligible_routes"],1);
     }
 
     #[test]
