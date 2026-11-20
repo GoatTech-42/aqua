@@ -502,6 +502,51 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         return write_json(&mut stream, 200, &json!({ "providers": providers, "models": models }), cors);
     }
 
+    if req.path == "/v1/admin/resolve" {
+        // Read-only owner diagnostic. Auth accepts main's admin_key or an owner
+        // session cookie, and (kept pending the owner-bearer question) live's
+        // legacy paths: a generated aqua_sk_ key or a legacy config key whose
+        // resolved login currently holds the owner role.
+        if auth_throttled(&shared, &token) {
+            return write_json(&mut stream, 429, &err_body("too many failed attempts", "rate_limit_error"), cors);
+        }
+        let admin_ok = !cfg.admin_key.is_empty() && !cfg.admin_key.eq_ignore_ascii_case("change-me") && token == cfg.admin_key;
+        let legacy_login: Option<String> = if req.headers.contains_key("authorization") {
+            if token.starts_with("aqua_sk_") {
+                shared.keys.lock().unwrap().resolve(&token).ok().flatten()
+                    .filter(|name| cfg.oauth.role_for(&name.to_ascii_lowercase())==Some(Role::Owner))
+            } else {
+                cfg.keys.get(&token)
+                    .filter(|_| !token.is_empty() && !token.eq_ignore_ascii_case("change-me"))
+                    .filter(|entry| entry.role==Role::Owner && cfg.oauth.role_for(&entry.name.to_ascii_lowercase())==Some(Role::Owner))
+                    .map(|entry| entry.name.to_ascii_lowercase())
+            }
+        } else { None };
+        let cookie_login: Option<String> = if !req.headers.contains_key("authorization") {
+            auth::session_cookie(&req.headers).and_then(|id| shared.auth.get_session(&id))
+                .and_then(|(name,role)| if role==Role::Owner { Some(name) } else { None })
+        } else { None };
+        let ops_login = legacy_login.or(cookie_login);
+        if !admin_ok && ops_login.is_none() {
+            // Anonymous traffic must not lock out valid cookie sessions.
+            if req.headers.contains_key("authorization") && !token.is_empty() { record_auth_failure(&shared, &token); }
+            return write_json(&mut stream, 401, &err_body("invalid api key", "auth_error"), cors);
+        }
+        if req.method != "GET" {
+            return write_method_not_allowed(&mut stream, "GET", cors);
+        }
+        let query=auth::parse_query(&req.query);
+        let Some(requested)=query.get("model").filter(|v|!v.is_empty() && v.len()<=256) else {
+            return write_json(&mut stream,400,&err_body("model query required (max 256 bytes)","invalid_request"),cors);
+        };
+        let store=shared.spend.lock().unwrap();
+        if !store.available(){return write_json(&mut stream,503,&err_body("settings unavailable","settings_unavailable"),cors);}
+        // Resolve honors the same login preference for keys and cookies.
+        let strict=ops_login.as_ref().is_some_and(|name|store.ledger.preferences.get(name).is_some_and(|p|p.zdr_only));
+        drop(store);
+        return write_json(&mut stream,200,&resolve_model(&shared,requested,strict),cors);
+    }
+
     // A present Authorization header is authoritative, even if malformed.
     // Never silently downgrade an explicit bearer failure to cookie authority.
     // Only models/chat accept session API auth; admin routes above retain their
@@ -786,6 +831,97 @@ fn chrono_day() -> String {
     format!("{:04}-{:02}-{:02}", y, m, d)
 }
 
+// Catalog/dispatch eligibility for read-only diagnostics (owner perspective):
+// a configured route with a stale allowance, missing key, denied privacy or
+// excluded model is not serving. No requests, quotas, counters, or settings
+// mutations occur in this diagnostics path.
+fn route_eligible(p: &crate::config::Provider, strict: bool) -> bool {
+    p.status != Status::Off
+        && crate::preferences::allows(&p.id,strict) && !p.api_key.is_empty()
+        && !p.base_url.is_empty() && !p.models.is_empty()
+}
+fn chat_model_eligible(provider:&str,model:&str)->bool {
+    !owner_trial(provider)||trial_model(provider,model)
+}
+
+// One candidate walk for read-only diagnostics, mirroring dispatch ordering.
+// The 1017 snapshot stays failover-only here exactly as in chat().
+fn route_candidates<'a>(shared: &'a Shared, requested: &str, strict: bool)
+    -> (Vec<(&'a crate::config::Provider, &'a crate::config::ModelEntry)>, usize, bool) {
+    let eligible = |p: &&crate::config::Provider| route_eligible(p,strict);
+    let mut hard_excluded = false;
+    let mut immediate = 0usize;
+    let mut candidates: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
+    {
+        let health = shared.health.lock().unwrap();
+        let now = Instant::now();
+        let mut push_model = |name: &str| {
+            let mut fresh: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
+            let mut cooled: Vec<(_, Instant)> = Vec::new();
+            let mut deferred: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
+            for p in shared.config.providers.iter().filter(eligible) {
+                for m in p.models.iter().filter(|m| m.public == name && chat_model_eligible(&p.id,&m.upstream)) {
+                    match health.get(p.id.as_str()) {
+                        Some(cd) if cd.until > now => {
+                            if cd.hard {
+                                hard_excluded = true;
+                                deferred.push((p, m));
+                            } else {
+                                cooled.push(((p, m), cd.until));
+                            }
+                        }
+                        _ => fresh.push((p, m)),
+                    }
+                }
+            }
+            cooled.sort_by_key(|(_, until)| *until);
+            let latency=shared.route_latency.lock().unwrap();
+            fresh.sort_by_key(|(p,m)|latency.get(&(p.id.clone(),m.public.clone())).copied().unwrap_or(u64::MAX));
+            drop(latency);
+            immediate += fresh.len() + cooled.len();
+            let start = candidates.len();
+            candidates.extend(fresh);
+            candidates.extend(cooled.into_iter().map(|(c, _)| c));
+            candidates.extend(deferred);
+            // The 1017 snapshot is failover, never a latency-promoted primary.
+            if name == "deepseek-v4.1-flash" {
+                candidates[start..].sort_by_key(|(_,m)|m.upstream == "deepseek-v4.1-flash-1017");
+            }
+        };
+        if requested == ALIAS {
+            for name in &shared.config.auto_shortlist {
+                push_model(name);
+            }
+        } else {
+            push_model(requested);
+        }
+    }
+    (candidates, immediate, hard_excluded)
+}
+
+fn resolve_model(shared: &Shared, requested: &str, strict: bool) -> Value {
+    let canonical = legacy_request_name(requested);
+    let (candidates, _, _) = route_candidates(shared, canonical, strict);
+    let health = shared.health.lock().unwrap();
+    let now = Instant::now();
+    let rows: Vec<Value> = candidates.iter().map(|(p,m)| json!({
+        "provider":p.id,"upstream":m.upstream,"status":p.status.as_str(),
+        "configured":!p.api_key.is_empty(),
+        "deferred":health.get(&p.id).is_some_and(|cd|cd.hard && cd.until>now)
+    })).collect();
+    json!({"requested":requested,"canonical":canonical,"known":!rows.is_empty(),"candidates":rows})
+}
+
+// Hidden legacy request names map to the canonical model before access and
+// spend checks. Shared by chat dispatch and the read-only resolve diagnostic.
+fn legacy_request_name(name:&str)->&str {
+    match name {
+        "deepseek-v4.1-flash-route-b" => "deepseek-v4.1-flash",
+        "deepseek-v4-flash:fp8" => "deepseek-v4-flash",
+        other => other,
+    }
+}
+
 fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::config::KeyEntry, token: &str, cors: Option<&str>) -> std::io::Result<()> {
     let payload: Value = match serde_json::from_slice(&req.body) {
         Ok(v) => v,
@@ -796,13 +932,8 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     }
     let want_stream = payload.get("stream") == Some(&Value::Bool(true));
     let requested = payload.get("model").and_then(Value::as_str).unwrap_or(ALIAS);
-    // Hidden legacy request names use the canonical model before access and spend checks.
     // The reviewed runtime mappings must supply these canonical public bindings.
-    let requested = match requested {
-        "deepseek-v4.1-flash-route-b" => "deepseek-v4.1-flash",
-        "deepseek-v4-flash:fp8" => "deepseek-v4-flash",
-        other => other,
-    };
+    let requested = legacy_request_name(requested);
     let store=shared.spend.lock().unwrap();
     if !store.available() {return write_json(stream,503,&err_body("settings unavailable","settings_unavailable"),cors);}
     let strict=store.ledger.preferences.get(&entry.name).is_some_and(|p|p.zdr_only);
