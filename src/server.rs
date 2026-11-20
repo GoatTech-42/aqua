@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr, TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -68,6 +68,7 @@ struct Shared {
 
 pub struct Server {
     port: u16,
+    wake_addr: SocketAddr,
     shutdown: Arc<AtomicBool>,
     handle: Option<JoinHandle<()>>,
     shared: Arc<Shared>,
@@ -104,7 +105,7 @@ impl Server {
 impl Drop for Server {
     fn drop(&mut self) {
         self.shutdown.store(true, Ordering::SeqCst);
-        let _ = TcpStream::connect(("127.0.0.1", self.port));
+        let _ = TcpStream::connect(self.wake_addr);
         if let Some(h) = self.handle.take() {
             let _ = h.join();
         }
@@ -166,7 +167,15 @@ fn github_agent(cfg: &OAuthConfig) -> ureq::Agent {
 
 pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
     let listener = TcpListener::bind(addr)?;
-    let port = listener.local_addr()?.port();
+    let local_addr = listener.local_addr()?;
+    let port = local_addr.port();
+    // Wildcard addresses are listen targets, not portable connect targets.
+    // Keep the listener family, using loopback only for an unspecified bind.
+    let wake_addr = match local_addr.ip() {
+        IpAddr::V4(ip) if ip.is_unspecified() => SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port),
+        IpAddr::V6(ip) if ip.is_unspecified() => SocketAddr::new(Ipv6Addr::LOCALHOST.into(), port),
+        _ => local_addr,
+    };
     let agent: ureq::Agent = github_agent(&config.oauth);
     let spend = crate::spend::Store::open(config.spend.path.clone())?;
     let shared = Arc::new(Shared {
@@ -205,7 +214,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
             }
         }
     })?;
-    Ok(Server { port, shutdown, handle: Some(handle), shared, drain: DEFAULT_DRAIN })
+    Ok(Server { port, wake_addr, shutdown, handle: Some(handle), shared, drain: DEFAULT_DRAIN })
 }
 
 // The in-flight count is incremented synchronously, before the child spawns:
