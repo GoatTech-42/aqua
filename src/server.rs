@@ -180,7 +180,11 @@ impl HandlerSpawner for ThreadSpawner {
     }
 }
 
-fn bind_addr_with_spawner<S: HandlerSpawner + Send + 'static>(addr: &str, config: Config, mut spawner: S) -> std::io::Result<Server> {
+fn bind_addr_with_spawner<S: HandlerSpawner + Send + 'static>(addr: &str, config: Config, spawner: S) -> std::io::Result<Server> {
+    bind_addr_with_spawners(addr, config, spawner, ThreadSpawner)
+}
+
+fn bind_addr_with_spawners<S: HandlerSpawner + Send + 'static>(addr: &str, config: Config, mut spawner: S, mut accept_spawner: impl HandlerSpawner) -> std::io::Result<Server> {
     let listener = TcpListener::bind(addr)?;
     let local_addr = listener.local_addr()?;
     let port = local_addr.port();
@@ -219,7 +223,7 @@ fn bind_addr_with_spawner<S: HandlerSpawner + Send + 'static>(addr: &str, config
     let shutdown = Arc::new(AtomicBool::new(false));
     let flag = shutdown.clone();
     let accept_shared = shared.clone();
-    let handle = thread::Builder::new().spawn(move || {
+    let handle = accept_spawner.spawn(move || {
         for stream in listener.incoming() {
             if flag.load(Ordering::SeqCst) {
                 break;
@@ -6238,5 +6242,51 @@ mod spawn_recovery_tests {
         assert!(server.shared.auth.get_session(&session).is_none());
         assert_eq!(server.in_flight(), 0);
         drop(server); // joins the same accept loop after the failed launch
+    }
+}
+
+#[cfg(test)]
+mod accept_spawn_failure_tests {
+    use super::*;
+    use std::sync::mpsc;
+
+    struct FailAccept(mpsc::Sender<()>);
+    impl HandlerSpawner for FailAccept {
+        fn spawn<F: FnOnce() + Send + 'static>(&mut self, job: F) -> std::io::Result<JoinHandle<()>> {
+            drop(job);
+            self.0.send(()).unwrap();
+            Err(std::io::Error::new(std::io::ErrorKind::WouldBlock, "injected accept launch failure"))
+        }
+    }
+
+    #[test]
+    fn accept_spawn_error_is_returned_and_bound_listener_is_released_for_healthy_retry() {
+        let config = super::reviewer_regressions::keys_shared().config.clone();
+        let probe = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = probe.local_addr().unwrap(); drop(probe);
+        let (tx, rx) = mpsc::channel();
+        let result = bind_addr_with_spawners(&addr.to_string(), config.clone(), ThreadSpawner, FailAccept(tx));
+        let error = match result { Err(error) => Some(error.kind()), Ok(server) => { drop(server); None } };
+        assert_eq!(error, Some(std::io::ErrorKind::WouldBlock), "initial launch error must reach the caller");
+        rx.recv_timeout(Duration::from_secs(2)).unwrap();
+        let server = bind_addr(&addr.to_string(), config).expect("failed startup must release the bound listener");
+        let mut client = TcpStream::connect(addr).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        client.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        client.write_all(b"GET / HTTP/1.1\r\nhost: x\r\n\r\n").unwrap();
+        let mut response = String::new(); client.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"));
+        drop(server);
+    }
+
+    #[test]
+    fn listener_bind_error_precedes_any_accept_thread_launch() {
+        let config = super::reviewer_regressions::keys_shared().config.clone();
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let (tx, rx) = mpsc::channel();
+        let result = bind_addr_with_spawners(&listener.local_addr().unwrap().to_string(), config, ThreadSpawner, FailAccept(tx));
+        let error = match result { Err(error) => Some(error.kind()), Ok(server) => { drop(server); None } };
+        assert_eq!(error, Some(std::io::ErrorKind::AddrInUse));
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Disconnected)), "bind failure must not invoke launcher");
     }
 }
