@@ -138,14 +138,28 @@ pub fn bind(config: Config) -> std::io::Result<Server> {
     bind_addr("127.0.0.1:0", config)
 }
 
+// GitHub login exchange bounds, per call (the exchange is two calls: token
+// POST, user GET, so a fully hung github.com holds a login handler at most
+// ~2x global, not the old flat 300s). The idle floor restarts per socket
+// read, so a slow-but-progressing github.com survives. POLICY VALUES.
+pub const GITHUB_CALL_GLOBAL: Duration = Duration::from_secs(15);
+pub const GITHUB_CALL_IDLE: Duration = Duration::from_secs(10);
+const GITHUB_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
+const GITHUB_USER_URL: &str = "https://api.github.com/user";
+
+pub fn github_agent(cfg: &OAuthConfig) -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .timeout_global(Some(cfg.exchange_global.unwrap_or(GITHUB_CALL_GLOBAL)))
+        .timeout_per_read(Some(cfg.exchange_idle.unwrap_or(GITHUB_CALL_IDLE)))
+        .build()
+        .into()
+}
+
 pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
     let listener = TcpListener::bind(addr)?;
     let port = listener.local_addr()?.port();
-    let agent: ureq::Agent = ureq::Agent::config_builder()
-        .http_status_as_error(false)
-        .timeout_global(Some(Duration::from_secs(300)))
-        .build()
-        .into();
+    let agent: ureq::Agent = github_agent(&config.oauth);
     let spend = crate::spend::Store::open(config.spend.path.clone())?;
     let shared = Arc::new(Shared {
         keys: Mutex::new(crate::keys::Store::open(config.spend.path.clone())?),
@@ -508,7 +522,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         if !state_ok || code.is_empty() {
             return write_json(&mut stream, 400, &err_body("invalid or expired login state", "auth_error"), cors);
         }
-        return match github_exchange(&shared.agent, &shared.auth.cfg, &code) {
+        return match github_exchange(&shared.agent, &shared.auth.cfg, &code, GITHUB_TOKEN_URL, GITHUB_USER_URL) {
             Ok(login) => match shared.auth.cfg.role_for(&login) {
                 Some(role) => {
                     let id = match shared.auth.create_session(&login, role) {Ok(id)=>id,Err(_)=>return write_json(&mut stream,503,&err_body("secure login unavailable","auth_error"),cors)};
@@ -832,7 +846,7 @@ const AUTH_FAIL_MAP_CAP: usize = 10_000;
 
 // GitHub OAuth: exchange the callback code for the user's login. Errors are
 // generic on purpose; the upstream body never reaches the client.
-fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str) -> Result<String, &'static str> {
+pub fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str, token_url: &str, user_url: &str) -> Result<String, &'static str> {
     let body = format!(
         "client_id={}&client_secret={}&code={}&redirect_uri={}",
         auth::url_encode(&cfg.client_id),
@@ -841,7 +855,7 @@ fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str) -> Result
         auth::url_encode(&cfg.redirect_uri())
     );
     let mut resp = agent
-        .post("https://github.com/login/oauth/access_token")
+        .post(token_url)
         .header("accept", "application/json")
         .header("content-type", "application/x-www-form-urlencoded")
         .send(body.into_bytes())
@@ -855,7 +869,7 @@ fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str) -> Result
         .and_then(|v| v.as_str())
         .ok_or("github token exchange rejected")?;
     let mut uresp = agent
-        .get("https://api.github.com/user")
+        .get(user_url)
         .header("authorization", &format!("Bearer {}", access))
         .header("user-agent", "aqua")
         .call()

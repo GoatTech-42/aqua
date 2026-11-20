@@ -13,6 +13,8 @@ fn oauth_cfg() -> OAuthConfig {
         console_url: String::new(),
         owner_users: vec!["luke".into()],
         friend_users: vec!["sam".into(), "alex".into()],
+        exchange_global: None,
+        exchange_idle: None,
     }
 }
 
@@ -272,3 +274,85 @@ fn logout_allows_console_served_on_the_api_host_itself() {
     let resp = raw(&base, "POST /auth/logout HTTP/1.1\r\nhost: api.aqua.goattech.us\r\ncontent-length: 0\r\nsec-fetch-site: same-site\r\norigin: https://crafty.goattech.us\r\n\r\n");
     assert!(resp.starts_with("HTTP/1.1 403"), "sibling origin must stay rejected");
                    }
+
+// -- GitHub login exchange timeouts (github_agent / github_exchange) --
+// The pre-patch agent carried only a flat 300s global, so a hung github.com
+// pinned a login handler for minutes. The mutant controls below build that
+// old-style agent directly and must land on a DIFFERENT outcome than the
+// bounded github_agent on the same fixture.
+
+fn json_listener(body: &'static str, stall: Duration) -> String {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    std::thread::spawn(move || {
+        while let Ok((mut socket, _)) = listener.accept() {
+            let mut buf = [0u8; 4096];
+            let mut head = Vec::new();
+            while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                match socket.read(&mut buf) { Ok(0) | Err(_) => break, Ok(n) => head.extend_from_slice(&buf[..n]) }
+            }
+            std::thread::sleep(stall);
+            let resp = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}", body.len(), body);
+            let _ = socket.write_all(resp.as_bytes());
+        }
+    });
+    url
+}
+
+fn exchange_cfg(global: Duration, idle: Duration) -> OAuthConfig {
+    let mut c = oauth_cfg();
+    c.exchange_global = Some(global);
+    c.exchange_idle = Some(idle);
+    c
+}
+
+// the pre-patch configuration: flat 300s global, no per-read floor
+fn old_style_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .timeout_global(Some(Duration::from_secs(300)))
+        .build()
+        .into()
+}
+
+#[test]
+fn github_exchange_completes_when_github_answers() {
+    let tok = json_listener("{\"access_token\":\"tok\"}", Duration::ZERO);
+    let user = json_listener("{\"login\":\"testuser\"}", Duration::ZERO);
+    let cfg = exchange_cfg(Duration::from_secs(15), Duration::from_secs(10));
+    let agent = aqua::github_agent(&cfg);
+    let got = aqua::github_exchange(&agent, &cfg, "code", &tok, &user);
+    assert_eq!(got, Ok("testuser".to_string()), "healthy GitHub must log in: {got:?}");
+}
+
+#[test]
+fn github_exchange_stalled_token_endpoint_fails_fast() {
+    let tok = json_listener("{\"access_token\":\"tok\"}", Duration::from_secs(3));
+    let user = json_listener("{\"login\":\"testuser\"}", Duration::ZERO);
+    let cfg = exchange_cfg(Duration::from_secs(30), Duration::from_millis(300));
+    let started = Instant::now();
+    let got = aqua::github_exchange(&aqua::github_agent(&cfg), &cfg, "code", &tok, &user);
+    assert!(got.is_err(), "stalled token exchange must fail, got {got:?}");
+    assert!(started.elapsed() < Duration::from_millis(2500), "stalled token exchange held the login: {:?}", started.elapsed());
+    // mutant control: the old flat-300s agent rides out the 3s stall and completes
+    let started = Instant::now();
+    let got = aqua::github_exchange(&old_style_agent(), &cfg, "code", &tok, &user);
+    assert_eq!(got, Ok("testuser".to_string()), "mutant control must differ: {got:?}");
+    assert!(started.elapsed() >= Duration::from_secs(3));
+}
+
+#[test]
+fn github_exchange_stalled_user_endpoint_fails_fast() {
+    let tok = json_listener("{\"access_token\":\"tok\"}", Duration::ZERO);
+    let user = json_listener("{\"login\":\"testuser\"}", Duration::from_secs(3));
+    let cfg = exchange_cfg(Duration::from_secs(30), Duration::from_millis(300));
+    let started = Instant::now();
+    let got = aqua::github_exchange(&aqua::github_agent(&cfg), &cfg, "code", &tok, &user);
+    assert!(got.is_err(), "stalled user lookup must fail, got {got:?}");
+    assert!(started.elapsed() < Duration::from_millis(2500), "stalled user lookup held the login: {:?}", started.elapsed());
+    // mutant control: the old flat-300s agent rides out the 3s stall and completes
+    let started = Instant::now();
+    let got = aqua::github_exchange(&old_style_agent(), &cfg, "code", &tok, &user);
+    assert_eq!(got, Ok("testuser".to_string()), "mutant control must differ: {got:?}");
+    assert!(started.elapsed() >= Duration::from_secs(3));
+}

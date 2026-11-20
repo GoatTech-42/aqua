@@ -327,6 +327,15 @@ pub fn from_env() -> Config {
                 .to_string(),
             owner_users: users("AQUA_GITHUB_OWNERS"),
             friend_users: users("AQUA_GITHUB_FRIENDS"),
+            exchange_global: env("AQUA_GITHUB_TIMEOUT_SECS")
+                .and_then(|v| v.parse::<u64>().ok())
+                // sensible bounds: a wild env value can never panic the clock math
+                .map(|n| n.clamp(1, 120))
+                .map(std::time::Duration::from_secs),
+            exchange_idle: env("AQUA_GITHUB_IDLE_SECS")
+                .and_then(|v| v.parse::<u64>().ok())
+                .map(|n| n.clamp(1, 60))
+                .map(std::time::Duration::from_secs),
         },
         providers: REGISTRY
             .iter()

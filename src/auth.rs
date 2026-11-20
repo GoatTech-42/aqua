@@ -20,6 +20,10 @@ pub struct OAuthConfig {
     pub console_url: String,
     pub owner_users: Vec<String>,  // GitHub logins, lowercase
     pub friend_users: Vec<String>, // GitHub logins, lowercase
+    // per-call bounds for the GitHub login exchange; None = the named
+    // defaults in server.rs (GITHUB_CALL_GLOBAL / GITHUB_CALL_IDLE)
+    pub exchange_global: Option<std::time::Duration>,
+    pub exchange_idle: Option<std::time::Duration>,
 }
 
 impl OAuthConfig {
