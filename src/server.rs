@@ -4982,12 +4982,27 @@ mod framing_matrix_tests {
     }
     // CORS baseline tests share the bounded, owned live responder above.
     // These pin response headers, not browser enforcement or CSRF policy.
-    fn cors_headers_of(response: &str) -> HashMap<String, String> {
-        response.split("\r\n\r\n").next().unwrap().split("\r\n").skip(1)
-            .map(|line| {
-                let (key, value) = line.split_once(':').expect("response header");
-                (key.to_ascii_lowercase(), value.trim().to_string())
-            }).collect()
+    fn cors_headers_of(response: &str) -> HashMap<String, Vec<String>> {
+        let mut headers: HashMap<String, Vec<String>> = HashMap::new();
+        for line in response.split("\r\n\r\n").next().unwrap().split("\r\n").skip(1) {
+            let (key, value) = line.split_once(':').expect("response header");
+            headers.entry(key.to_ascii_lowercase()).or_default().push(value.trim().to_string());
+        }
+        headers
+    }
+
+    fn cors_single_header(headers: &HashMap<String, Vec<String>>, key: &str, value: &str) {
+        assert_eq!(headers.get(key).map(Vec::as_slice), Some([value.to_string()].as_slice()),
+            "exactly one {key} field with the expected value");
+    }
+
+    #[test]
+    fn cors_baseline_collector_preserves_conflicting_duplicates() {
+        let parsed = cors_headers_of("HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: *\r\naccess-control-allow-origin: https://aqua.test\r\nVary: accept\r\nvary: origin\r\nAccess-Control-Allow-Credentials: false\r\naccess-control-allow-credentials: true\r\n\r\n");
+        for key in ["access-control-allow-origin", "access-control-allow-credentials", "vary"] {
+            assert_eq!(parsed[key].len(), 2, "collector must preserve both {key} lines");
+        }
+        assert_eq!(parsed["access-control-allow-origin"], vec!["*", "https://aqua.test"]);
     }
 
     fn cors_baseline_case(configured: &str, origin: Option<&str>, allowed: bool) {
@@ -5026,9 +5041,9 @@ mod framing_matrix_tests {
         let actual_headers = cors_headers_of(&actual);
         for headers in [&preflight_headers, &actual_headers] {
             if allowed {
-                assert_eq!(headers.get("access-control-allow-origin").map(String::as_str), Some(configured));
-                assert_eq!(headers.get("access-control-allow-credentials").map(String::as_str), Some("true"));
-                assert_eq!(headers.get("vary").map(String::as_str), Some("origin"));
+                cors_single_header(headers, "access-control-allow-origin", configured);
+                cors_single_header(headers, "access-control-allow-credentials", "true");
+                cors_single_header(headers, "vary", "origin");
             } else {
                 for key in ["access-control-allow-origin", "access-control-allow-credentials", "vary"] {
                     assert!(!headers.contains_key(key), "disallowed origin must not get {key}: {headers:?}");
@@ -5036,8 +5051,8 @@ mod framing_matrix_tests {
             }
         }
         if allowed {
-            assert_eq!(preflight_headers.get("access-control-allow-methods").map(String::as_str), Some("GET, POST, OPTIONS"));
-            assert_eq!(preflight_headers.get("access-control-allow-headers").map(String::as_str), Some("authorization, content-type"));
+            cors_single_header(&preflight_headers, "access-control-allow-methods", "GET, POST, OPTIONS");
+            cors_single_header(&preflight_headers, "access-control-allow-headers", "authorization, content-type");
         } else {
             assert!(!preflight_headers.contains_key("access-control-allow-methods"));
             assert!(!preflight_headers.contains_key("access-control-allow-headers"));
