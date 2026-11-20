@@ -707,8 +707,8 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   // published daily request cap (providers lane, checked 2026-11-18; static fallback data).
   // RPM-only or unpublished quotas contribute nothing and the cell stays unknown.
   var QUOTA = {
-    'deepseek-v4.1-flash': { n: 5050, tag: 'partial composite', tip: 'partial composite estimate, not a verified account ceiling. sources: orcarouter 50 req/day (free route) + logfare shared pool. this model needs premium access (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not per model. zro and radeon quotas unpublished. static published data, checked 2026-11-18' },
-    'deepseek-v4-flash': { n: 100, tip: 'estimated daily ceiling: inferbase 100 req/day. also a $0.50/day provider free-usage allowance, not a charge or aqua balance. free managed requests cap 8,192 input / 1,024 output tokens per request. static published data, checked 2026-11-18' },
+    'deepseek-v4.1-flash': { n: 5050, tag: 'partial composite', tip: 'partial composite estimate, not a verified account ceiling. sources: orcarouter 50 req/day (free route) + logfare shared pool. logfare access for this model needs premium (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not per model. zro and radeon quotas unpublished. static published data, checked 2026-11-18' },
+    'deepseek-v4-flash': { n: 100, tip: 'estimated daily ceiling: inferbase 100 req/day. also a $0.50/day provider free-usage allowance. this is not a charge or aqua balance. free managed requests cap 8,192 input / 1,024 output tokens per request. static published data, checked 2026-11-18' },
     'qwen-3.8-27b': { n: 5000, tip: 'estimated daily ceiling: logfare regular tier shared pool 5,000/day. new accounts 500/day for the first 24h. premium 10,000/day. one pool shared across unlocked models, not per model. static published data, checked 2026-11-18' },
     'glm-5.3-flash': { n: 5000, tip: 'conditional provider pool estimate: logfare shared pool, but this model needs premium access (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' },
     'glm-5.3': { n: 5000, tip: 'conditional provider pool estimate: logfare shared pool, but this model needs premium access (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' },
@@ -721,7 +721,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
       var c = unkCell('free req/day');
       var orShared = { 'north-mini-code': 1, 'nemotron-3-ultra-550b-a55b': 1, 'nemotron-3.5-super-vl': 1 };
       c.title = orShared[m.id]
-        ? 'no verified per-model daily allowance in this view. openrouter free routes share one 50 req/day account pool across models (published, checked 2026-11-18).'
+        ? 'no verified per-model daily allowance in this view. openrouter free routes share one 50 req/day account pool. the pool is shared across models (published, checked 2026-11-18).'
         : 'no verified per-model daily allowance is published for this model in this view.';
       addDetail(c, c.title); return c;
     }
