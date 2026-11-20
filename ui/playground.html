@@ -637,8 +637,9 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
   var sel = document.getElementById('aqua-pgsel');
   sel.addEventListener('change', function () { setModel(sel.value, sel.value === 'auto' ? 'router default' : ''); });
 
-  function loadModels() {
+  function loadModels(retrySource) {
     request('/v1/models').then(function (r) { if (!r.ok) throw Error('http ' + r.status); return r.json(); }).then(function (j) {
+      var restoreFocus = retrySource && document.activeElement === retrySource;
       var rail = document.getElementById('aqua-rail');
       var models = j.data || [];
       var fail = document.getElementById('aqua-pg-fail');
@@ -646,6 +647,7 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
       rail.textContent = '';
       sel.textContent = '';
       var autoOpt = document.createElement('option'); autoOpt.value = 'auto'; autoOpt.textContent = 'auto'; sel.appendChild(autoOpt);
+      if (restoreFocus) input.focus();
       if (!models.length) { rail.innerHTML = '<span class="mrow">no models available</span>'; return; }
       models.forEach(function (m) {
         var a = document.createElement('button');
@@ -657,12 +659,13 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
         var o = document.createElement('option'); o.value = m.id; o.textContent = m.id; sel.appendChild(o);
       });
     }).catch(function (e) {
+      var restoreFocus = retrySource && document.activeElement === retrySource;
       var rail = document.getElementById('aqua-rail');
       if (e.message !== 'signed out.') {
         rail.innerHTML = '<span class="mrow">could not load models.</span>';
         var retry = document.createElement('button');
         retry.type = 'button'; retry.className = 'mrow'; retry.textContent = 'try again shortly.';
-        retry.addEventListener('click', function () { loadModels(); });
+        retry.addEventListener('click', function () { loadModels(retry); });
         rail.appendChild(retry);
         // the rail is hidden below 760px, so mirror the failure and retry into the stream.
         var oldFail = document.getElementById('aqua-pg-fail');
@@ -673,9 +676,10 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
         f.innerHTML = '<div class="body">could not load models.</div>';
         var retry2 = document.createElement('button');
         retry2.type = 'button'; retry2.className = 'mrow'; retry2.textContent = 'try again shortly.';
-        retry2.addEventListener('click', function () { loadModels(); });
+        retry2.addEventListener('click', function () { loadModels(retry2); });
         f.querySelector('.body').appendChild(retry2);
         stream.appendChild(f);
+        if (restoreFocus) (retry.offsetParent ? retry : retry2).focus();
       }
     });
   }
