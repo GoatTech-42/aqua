@@ -718,7 +718,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
               }
             }).catch(function (re) {
               say('could not confirm the revocation of "' + k.name + '", and refreshing the list failed (' + re.message + '). reload the page and check before trying again.', true);
-            });
+            }).finally(function () { status.tabIndex = -1; status.focus(); });
           });
       });
       acts.appendChild(btn); row.appendChild(acts);
