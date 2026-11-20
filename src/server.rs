@@ -306,6 +306,9 @@ fn read_request_within(stream: &mut TcpStream, budget: Duration) -> Result<Reque
             }
             // Authorization must be unambiguous. Cookie field lines are
             // combined before checking repeated exact session names.
+            if matches!(k.as_str(), "host" | "origin") && headers.contains_key(&k) {
+                return Err("bad request");
+            }
             if k == "authorization" && headers.contains_key(&k) {
                 return Err("bad request");
             }
@@ -6030,6 +6033,61 @@ mod field_name_tests {
         client.write_all(b"GET / HTTP/1.1\r\nhost: x\r\nx/name: yes\r\n\r\n").unwrap();
         let mut response=String::new();client.read_to_string(&mut response).unwrap();worker.join().unwrap();
         assert!(response.starts_with("HTTP/1.1 400"));assert!(response.contains("malformed request"));assert!(!response.contains("x/name"));
+    }
+
+}
+
+#[cfg(test)]
+mod singleton_header_tests {
+    use super::*;
+    fn parse(fields: &str) -> Result<Request, &'static str> {
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client=TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        let(mut server,_)=listener.accept().unwrap();
+        write!(client,"GET / HTTP/1.1\r\n{fields}\r\n").unwrap();
+        read_request_within(&mut server,Duration::from_secs(2))
+    }
+    #[test]
+    fn duplicate_host_origin_rejected_in_both_orders_equal_and_empty() {
+        for key in ["host","origin"] {
+            for (first,last) in [("first","last"),("last","first"),("same","same"),("","last"),("first","")] {
+                assert_eq!(parse(&format!("{key}: {first}\r\n{key}: {last}\r\n")).err(),Some("bad request"));
+            }
+        }
+    }
+    #[test]
+    fn single_fields_case_folding_and_unrelated_duplicate_policy_unchanged() {
+        let req=parse("HoSt: api.aqua.test\r\nOrIgIn: https://aqua.test\r\nx-test: first\r\nx-test: last\r\n").unwrap();
+        assert_eq!(req.headers["host"],"api.aqua.test");assert_eq!(req.headers["origin"],"https://aqua.test");assert_eq!(req.headers["x-test"],"last");
+        assert!(parse("host: x\r\n").is_ok(),"Origin not required");
+        assert!(parse("origin: https://aqua.test\r\n").is_ok(),"missing-Host policy not changed in this slice");
+    }
+    fn logout(state: Arc<Shared>,session: &str,fields: &str) -> String {
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client=TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        let(server,_)=listener.accept().unwrap();
+        let worker=thread::spawn(move||handle(server,state).unwrap());
+        write!(client,"POST /auth/logout HTTP/1.1\r\n{fields}cookie: aqua_session={session}\r\ncontent-length: 0\r\n\r\n").unwrap();
+        let mut out=String::new();client.read_to_string(&mut out).unwrap();worker.join().unwrap();out
+    }
+    #[test]
+    fn duplicate_host_origin_400_preserves_session_then_healthy_logout_revokes() {
+        let state=super::reviewer_regressions::keys_shared();
+        for fields in [
+            "host: api.aqua.test\r\nHOST: api.aqua.test\r\norigin: https://aqua.test\r\n",
+            "host: api.aqua.test\r\norigin: https://wrong.test\r\nORIGIN: https://aqua.test\r\n",
+            "host: api.aqua.test\r\norigin: https://aqua.test\r\nORIGIN: https://wrong.test\r\n",
+            "host: api.aqua.test\r\norigin: https://aqua.test\r\nORIGIN: https://aqua.test\r\n",
+        ] {
+            let session=state.auth.create_session("luke",Role::Owner).unwrap();
+            let response=logout(state.clone(),&session,fields);
+            assert!(response.starts_with("HTTP/1.1 400"),"duplicate response: {response}");
+            assert!(response.contains("malformed request"));assert!(!response.contains("set-cookie:"));
+            assert!(state.auth.get_session(&session).is_some(),"parse rejection must not revoke");
+            let healthy=logout(state.clone(),&session,"host: api.aqua.test\r\norigin: https://aqua.test\r\n");
+            assert!(healthy.starts_with("HTTP/1.1 204"));assert!(state.auth.get_session(&session).is_none());
+        }
     }
 
 }
