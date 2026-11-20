@@ -113,7 +113,38 @@ active counters: existing fingerprints keep counting; new fingerprints remain
 untracked until a slot expires. This preserves existing limits and the memory
 bound, but means this is not a whole-service brute-force defense. Rotating
 credentials can evade a per-fingerprint limit, including before the table fills.
-There is no IP lockout, persistence across restart, OAuth/login rate limit or
-protection against all connection/CPU exhaustion. Valid route authentication
+This failed-credential table has no IP lockout or persistence across restart,
+and does not itself rate-limit OAuth starts or protect against all connection/CPU exhaustion. Valid route authentication
 still does its normal work; upstream proxy controls remain necessary for hostile
 traffic. No live settings or deployment change is part of this source change.
+
+
+## Login starts and in-memory auth capacity
+
+`GET /login/github` uses a separate fixed-window start limiter before allocating
+OAuth state: at most 5 starts per socket-peer IP per 60 seconds and 60 starts
+globally per 60 seconds. At most 1,024 peer buckets are retained. Only expired
+buckets can be reclaimed; a full fresh table rejects unknown peers. Denied
+attempts do not extend windows or charge the global count. The check and both
+charges share one lock. IPv4-mapped IPv6 peers share the IPv4 bucket. Missing
+peer information fails closed. Excess starts return 429 without a redirect.
+No cookie, bearer credential or forwarded-IP header bypasses this limiter.
+
+State and session maps retain the existing 10,000-entry limits. At capacity,
+expired entries are purged first; if still full, allocation fails without
+evicting live entries. The existing login handlers return generic 503 for this
+allocation failure. Existing sessions remain usable. A successful state consume
+or expired entry frees room. State TTL remains 600 seconds. The global fixed
+window bounds accepted starts to at most 660 across an inclusive 600-second
+interval, including a boundary burst, rather than permitting quick state-map
+exhaustion. This is an admission bound, not a guarantee of login availability.
+
+These limits reset with the process, as do the in-memory states and sessions.
+They do not stop socket/CPU exhaustion. A distributed attacker can consume each
+global window and deny a logged-out owner while the attack continues. A NAT,
+local reverse proxy or tunnel can make multiple users share one socket-peer IP,
+so the 5/60 limit then applies to all of them together, including the owner.
+The repository documents loopback binding and TLS/proxy expectations but does
+not establish the actual deployed proxy topology or any trusted proxy address.
+Forwarded headers are deliberately ignored; trusting one requires a separately
+verified proxy boundary. No live deployment or proxy configuration is changed.

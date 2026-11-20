@@ -41,6 +41,33 @@ struct Cooldown {
     hard: bool,
 }
 
+const LOGIN_START_PEER: u32 = 5;
+const LOGIN_START_GLOBAL: u32 = 60;
+const LOGIN_START_BUCKETS: usize = 1_024;
+const LOGIN_START_WINDOW: Duration = Duration::from_secs(60);
+
+struct StartWindow { since: Instant, count: u32 }
+#[derive(Default)]
+struct LoginStarts { global: Option<StartWindow>, peers: HashMap<IpAddr, StartWindow> }
+impl LoginStarts {
+    fn admit_at(&mut self, peer: IpAddr, now: Instant) -> bool {
+        let peer = match peer { IpAddr::V6(ip) => ip.to_ipv4_mapped().map(IpAddr::V4).unwrap_or(peer), _ => peer };
+        let global = self.global.get_or_insert(StartWindow { since: now, count: 0 });
+        if now.saturating_duration_since(global.since) >= LOGIN_START_WINDOW { *global = StartWindow { since: now, count: 0 }; }
+        if global.count >= LOGIN_START_GLOBAL { return false; }
+        if !self.peers.contains_key(&peer) && self.peers.len() >= LOGIN_START_BUCKETS {
+            self.peers.retain(|_, v| now.saturating_duration_since(v.since) < LOGIN_START_WINDOW);
+            if self.peers.len() >= LOGIN_START_BUCKETS { return false; }
+        }
+        let source = self.peers.entry(peer).or_insert(StartWindow { since: now, count: 0 });
+        if now.saturating_duration_since(source.since) >= LOGIN_START_WINDOW { *source = StartWindow { since: now, count: 0 }; }
+        if source.count >= LOGIN_START_PEER { return false; }
+        source.count += 1;
+        global.count += 1;
+        true
+    }
+}
+
 struct Shared {
     config: Config,
     agent: ureq::Agent,
@@ -59,6 +86,7 @@ struct Shared {
     route_latency: Mutex<HashMap<(String,String),u64>>,
     observations: Mutex<crate::passive_health::Tracker>,
     auth_failures: Mutex<HashMap<String, (u32, Instant)>>,
+    login_starts: Mutex<LoginStarts>,
     health: Mutex<HashMap<String, Cooldown>>,
     spend: Mutex<crate::spend::Store>,
     unknown_owner_requests: Mutex<u64>,
@@ -218,6 +246,7 @@ fn bind_addr_with_spawners<S: HandlerSpawner + Send + 'static>(addr: &str, confi
         route_latency: Mutex::new(HashMap::new()),
         observations: Mutex::new(crate::passive_health::Tracker::default()),
         auth_failures: Mutex::new(HashMap::new()),
+        login_starts: Mutex::new(LoginStarts::default()),
         health: Mutex::new(HashMap::new()),
     });
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -623,6 +652,9 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         if !shared.auth.cfg.enabled() {
             return write_json(&mut stream, 503, &err_body("github login is not configured on this deployment", "auth_error"), cors);
         }
+        // Only the socket peer is trusted; proxy headers cannot create fresh buckets.
+        let admitted = stream.peer_addr().ok().map(|addr| shared.login_starts.lock().unwrap().admit_at(addr.ip(), Instant::now())).unwrap_or(false);
+        if !admitted { return write_json(&mut stream,429,&err_body("too many login starts","rate_limit_error"),cors); }
         let state = match shared.auth.new_state() {Ok(state)=>state,Err(_)=>return write_json(&mut stream,503,&err_body("secure login unavailable","auth_error"),cors)};
         return write_redirect(&mut stream, &auth::authorize_url(&shared.auth.cfg, &state), &[]);
     }
@@ -1861,6 +1893,7 @@ mod reviewer_regressions {
         route_latency: Mutex::new(HashMap::new()),
             observations: Mutex::new(crate::passive_health::Tracker::default()),
             auth_failures: Mutex::new(HashMap::new()),
+        login_starts: Mutex::new(LoginStarts::default()),
             health: Mutex::new(HashMap::new()),
         }
     }
@@ -6393,5 +6426,115 @@ mod query_utf8_handler_tests {
             let (joined, healthy) = request(state.clone(), wire.as_bytes()); joined.unwrap().unwrap();
             let healthy = healthy.unwrap(); assert!(healthy.starts_with("HTTP/1.1 200")); assert!(healthy.contains("\"login\":\"luke\""));
         }
+    }
+}
+
+#[cfg(test)]
+mod auth_capacity_handler_tests {
+    use super::*;
+    fn request(state: Arc<Shared>, path: &str, cookie: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap(); client.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        let (stream, _) = listener.accept().unwrap();
+        let worker = thread::spawn(move || handle(stream, state));
+        write!(client, "GET {path} HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\n\r\n").unwrap();
+        let mut response = String::new(); let read = client.read_to_string(&mut response); worker.join().unwrap().unwrap(); read.unwrap(); response
+    }
+    #[test]
+    fn full_state_map_returns_generic_503_preserves_session_then_recovers_after_consumption() {
+        let mut owned = Arc::try_unwrap(super::reviewer_regressions::keys_shared()).ok().unwrap();
+        owned.auth.cfg.client_id = "synthetic-client".into(); owned.auth.cfg.client_secret = "synthetic-test-only".into(); owned.auth.cfg.public_url = "https://api.aqua.test".into();
+        let state = Arc::new(owned);
+        let session = state.auth.create_session("luke", Role::Owner).unwrap();
+        let mut ids = Vec::new(); for _ in 0..10_000 { ids.push(state.auth.new_state().unwrap()); }
+        let rejected = request(state.clone(), "/login/github", &session);
+        assert!(rejected.starts_with("HTTP/1.1 503"), "capacity must not redirect: {rejected}");
+        assert!(rejected.contains("secure login unavailable")); assert!(!rejected.contains("location:")); assert!(!rejected.contains("set-cookie:"));
+        assert!(state.auth.get_session(&session).is_some());
+        let healthy = request(state.clone(), "/auth/me", &session); assert!(healthy.starts_with("HTTP/1.1 200"));
+        assert!(state.auth.take_state(&ids[0]), "full rejection must preserve existing state");
+        let retry = request(state.clone(), "/login/github", &session); assert!(retry.starts_with("HTTP/1.1 302")); assert!(retry.contains("location: https://github.com/login/oauth/authorize?"));
+        for id in ids.iter().skip(1) { assert!(state.auth.take_state(id), "live states must not be evicted"); }
+    }
+}
+
+#[cfg(test)]
+mod login_start_limit_tests {
+    use super::*;
+    #[test]
+    fn same_socket_peer_cannot_bypass_start_limit_with_headers_or_exhaust_states() {
+        let mut owned = Arc::try_unwrap(super::reviewer_regressions::keys_shared()).ok().unwrap();
+        owned.auth.cfg.client_id = "synthetic-client".into(); owned.auth.cfg.client_secret = "synthetic-test-only".into(); owned.auth.cfg.public_url = "https://api.aqua.test".into();
+        let state = Arc::new(owned); let session = state.auth.create_session("luke", Role::Owner).unwrap();
+        for i in 0..7 {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+            client.set_read_timeout(Some(Duration::from_secs(2))).unwrap(); client.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+            let (stream, _) = listener.accept().unwrap(); let shared = state.clone(); let worker = thread::spawn(move || handle(stream, shared));
+            write!(client,"GET /login/github HTTP/1.1\r\nhost: api.aqua.test\r\nx-forwarded-for: 192.0.2.{i}\r\ncf-connecting-ip: 198.51.100.{i}\r\nauthorization: Bearer rotating-{i}\r\ncookie: aqua_session={session}\r\n\r\n").unwrap();
+            let mut response = String::new(); let read = client.read_to_string(&mut response); worker.join().unwrap().unwrap(); read.unwrap();
+            if i < 5 { assert!(response.starts_with("HTTP/1.1 302")); }
+            else { assert!(response.starts_with("HTTP/1.1 429"), "same peer must be limited: {response}"); assert!(!response.contains("location:")); assert!(!response.contains("set-cookie:")); }
+        }
+        assert!(state.auth.get_session(&session).is_some());
+        // Only five states were allocated by HTTP. Denied starts must allocate none.
+        for _ in 0..9_995 { state.auth.new_state().expect("denied starts must not consume state slots"); }
+        assert!(state.auth.new_state().is_err());
+    }
+}
+
+#[cfg(test)]
+mod login_start_window_tests {
+    use super::*;
+    fn ip(n: u16) -> IpAddr { std::net::Ipv6Addr::new(0x2001, 0xdb8, 0, 0, 0, 0, 0, n).into() }
+    #[test]
+    fn exact_peer_global_and_window_boundaries_do_not_slide_on_denials() {
+        assert_eq!((LOGIN_START_PEER, LOGIN_START_GLOBAL, LOGIN_START_BUCKETS, LOGIN_START_WINDOW), (5, 60, 1_024, Duration::from_secs(60)));
+        let now = Instant::now(); let mut limit = LoginStarts::default();
+        for _ in 0..5 { assert!(limit.admit_at(ip(1), now)); }
+        assert!(!limit.admit_at(ip(1), now));
+        assert!(!limit.admit_at(ip(1), now + Duration::from_secs(59)));
+        assert!(limit.admit_at(ip(1), now + Duration::from_secs(60)), "denials must not slide window");
+        let mut limit = LoginStarts::default();
+        for n in 0..12 { for _ in 0..5 { assert!(limit.admit_at(ip(n), now)); } }
+        assert!(!limit.admit_at(ip(99), now)); assert!(!limit.admit_at(ip(100), now + Duration::from_secs(59)));
+        assert!(limit.admit_at(ip(99), now + Duration::from_secs(60)));
+    }
+    #[test]
+    fn full_fresh_peer_table_rejects_unknown_without_eviction_or_bypass_then_reclaims_expired() {
+        let now = Instant::now(); let mut limit = LoginStarts::default();
+        for n in 0..1_024 { limit.peers.insert(ip(n), StartWindow { since: now, count: 1 }); }
+        assert!(!limit.admit_at(ip(2_000), now)); assert_eq!(limit.peers.len(), 1_024);
+        for n in 0..1_024 { assert!(limit.peers.contains_key(&ip(n))); }
+        assert!(limit.admit_at(ip(1), now)); assert!(!limit.peers.contains_key(&ip(2_000)));
+        assert!(limit.admit_at(ip(2_000), now + Duration::from_secs(60))); assert!(limit.peers.len() <= 1_024);
+    }
+    #[test]
+    fn rotating_peers_cannot_fill_state_capacity_within_state_ttl() {
+        assert_eq!(auth::STATE_TTL, Duration::from_secs(600));
+        let start = Instant::now(); let mut limit = LoginStarts::default(); let mut accepted = 0;
+        for second in 0..=600 {
+            for peer in 0..100 { if limit.admit_at(ip(peer), start + Duration::from_secs(second)) { accepted += 1; } }
+        }
+        assert_eq!(accepted, 660, "inclusive boundary bound across600s"); assert!(accepted < 10_000);
+    }
+    #[test]
+    fn denied_peer_attempts_do_not_charge_global_and_mapped_ipv4_shares_bucket() {
+        let now = Instant::now(); let mut limit = LoginStarts::default();
+        let v4: IpAddr = "192.0.2.1".parse().unwrap(); let mapped: IpAddr = "::ffff:192.0.2.1".parse().unwrap();
+        for _ in 0..5 { assert!(limit.admit_at(v4, now)); }
+        for _ in 0..100 { assert!(!limit.admit_at(mapped, now)); }
+        for n in 0..11 { for _ in 0..5 { assert!(limit.admit_at(ip(n), now)); } }
+        assert_eq!(limit.global.as_ref().unwrap().count, 60); assert!(!limit.admit_at(ip(99), now));
+    }
+    #[test]
+    fn concurrent_starts_charge_global_once_and_reject_excess() {
+        let now = Instant::now(); let limit = Arc::new(Mutex::new(LoginStarts::default()));
+        let gate = Arc::new(std::sync::Barrier::new(33)); let accepted = Arc::new(AtomicUsize::new(0)); let mut workers = Vec::new();
+        for peer in 0..32 { let (limit, gate, accepted) = (limit.clone(), gate.clone(), accepted.clone()); workers.push(thread::spawn(move || { gate.wait(); for _ in 0..8 { if limit.lock().unwrap().admit_at(ip(peer), now) { accepted.fetch_add(1, Ordering::SeqCst); } } })); }
+        gate.wait(); for worker in workers { worker.join().unwrap(); }
+        assert_eq!(accepted.load(Ordering::SeqCst), 60); let limit = limit.lock().unwrap(); assert_eq!(limit.global.as_ref().unwrap().count, 60);
+        assert!(limit.peers.values().all(|v| v.count <= 5));
     }
 }

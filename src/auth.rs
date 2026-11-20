@@ -96,6 +96,7 @@ impl Auth {
         if states.len() >= MAX_STATES {
             let cutoff = Instant::now();
             states.retain(|_, t| cutoff.duration_since(*t) < STATE_TTL);
+            if states.len() >= MAX_STATES { return Err(std::io::Error::other("login state capacity reached")); }
         }
         let id = (self.entropy)(16)?;
         states.insert(id.clone(), Instant::now());
@@ -116,6 +117,7 @@ impl Auth {
         if sessions.len() >= MAX_SESSIONS {
             let now = Instant::now();
             sessions.retain(|_, s| s.expires > now);
+            if sessions.len() >= MAX_SESSIONS { return Err(std::io::Error::other("session capacity reached")); }
         }
         let id = (self.entropy)(16)?;
         sessions.insert(
@@ -258,5 +260,48 @@ mod query_utf8_tests {
         }
         let query = parse_query("state=first&state=last&bare&code=a%26b%3Dc");
         assert_eq!(query["state"], "last"); assert_eq!(query["code"], "a&b=c"); assert!(!query.contains_key("bare"));
+    }
+}
+
+#[cfg(test)]
+mod capacity_tests {
+    use super::*;
+    fn full_states(auth: &Auth) {
+        assert_eq!(MAX_STATES, 10_000);
+        let mut states = auth.states.lock().unwrap();
+        for i in 0..10_000 { states.insert(format!("existing-{i}"), Instant::now()); }
+    }
+    fn full_sessions(auth: &Auth) {
+        assert_eq!(MAX_SESSIONS, 10_000);
+        let mut sessions = auth.sessions.lock().unwrap();
+        for i in 0..10_000 { sessions.insert(format!("existing-{i}"), Session { login: "luke".into(), role: Role::Owner, expires: Instant::now() + SESSION_TTL }); }
+    }
+    #[test]
+    fn full_live_states_reject_without_entropy_insert_or_eviction() {
+        let mut auth = Auth::new(OAuthConfig::default()); full_states(&auth);
+        auth.entropy = |_| panic!("full state map must reject before entropy");
+        assert!(auth.new_state().is_err());
+        let states = auth.states.lock().unwrap(); assert_eq!(states.len(), 10_000);
+        for i in 0..10_000 { assert!(states.contains_key(&format!("existing-{i}"))); }
+    }
+    #[test]
+    fn full_live_sessions_reject_without_entropy_insert_or_eviction() {
+        let mut auth = Auth::new(OAuthConfig::default()); full_sessions(&auth);
+        auth.entropy = |_| panic!("full session map must reject before entropy");
+        assert!(auth.create_session("sam", Role::Friend).is_err());
+        let sessions = auth.sessions.lock().unwrap(); assert_eq!(sessions.len(), 10_000);
+        for i in 0..10_000 { let session = &sessions[&format!("existing-{i}")]; assert_eq!(session.login, "luke"); assert_eq!(session.role, Role::Owner); }
+    }
+    #[test]
+    fn one_expired_entry_is_reclaimed_without_evicting_live_authority() {
+        let auth = Auth::new(OAuthConfig::default()); full_states(&auth); full_sessions(&auth);
+        auth.states.lock().unwrap().insert("existing-0".into(), Instant::now() - STATE_TTL);
+        auth.sessions.lock().unwrap().get_mut("existing-0").unwrap().expires = Instant::now();
+        let state = auth.new_state().expect("one expired state frees room");
+        let session = auth.create_session("sam", Role::Friend).expect("one expired session frees room");
+        assert_eq!(auth.states.lock().unwrap().len(), 10_000); assert_eq!(auth.sessions.lock().unwrap().len(), 10_000);
+        assert!(!auth.take_state("existing-0")); assert!(auth.get_session("existing-0").is_none());
+        assert!(auth.take_state(&state)); assert_eq!(auth.get_session(&session), Some(("sam".into(), Role::Friend)));
+        for i in 1..10_000 { assert!(auth.take_state(&format!("existing-{i}"))); assert_eq!(auth.get_session(&format!("existing-{i}")), Some(("luke".into(), Role::Owner))); }
     }
 }
