@@ -6290,3 +6290,70 @@ mod accept_spawn_failure_tests {
         assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Disconnected)), "bind failure must not invoke launcher");
     }
 }
+
+#[cfg(test)]
+mod startup_keys_failure_tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::sync::mpsc;
+
+    struct Files(PathBuf);
+    impl Files {
+        fn new() -> Self {
+            let dir = std::env::temp_dir().join(format!("aqua-partial-startup-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+            std::fs::create_dir(&dir).unwrap(); Self(dir)
+        }
+        fn state(&self) -> PathBuf { self.0.join("state.json") }
+    }
+    impl Drop for Files {
+        fn drop(&mut self) {
+            for file in ["state.json", "state.lock", "state.keys.json", "state.keys.lock"] {
+                let _ = std::fs::remove_file(self.0.join(file));
+            }
+            let _ = std::fs::remove_dir(&self.0);
+        }
+    }
+    struct UnexpectedLaunch(mpsc::Sender<()>);
+    impl HandlerSpawner for UnexpectedLaunch {
+        fn spawn<F: FnOnce() + Send + 'static>(&mut self, job: F) -> std::io::Result<JoinHandle<()>> {
+            drop(job); self.0.send(()).unwrap();
+            Err(std::io::Error::other("unexpected accept launch"))
+        }
+    }
+
+    #[test]
+    fn corrupt_keys_abort_before_accept_release_partial_startup_and_allow_repaired_retry() {
+        let files = Files::new(); let path = files.state();
+        let ledger = serde_json::to_vec(&crate::spend::Store::open(None).unwrap().ledger).unwrap();
+        std::fs::write(&path, &ledger).unwrap();
+        std::fs::write(path.with_extension("keys.json"), b"{broken keys").unwrap();
+        let mut config = super::reviewer_regressions::keys_shared().config.clone();
+        config.spend.path = Some(path.clone());
+        let probe = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = probe.local_addr().unwrap(); drop(probe);
+        let (tx, rx) = mpsc::channel();
+        let result = bind_addr_with_spawners(&addr.to_string(), config.clone(), ThreadSpawner, UnexpectedLaunch(tx));
+        let error = match result { Err(e) => Some(e.kind()), Ok(server) => { drop(server); None } };
+        assert_eq!(error, Some(std::io::ErrorKind::Other), "corrupt key state must fail startup");
+        assert!(matches!(rx.try_recv(), Err(mpsc::TryRecvError::Disconnected)), "key-store failure must precede accept launch");
+        assert_eq!(std::fs::read(path.with_extension("keys.json")).unwrap(), b"{broken keys", "failed startup must not reset corrupt keys");
+        assert_eq!(std::fs::read(&path).unwrap(), ledger, "failed startup must not rewrite spend state");
+        // Real reopen takes the spend lock, proving partial Shared construction released it.
+        drop(crate::spend::Store::open(Some(path.clone())).expect("failed startup must release spend lock"));
+        let key_lock = std::fs::OpenOptions::new().read(true).write(true).open(path.with_extension("keys.lock")).unwrap();
+        key_lock.try_lock().expect("failed key open must release its lock"); drop(key_lock);
+        let rebound = TcpListener::bind(addr).expect("failed startup must release listener"); drop(rebound);
+
+        std::fs::write(path.with_extension("keys.json"), b"{}").unwrap();
+        let server = bind_addr(&addr.to_string(), config).expect("same address and paths must recover after repair");
+        let mut client = TcpStream::connect(addr).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        client.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        client.write_all(b"GET / HTTP/1.1\r\nhost: x\r\n\r\n").unwrap();
+        let mut response = String::new(); client.read_to_string(&mut response).unwrap();
+        assert!(response.starts_with("HTTP/1.1 200"));
+        drop(server);
+        drop(crate::spend::Store::open(Some(path.clone())).expect("healthy shutdown releases spend lock"));
+        drop(crate::keys::Store::open(Some(path)).expect("healthy shutdown releases key lock"));
+    }
+}
