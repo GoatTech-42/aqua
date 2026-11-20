@@ -3226,6 +3226,67 @@ mod sse_commit_health_tests {
         (head, body)
     }
 
+    // Terminal frames are not transport completion: the upstream can still
+    // stall or send invalid trailing data before EOF. A channel gate makes
+    // the pre-EOF checkpoint deterministic, not a scheduler sleep.
+    fn terminal_gate_regression(tail: &'static str, accepted: bool) {
+        let (tx, rx) = channel();
+        let (url, upstream) = sse_stub(
+            leaked(format!("{VALID_DELTA}{TERMINAL}{DONE}")), Some(rx), tail);
+        let state = sse_state(url, None, Duration::from_secs(5));
+        set_cooldown(&state, "inferbase", 60, false);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let (mut c, server) = open_chat(state.clone(), &cookie);
+        let (head, mut rest) = read_head(&mut c);
+        assert!(head.starts_with("HTTP/1.1 200"), "{head}");
+        let delta = read_frame(&mut c, &mut rest);
+        let terminal = read_frame(&mut c, &mut rest);
+        let done = read_frame(&mut c, &mut rest);
+        assert!(delta.contains("hi"), "{delta}");
+        assert!(terminal.contains("stop"), "{terminal}");
+        assert!(done.contains("[DONE]"), "{done}");
+        // All terminal markers have reached the client, but the upstream is
+        // still open behind the gate and may invalidate this completion.
+        let before = cooldown(&state);
+        let before_health = health_of(&state);
+        let checkpoint = Instant::now();
+        // Release/join before assertions so a failing mutant leaves no parked
+        // fixture threads or writes that contaminate another test.
+        tx.send(()).unwrap();
+        let trailing = read_body_to_eof(&mut c, rest);
+        server.join().unwrap().unwrap();
+        upstream.join().unwrap();
+        assert!(before.is_some_and(|cd| !cd.hard && cd.until > checkpoint),
+            "DONE without EOF must not clear the soft cooldown");
+        assert_eq!(before_health["healthy_routes"], 0,
+            "DONE without EOF must not record successful generation");
+        assert_eq!(before_health["failed_routes"], 0,
+            "an open, still-valid stream is not an upstream failure");
+        assert!(!trailing.contains("late"), "post-DONE output must not escape: {trailing}");
+        if accepted {
+            assert!(cooldown(&state).is_none(), "clean EOF accepts and clears soft cooling");
+            assert_eq!(health_of(&state)["healthy_routes"], 1);
+            assert_eq!(health_of(&state)["failed_routes"], 0);
+        } else {
+            assert!(cooldown(&state).is_some_and(|cd| cd.until > Instant::now()),
+                "post-DONE data must leave the route cooled");
+            assert_eq!(health_of(&state)["healthy_routes"], 0);
+            assert_eq!(health_of(&state)["failed_routes"], 1);
+        }
+    }
+
+    #[test]
+    fn sse_done_before_eof_does_not_clear_cooldown_or_mark_healthy() {
+        // A nonempty comment tail keeps Content-Length beyond phase1, so
+        // ureq cannot report HTTP-body EOF while the gate is still closed.
+        terminal_gate_regression(": transport still open\n\n", true);
+    }
+
+    #[test]
+    fn sse_done_before_eof_followed_by_data_never_becomes_healthy() {
+        terminal_gate_regression(EXTRA_FRAME, false);
+    }
+
     #[test]
     fn sse_soft_cooldown_is_not_cleared_until_valid_completion() {
         let (tx, rx) = channel();
