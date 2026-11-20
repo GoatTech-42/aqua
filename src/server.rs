@@ -5080,4 +5080,68 @@ mod framing_matrix_tests {
     #[test]
     fn cors_baseline_disabled_empty_origin() { cors_baseline_case("", Some(""), false); }
 
+    // Handler-level body-size baseline. JSON is parsed and rewritten before
+    // upstream dispatch, so exact byte preservation is a parser-level pin,
+    // not an assertion about the rewritten upstream representation.
+    fn body_size_baseline(size: usize, accepted: bool) {
+        const CAP: usize = 1_000_000;
+        assert_eq!(MAX_BODY, CAP, "literal policy drift guard");
+        let mut body = BODY.to_string();
+        body.extend(std::iter::repeat(' ').take(size - BODY.len()));
+        assert_eq!(body.len(), size);
+        // Healthy parser boundaries must consume the whole declared body.
+        // Large writes run concurrently with the reader, never before it.
+        if accepted {
+            let (mut client, mut server) = pair();
+            let input = format!("POST /x HTTP/1.1\r\ncontent-length: {size}\r\n\r\n{body}");
+            let writer = thread::spawn(move || {
+                let result = client.write_all(input.as_bytes());
+                let _ = client.shutdown(Shutdown::Write);
+                result
+            });
+            let parsed = read_request_within(&mut server, Duration::from_secs(3));
+            drop(server);
+            let written = writer.join().unwrap();
+            assert!(written.is_ok(), "bounded writer: {written:?}");
+            let parsed = parsed.expect("body at or under cap parses");
+            assert_eq!(parsed.body, body.as_bytes(), "declared request bytes consumed without truncation");
+        }
+        let mut upstream = Responder::start();
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: upstream.url.clone(), models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-upstream".into(), context: None,
+            }],
+        }];
+        let state = Arc::new(state);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        // For oversized input send only its declaration. Rejection must not
+        // depend on receiving or parsing the advertised oversized body.
+        let sent_body = if accepted { body.as_str() } else { "" };
+        let response = gateway_call(state.clone(), format!(
+            "POST /v1/chat/completions HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={cookie}\r\norigin: https://aqua.test\r\nsec-fetch-site: same-site\r\ncontent-type: application/json\r\ncontent-length: {size}\r\n\r\n{sent_body}"));
+        let boundary_hits = upstream.hits.load(Ordering::SeqCst);
+        let control = gateway_call(state, request(&cookie, &format!("content-length: {}\r\n", BODY.len()+1)));
+        upstream.finish();
+        assert!(control.starts_with("HTTP/1.1 200") && control.contains("framing healthy control"), "live healthy control: {control:?}");
+        if accepted {
+            assert!(response.starts_with("HTTP/1.1 200") && response.contains("framing healthy control"), "accepted size {size}: {response:?}");
+            assert_eq!(boundary_hits, 1, "boundary request dispatched");
+            assert_eq!(upstream.hits.load(Ordering::SeqCst), 2);
+        } else {
+            assert!(response.starts_with("HTTP/1.1 413"), "oversized declaration: {response:?}");
+            let body: Value = serde_json::from_str(response.split_once("\r\n\r\n").unwrap().1).unwrap();
+            assert_eq!(body, json!({"error":{"message":"request too large","type":"invalid_request"}}));
+            assert_eq!(boundary_hits, 0, "oversized declaration never dispatches");
+            assert_eq!(upstream.hits.load(Ordering::SeqCst), 1, "only healthy control dispatched");
+        }
+    }
+    #[test]
+    fn body_size_baseline_one_below_cap() { body_size_baseline(999_999, true); }
+    #[test]
+    fn body_size_baseline_exact_cap() { body_size_baseline(1_000_000, true); }
+    #[test]
+    fn body_size_baseline_one_above_cap() { body_size_baseline(1_000_001, false); }
+
 }
