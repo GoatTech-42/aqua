@@ -1477,17 +1477,11 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             .build()
             .into();
         let url = format!("{}/chat/completions", p.base_url.trim_end_matches('/'));
-        if p.id=="openrouter" {
-            let day=chrono_day();
-            if shared.config.spend.account_verified_day!=day || shared.config.spend.openrouter_allowance==0 {continue;}
-            let mut store=shared.spend.lock().unwrap();
-            if !store.durable() || store.change(|ledger|ledger.admit_account("openrouter",&day,&entry.name,entry.role==Role::Owner,
-                &m.upstream,1,shared.config.spend.openrouter_allowance,shared.config.spend.openrouter_allowance,3,10)).is_err() {continue;}
-        }
         if owner_trial(&p.id) && !reserve_trial_rpm(shared,&p.id) {continue;}
-        let mut spend = match reserve_spend(shared,entry,m,&payload) {
+        let mut spend = match reserve_spend(shared,entry,m,&payload,&p.id) {
             Ok(guard) => guard,
-            Err((status,message,code)) => return write_json(stream,status,&spend_error(message,code),cors),
+            Err(AdmissionError::AccountUnavailable) => continue,
+            Err(AdmissionError::Spend(status,message,code)) => return write_json(stream,status,&spend_error(message,code),cors),
         };
         guard.dispatched = true;
         shared.observations.lock().unwrap().attempt(&p.id,&m.public,&m.upstream);
@@ -2449,12 +2443,43 @@ impl Drop for SpendGuard<'_> {
     fn drop(&mut self) { if !self.done { self.finish(None); } }
 }
 
-fn reserve_spend<'a>(shared: &'a Shared, entry: &crate::config::KeyEntry, model: &crate::config::ModelEntry, payload: &Value) -> Result<Option<SpendGuard<'a>>, (u16, &'static str, &'static str)> {
+// Route-level account denial must remain eligible for same-model fallback;
+// request-level spend errors keep their exact client status/code.
+#[derive(Debug)]
+enum AdmissionError {
+    AccountUnavailable,
+    Spend(u16, &'static str, &'static str),
+}
+impl From<(u16, &'static str, &'static str)> for AdmissionError {
+    fn from((status, message, code): (u16, &'static str, &'static str)) -> Self {
+        Self::Spend(status, message, code)
+    }
+}
+
+fn reserve_spend<'a>(shared: &'a Shared, entry: &crate::config::KeyEntry, model: &crate::config::ModelEntry, payload: &Value, provider: &str) -> Result<Option<SpendGuard<'a>>, AdmissionError> {
     let settings = &shared.config.spend;
-    if !settings.enabled { return Ok(None); }
-    let price = settings.price(&model.public);
+    let account = provider == "openrouter";
     let owner = entry.role == Role::Owner;
-    if !owner && settings.error.is_some() { return Err((503, "spend configuration unavailable", "spend_config_error")); }
+    let day = chrono_day();
+    if account && (settings.account_verified_day != day || settings.openrouter_allowance == 0) {
+        return Err(AdmissionError::AccountUnavailable);
+    }
+    let admit = |ledger: &mut crate::spend::Ledger| {
+        ledger.admit_account("openrouter", &day, &entry.name, owner, &model.upstream,
+            1, settings.openrouter_allowance, settings.openrouter_allowance, 3, 10)
+    };
+    // Account safety applies even when user spend accounting is disabled.
+    if !settings.enabled {
+        if account {
+            let mut store = shared.spend.lock().unwrap();
+            if !store.durable() || store.change(admit).is_err() {
+                return Err(AdmissionError::AccountUnavailable);
+            }
+        }
+        return Ok(None);
+    }
+    let price = settings.price(&model.public);
+    if !owner && settings.error.is_some() { return Err((503, "spend configuration unavailable", "spend_config_error").into()); }
     let amount = if owner { 0 } else {
         // A verified context bound, not a prompt token estimate. Reserve both
         // full input and full output windows, multiplied by completion count.
@@ -2464,12 +2489,26 @@ fn reserve_spend<'a>(shared: &'a Shared, entry: &crate::config::KeyEntry, model:
         price.cost(context, output).ok_or((503,"accounting overflow","spend_bound_unavailable"))?
     };
     let mut store = shared.spend.lock().unwrap();
+    if account && !store.durable() { return Err(AdmissionError::AccountUnavailable); }
     let cap = if owner { None } else { Some(settings.cap(&store.ledger, &entry.name)) };
-    match store.change(|ledger| ledger.reserve(&entry.name, &model.public, &chrono_day(), amount, cap)) {
+    // One clone, one persist: a denied spend reservation cannot debit account
+    // allowance, and a denied account cannot leave a spend hold behind.
+    let mut account_denied = false;
+    match store.change(|ledger| {
+        let id = ledger.reserve(&entry.name, &model.public, &day, amount, cap)?;
+        if account {
+            admit(ledger).map_err(|e| { account_denied = true; e })?;
+        }
+        Ok(id)
+    }) {
         Ok(id) => Ok(Some(SpendGuard { shared, id, price, done: false })),
+        Err(_) if account_denied => Err(AdmissionError::AccountUnavailable),
+        Err(e) if e == "spend cap reached" => Err((429,"spend cap reached","spend_cap_exceeded").into()),
+        // Never let owner accounting fail-open bypass OpenRouter's account
+        // admission, including a failure to persist that admission.
+        Err(_) if account => Err(AdmissionError::AccountUnavailable),
         Err(_) if owner => { let mut unknown = shared.unknown_owner_requests.lock().unwrap(); *unknown = unknown.saturating_add(1); eprintln!("owner usage accounting unavailable; owner remains uncapped"); Ok(None) },
-        Err(e) if e == "spend cap reached" => Err((429,"spend cap reached","spend_cap_exceeded")),
-        Err(_) => Err((503,"spend accounting unavailable","spend_accounting_unavailable")),
+        Err(_) => Err((503,"spend accounting unavailable","spend_accounting_unavailable").into()),
     }
 }
 
@@ -6736,4 +6775,156 @@ mod json_body_cap_tests {
         assert!(latency.contains_key(&("groq".into(),"fixture-chat".into())));
     }
 
+}
+
+#[cfg(test)]
+mod openrouter_predispatch_tests {
+    use super::*;
+    use super::reviewer_regressions::{keys_shared,browser_api};
+    fn denied_friend_preserves_ledger(missing_bound: bool) {
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url=format!("http://{}",listener.local_addr().unwrap());
+        let path=std::env::temp_dir().join(format!("aqua-preflight-{}-{}.json",std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget=Duration::from_millis(100);
+        state.config.upstream_idle=Duration::from_millis(100);
+        state.spend=Mutex::new(crate::spend::Store::open(Some(path.clone())).unwrap());
+        state.config.spend.enabled=true;
+        state.config.spend.account_verified_day=chrono_day();
+        state.config.spend.openrouter_allowance=40;
+        state.config.spend.access.insert("fixture-chat".into(),false);
+        state.config.spend.prices.insert("fixture-chat".into(),crate::spend::Price {input:0,output:0});
+        state.config.spend.default_caps=crate::spend::Caps {daily:0,monthly:0};
+        state.config.providers=vec![crate::config::Provider {
+            id:"openrouter".into(),status:Status::Friends,api_key:"offline-synthetic".into(),base_url:url,
+            models:vec![crate::config::ModelEntry {public:"fixture-chat".into(),
+                upstream:"cohere/north-mini-code:free".into(),context:if missing_bound {None}else{Some(100)}}],
+        }];
+        let state=Arc::new(state);
+        let cookie=state.auth.create_session("sam",Role::Friend).unwrap();
+        let before=serde_json::to_value(&state.spend.lock().unwrap().ledger).unwrap();
+        let mut responses=Vec::new();
+        for _ in 0..2 {
+            responses.push(browser_api(state.clone(),"POST","/v1/chat/completions",&cookie,
+                Some("https://aqua.test"),"same-site",None,
+                r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline"}],"max_tokens":1}"#));
+        }
+        let after=serde_json::to_value(&state.spend.lock().unwrap().ledger).unwrap();
+        let no_dispatch=matches!(listener.accept(),Err(e)if e.kind()==std::io::ErrorKind::WouldBlock);
+        let slot_free=!state.openrouter_in_flight.load(Ordering::SeqCst);
+        drop(state);
+        let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+        let (status,code)=if missing_bound {("HTTP/1.1 503","spend_bound_unavailable")}
+            else {("HTTP/1.1 429","spend_cap_exceeded")};
+        assert!(responses.iter().all(|r|r.starts_with(status)&&r.contains(code)),"denial stays specific: {responses:?}");
+        assert!(no_dispatch,"local spend denial must not reach upstream");
+        assert!(slot_free,"local spend denial releases permit");
+        assert_eq!(before,after,"predispatch denial must not consume shared OpenRouter account allowance or mutate spend ledger");
+    }
+    #[test] fn openrouter_missing_bound_denial_preserves_account_allowance() {denied_friend_preserves_ledger(true);}
+    #[test] fn openrouter_spend_cap_denial_preserves_account_allowance() {denied_friend_preserves_ledger(false);}
+}
+
+#[cfg(test)]
+mod openrouter_atomic_admission_controls {
+    use super::*;
+    use super::reviewer_regressions::{keys_shared,browser_api};
+
+    fn state(enabled: bool, owner: bool, allowance: u64) -> (Shared,crate::config::KeyEntry,crate::config::ModelEntry,std::path::PathBuf) {
+        let path=std::env::temp_dir().join(format!("aqua-atomic-admit-{}-{}.json",std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let mut s=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        s.spend=Mutex::new(crate::spend::Store::open(Some(path.clone())).unwrap());
+        s.config.spend.enabled=enabled;
+        s.config.spend.account_verified_day=chrono_day();
+        s.config.spend.openrouter_allowance=allowance;
+        s.config.spend.access.insert("fixture-chat".into(),false);
+        s.config.spend.prices.insert("fixture-chat".into(),crate::spend::Price {input:0,output:0});
+        s.config.spend.default_caps=crate::spend::Caps {daily:1,monthly:1};
+        (s,crate::config::KeyEntry {name:if owner {"luke"}else{"sam"}.into(),role:if owner {Role::Owner}else{Role::Friend}},
+            crate::config::ModelEntry {public:"fixture-chat".into(),upstream:"cohere/north-mini-code:free".into(),context:Some(100)},path)
+    }
+    fn cleanup(s: Shared,path:std::path::PathBuf) {
+        drop(s);let _=std::fs::remove_file(&path);let _=std::fs::remove_file(path.with_extension("lock"));
+    }
+    fn ledger(s:&Shared)->Value {serde_json::to_value(&s.spend.lock().unwrap().ledger).unwrap()}
+
+    #[test]
+    fn atomic_account_denial_rolls_back_spend_reservation_and_id() {
+        let (s,e,m,path)=state(true,false,1);
+        s.spend.lock().unwrap().change(|l| l.admit_account("openrouter",&chrono_day(),"other",true,&m.upstream,1,1,1,3,10)).unwrap();
+        let before=ledger(&s);
+        let result=reserve_spend(&s,&e,&m,&json!({}),"openrouter");
+        assert!(matches!(result,Err(AdmissionError::AccountUnavailable)));
+        drop(result);
+        assert_eq!(before,ledger(&s),"account denial cannot retain next_id/user windows/reservation");
+        cleanup(s,path);
+    }
+    #[test]
+    fn atomic_success_charges_account_once_and_keeps_unknown_outcome() {
+        for enabled in [false,true] { for owner in [false,true] {
+            let (s,e,m,path)=state(enabled,owner,40);
+            let result=reserve_spend(&s,&e,&m,&json!({}),"openrouter").unwrap();
+            assert_eq!(result.is_some(),enabled);
+            assert_eq!(s.spend.lock().unwrap().ledger.accounts["openrouter"].total,1);
+            // A dispatch with unknown outcome must not refund account usage.
+            drop(result);
+            let l=ledger(&s);
+            assert_eq!(l["accounts"]["openrouter"]["total"],1);
+            assert_eq!(l["accounts"]["openrouter"]["friends"],if owner {0}else{1});
+            assert_eq!(l["reservations"],json!({}));
+            if enabled {assert_eq!(l["users"][e.name.as_str()]["unknown_requests"],1);}
+            cleanup(s,path);
+        }}
+    }
+    #[test]
+    fn atomic_stale_and_nondurable_accounts_never_owner_fail_open() {
+        for enabled in [false,true] {for stale in [false,true] {
+            let (mut s,e,m,path)=state(enabled,true,40);
+            if stale {s.config.spend.account_verified_day="2000-01-01".into();}
+            else {s.spend=Mutex::new(crate::spend::Store::open(None).unwrap());}
+            let before=ledger(&s);
+            let result=reserve_spend(&s,&e,&m,&json!({}),"openrouter");
+            assert!(matches!(result,Err(AdmissionError::AccountUnavailable)));
+            drop(result);
+            assert_eq!(before,ledger(&s));
+            assert_eq!(*s.unknown_owner_requests.lock().unwrap(),0);
+            cleanup(s,path);
+        }}
+    }
+    #[test]
+    fn atomic_account_skip_still_reaches_unrelated_exact_model_fallback() {
+        let denied=TcpListener::bind("127.0.0.1:0").unwrap();denied.set_nonblocking(true).unwrap();
+        let good=TcpListener::bind("127.0.0.1:0").unwrap();good.set_nonblocking(true).unwrap();
+        let url=format!("http://{}",good.local_addr().unwrap());
+        let worker=thread::spawn(move||{
+            let until=Instant::now()+Duration::from_secs(5);
+            let mut socket=loop {match good.accept() {
+                Ok((s,_))=>break s,
+                Err(e)if e.kind()==std::io::ErrorKind::WouldBlock=>{assert!(Instant::now()<until);thread::sleep(Duration::from_millis(2));},
+                Err(e)=>panic!("{e}"),
+            }};
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let _=read_request(&mut socket).unwrap();
+            let body=r#"{"choices":[{"message":{"content":"fallback ok"},"finish_reason":"stop"}]}"#;
+            write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",body.len()).unwrap();
+        });
+        let (mut s,_,m,path)=state(true,true,1);
+        s.spend.lock().unwrap().change(|l|l.admit_account("openrouter",&chrono_day(),"other",true,&m.upstream,1,1,1,3,10)).unwrap();
+        s.config.providers=vec![crate::config::Provider {id:"openrouter".into(),status:Status::Personal,api_key:"synthetic".into(),base_url:format!("http://{}",denied.local_addr().unwrap()),models:vec![m.clone()]},
+            crate::config::Provider {id:"inferbase".into(),status:Status::Personal,api_key:"synthetic".into(),base_url:url,models:vec![m]}];
+        let s=Arc::new(s);let cookie=s.auth.create_session("luke",Role::Owner).unwrap();
+        let response=browser_api(s.clone(),"POST","/v1/chat/completions",&cookie,Some("https://aqua.test"),"same-site",None,
+            r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline"}]}"#);
+        worker.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 200")&&response.contains("fallback ok"));
+        assert!(matches!(denied.accept(),Err(e)if e.kind()==std::io::ErrorKind::WouldBlock));
+        let l=ledger(&s);
+        assert_eq!(l["accounts"]["openrouter"]["total"],1);
+        assert_eq!(l["next_id"],1,"only fallback spend reservation committed");
+        assert_eq!(l["reservations"],json!({}));
+        cleanup(Arc::try_unwrap(s).ok().unwrap(),path);
+    }
 }
