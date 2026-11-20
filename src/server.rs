@@ -6357,3 +6357,41 @@ mod startup_keys_failure_tests {
         drop(crate::keys::Store::open(Some(path)).expect("healthy shutdown releases key lock"));
     }
 }
+
+#[cfg(test)]
+mod query_utf8_handler_tests {
+    use super::*;
+    fn request(state: Arc<Shared>, wire: &[u8]) -> (std::thread::Result<std::io::Result<()>>, std::io::Result<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+        client.set_write_timeout(Some(Duration::from_secs(2))).unwrap();
+        let (stream, _) = listener.accept().unwrap();
+        let worker = thread::spawn(move || handle(stream, state));
+        client.write_all(wire).unwrap();
+        let mut response = String::new(); let read = client.read_to_string(&mut response).map(|_| response);
+        (worker.join(), read)
+    }
+    #[test]
+    fn unicode_percent_callback_returns_400_and_same_state_session_stays_healthy() {
+        let mut owned = Arc::try_unwrap(super::reviewer_regressions::keys_shared()).ok().unwrap();
+        owned.auth.cfg.client_id = "synthetic-client".into();
+        owned.auth.cfg.client_secret = "synthetic-test-only".into();
+        owned.auth.cfg.public_url = "https://api.aqua.test".into();
+        let state = Arc::new(owned);
+        let session = state.auth.create_session("luke", Role::Owner).unwrap();
+        for raw in ["%é", "%a💡"] {
+            let wire = format!("GET /auth/github/callback?state={raw}&code= HTTP/1.1\r\nhost: api.aqua.test\r\n\r\n");
+            let (joined, response) = request(state.clone(), wire.as_bytes());
+            assert!(joined.is_ok(), "untrusted Unicode query must not panic callback worker");
+            joined.unwrap().unwrap();
+            let response = response.unwrap();
+            assert!(response.starts_with("HTTP/1.1 400"));
+            assert!(response.contains("invalid or expired login state")); assert!(!response.contains("set-cookie:"));
+            assert!(state.auth.get_session(&session).is_some());
+            let wire = format!("GET /auth/me HTTP/1.1\r\nhost: api.aqua.test\r\ncookie: aqua_session={session}\r\n\r\n");
+            let (joined, healthy) = request(state.clone(), wire.as_bytes()); joined.unwrap().unwrap();
+            let healthy = healthy.unwrap(); assert!(healthy.starts_with("HTTP/1.1 200")); assert!(healthy.contains("\"login\":\"luke\""));
+        }
+    }
+}

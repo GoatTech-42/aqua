@@ -218,7 +218,7 @@ fn percent_decode(s: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 3 <= bytes.len() {
-            if let Ok(v) = u8::from_str_radix(&s[i + 1..i + 3], 16) {
+            if let Some(v) = std::str::from_utf8(&bytes[i + 1..i + 3]).ok().and_then(|hex| u8::from_str_radix(hex, 16).ok()) {
                 out.push(v);
                 i += 3;
                 continue;
@@ -239,5 +239,24 @@ mod rng_failure_tests {
         auth.entropy=|_|Err(std::io::Error::other("injected OS entropy failure"));
         for _ in 0..3 {assert!(auth.new_state().is_err());assert!(auth.create_session("sam",Role::Friend).is_err());}
         assert!(auth.states.lock().unwrap().is_empty());assert!(auth.sessions.lock().unwrap().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod query_utf8_tests {
+    use super::*;
+    #[test]
+    fn raw_unicode_after_percent_is_preserved_without_panicking() {
+        for raw in ["%é", "%€", "%💡", "%aé", "%éx", "é%é", "%a💡", "%%é"] {
+            assert_eq!(parse_query(&format!("state={raw}"))["state"], raw);
+        }
+    }
+    #[test]
+    fn valid_percent_bytes_and_existing_malformed_rules_are_preserved() {
+        for (raw, want) in [("%41", "A"), ("%4a", "J"), ("%C3%A9", "é"), ("%ff", "\u{fffd}"), ("%", "%"), ("%A", "%A"), ("%G1", "%G1"), ("%1G", "%1G"), ("a+b", "a+b"), ("é%20z", "é z"), ("%00", "\0")] {
+            assert_eq!(parse_query(&format!("state={raw}"))["state"], want);
+        }
+        let query = parse_query("state=first&state=last&bare&code=a%26b%3Dc");
+        assert_eq!(query["state"], "last"); assert_eq!(query["code"], "a&b=c"); assert!(!query.contains_key("bare"));
     }
 }
