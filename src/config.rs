@@ -71,9 +71,32 @@ pub struct Provider {
     pub status: Status,
 }
 
+/// Handler admission limits. Normalized on use, including programmatic configs.
+#[derive(Clone, Debug)]
+pub struct ConnectionLimits {
+    pub total: usize,
+    pub reserve: usize,
+}
+impl Default for ConnectionLimits {
+    fn default() -> Self { Self { total: 64, reserve: 8 } }
+}
+impl ConnectionLimits {
+    fn from_lookup(mut lookup: impl FnMut(&str) -> Option<String>) -> Self {
+        Self {
+            total: lookup("AQUA_MAX_CONNECTIONS").and_then(|v| v.parse().ok()).unwrap_or(64),
+            reserve: lookup("AQUA_CONTROL_RESERVE").and_then(|v| v.parse().ok()).unwrap_or(8),
+        }
+    }
+    pub fn total(&self) -> usize { self.total.clamp(2, 1024) }
+    pub fn ordinary(&self) -> usize {
+        self.total() - self.reserve.clamp(1, self.total() - 1)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Config {
     pub backoff: Backoff,
+    pub connections: ConnectionLimits,
     pub keys: HashMap<String, KeyEntry>,
     pub admin_key: String,
     pub daily_limit: u32,
@@ -359,6 +382,7 @@ pub fn from_env() -> Config {
     let meta = parse_model_meta(env("AQUA_MODEL_META"));
     Config {
         backoff: Backoff::from_lookup(|name| env(name)),
+        connections: ConnectionLimits::from_lookup(|name| env(name)),
         spend: crate::spend::Settings::from_env(),
         keys,
         admin_key: env("AQUA_ADMIN_KEY").unwrap_or_default(),
@@ -525,5 +549,25 @@ mod tests {
         assert_eq!(c.upstream_idle, Duration::from_secs(600));
         assert_eq!(c.oauth.exchange_global, Some(Duration::from_secs(120)));
         assert_eq!(c.oauth.exchange_idle, Some(Duration::from_secs(60)));
+    }
+}
+
+#[cfg(test)]
+mod connection_config_tests {
+    use super::ConnectionLimits;
+    #[test]
+    fn lookup_and_programmatic_limits_are_always_bounded() {
+        for invalid in [None, Some(""), Some("bad"), Some("-1"), Some("18446744073709551616")] {
+            let limits=ConnectionLimits::from_lookup(|_| invalid.map(str::to_string));
+            assert_eq!((limits.total(),limits.ordinary()),(64,56));
+        }
+        let custom=ConnectionLimits::from_lookup(|key| Some(match key {
+            "AQUA_MAX_CONNECTIONS"=>"10", "AQUA_CONTROL_RESERVE"=>"3", _=>panic!("unknown knob"),
+        }.into()));
+        assert_eq!((custom.total(),custom.ordinary()),(10,7));
+        for (total,reserve,want) in [(0,0,(2,1)),(usize::MAX,usize::MAX,(1024,1)),(10,0,(10,9)),(10,20,(10,1))] {
+            let limits=ConnectionLimits {total,reserve};
+            assert_eq!((limits.total(),limits.ordinary()),want);
+        }
     }
 }

@@ -119,6 +119,8 @@ not enforce account billing limits.
     AQUA_GITHUB_FRIENDS=sam,alex
     AQUA_AUTO_SHORTLIST=coder-a,coder-b          # ordered models for the auto alias; empty disables auto
     AQUA_MODEL_META=coder-a=128000               # verified context windows, tokens
+    AQUA_MAX_CONNECTIONS=64                     # total active handlers, clamped 2..1024
+    AQUA_CONTROL_RESERVE=8                      # slots held back from ordinary parsed requests
     AQUA_UPSTREAM_BUDGET_SECS=300                # aggregate deadline shared by ALL fallback attempts of one request
     OPENROUTER_API_KEY=... ZRO_API_KEY=... etc.
     AQUA_STATUS_CLOUDFLARE=off               # until no-paid-fallback proof
@@ -128,6 +130,37 @@ not enforce account billing limits.
 
 Empty or placeholder client keys are dropped at config build and never
 authenticate. Provider keys are only ever sent to their own provider.
+
+## Connection admission
+
+By default at most 64 active connection handlers run. The 65th accepted socket
+is closed before a worker is started, without a response write in the accept
+loop. After the existing bounded request read (head and body), at most 56
+ordinary requests run; excess ordinary requests receive 503. All requests,
+including console/control requests, remain subject to the total cap.
+
+Eight slots are reserved from ordinary work for valid-session console pages,
+`/auth/me`, logout, key management, settings and admin usage/caps/providers/resolve.
+The existing route auth, owner checks and CSRF checks still apply. Inference,
+model listing, image generation and unknown routes never use this reserve,
+even with a valid session. Public landing, login and callback GETs can use it
+to regain access. Cookie-free OPTIONS on those named console/control endpoints
+can use the reserve for browser preflight; this grants no action permission.
+
+`AQUA_MAX_CONNECTIONS` defaults to 64 and is clamped to 2..1024.
+`AQUA_CONTROL_RESERVE` defaults to 8 and is clamped to 1..(total - 1), so
+ordinary capacity is always at least one. Missing, invalid, negative or
+overflowing integer strings use defaults. Programmatic configurations are
+bounded at use too. Changes apply at process start; zero does not disable limits.
+
+This is not an absolute no-lockout or denial-of-service guarantee. Unread or
+partially read sockets (including partial bodies) cannot be classified and
+can occupy all 64 handlers during the read phase for up to 30 seconds.
+Response writes and other work have separate timeouts, so this is not a
+promise that capacity returns at 30 seconds. Public login/preflight traffic
+can also fill the total cap. A reverse proxy
+with its own connection/rate limits is still needed for hostile traffic.
+No live deployment or environment change is implied by these defaults.
 
 ## API
 

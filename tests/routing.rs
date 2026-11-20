@@ -147,6 +147,7 @@ fn config(providers: Vec<Provider>, auto_shortlist: Vec<&str>) -> Config {
     keys.insert("friendkey".into(), KeyEntry { name: "sam".into(), role: aqua::Role::Friend });
     Config {
         backoff: Default::default(),
+        connections: Default::default(),
         keys,
         admin_key: "adminsecret".into(),
         daily_limit: 200,

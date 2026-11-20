@@ -46,6 +46,7 @@ struct Shared {
     agent: ureq::Agent,
     auth: Auth,
     in_flight: Arc<AtomicUsize>,
+    ordinary_in_flight: Arc<AtomicUsize>,
     read_budget_ms: AtomicU64,
     quotas: Mutex<HashMap<String, Quota>>,
     // Standard Z.AI account limit is one active inference, across all models.
@@ -122,6 +123,13 @@ impl Drop for Server {
 struct InFlight(Arc<AtomicUsize>);
 
 impl InFlight {
+    fn try_enter(counter: &Arc<AtomicUsize>, limit: usize) -> Option<Self> {
+        counter.fetch_update(Ordering::SeqCst, Ordering::SeqCst, |n| {
+            if n < limit { Some(n + 1) } else { None }
+        }).ok().map(|_| InFlight(counter.clone()))
+    }
+
+    #[cfg(test)]
     fn enter(counter: &Arc<AtomicUsize>) -> Self {
         counter.fetch_add(1, Ordering::SeqCst);
         InFlight(counter.clone())
@@ -167,6 +175,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
         spend: Mutex::new(spend),
         unknown_owner_requests: Mutex::new(0),
         in_flight: Arc::new(AtomicUsize::new(0)),
+        ordinary_in_flight: Arc::new(AtomicUsize::new(0)),
         read_budget_ms: AtomicU64::new(REQUEST_READ_BUDGET.as_millis() as u64),
         auth: Auth::new(config.oauth.clone()),
         config,
@@ -192,7 +201,7 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
                 break;
             }
             if let Ok(stream) = stream {
-                spawn_handler(stream, accept_shared.clone());
+                let _ = spawn_handler(stream, accept_shared.clone());
             }
         }
     });
@@ -200,14 +209,18 @@ pub fn bind_addr(addr: &str, config: Config) -> std::io::Result<Server> {
 }
 
 // The in-flight count is incremented synchronously, before the child spawns:
-// when this returns, an accepted connection already counts even if its child
-// has not been scheduled, so drop can never observe 0 for it.
-fn spawn_handler(stream: TcpStream, shared: Arc<Shared>) {
-    let in_flight = InFlight::enter(&shared.in_flight);
-    thread::spawn(move || {
+// when a worker is returned, its accepted connection already counts even if
+// its child has not been scheduled, so drop can never observe 0 for it.
+fn spawn_handler(stream: TcpStream, shared: Arc<Shared>) -> Option<JoinHandle<()>> {
+    let Some(in_flight) = InFlight::try_enter(&shared.in_flight, shared.config.connections.total()) else {
+        // Do not write from the accept loop: a non-reading peer must never
+        // stall admission. Closing this socket creates no worker thread.
+        return None;
+    };
+    Some(thread::spawn(move || {
         let _in_flight = in_flight;
         let _ = handle(stream, shared);
-    });
+    }))
 }
 
 struct Request {
@@ -454,6 +467,33 @@ fn origin_host_matches(origin: &str, host_header: &str) -> bool {
     authority.map(|host| !host.contains(['/', '?', '#', '@']) && host.eq_ignore_ascii_case(host_header)).unwrap_or(false)
 }
 
+// Admission privilege is not authorization: every request still passes its
+// existing route-specific auth/CSRF checks. A session never reserves inference.
+fn control_request(req: &Request, shared: &Shared) -> bool {
+    if req.method == "GET" && matches!(req.path.as_str(),
+        "/" | "/landing.html" | "/login/github" | "/auth/github/callback") {
+        return true;
+    }
+    let control_route = match req.method.as_str() {
+        "GET" | "OPTIONS" => matches!(req.path.as_str(),
+            "/admin" | "/admin.html" | "/console" | "/console.html" |
+            "/playground" | "/playground.html" | "/keys" | "/keys.html" |
+            "/settings" | "/settings.html" | "/auth/me" | "/v1/keys" |
+            "/v1/settings" | "/v1/admin/usage" | "/v1/admin/caps" |
+            "/v1/admin/usage/summary" | "/v1/admin/usage/series" | "/v1/admin/providers" | "/v1/admin/resolve") ||
+            (req.method == "OPTIONS" && (req.path == "/auth/logout" ||
+                req.path.strip_prefix("/v1/keys/").and_then(|p| p.strip_suffix("/revoke"))
+                    .map(|id| id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit())).unwrap_or(false))),
+        "POST" => matches!(req.path.as_str(), "/auth/logout" | "/v1/keys" |
+            "/v1/settings" | "/v1/admin/caps") ||
+            req.path.strip_prefix("/v1/keys/").and_then(|p| p.strip_suffix("/revoke"))
+                .map(|id| id.len() == 32 && id.bytes().all(|b| b.is_ascii_hexdigit())).unwrap_or(false),
+        _ => false,
+    };
+    control_route && (req.method == "OPTIONS" || auth::session_cookie(&req.headers)
+        .and_then(|id| shared.auth.get_session(&id)).is_some())
+}
+
 fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
     let cfg = &shared.config;
     // bound downstream writes: a client that stops reading must not pin this
@@ -486,6 +526,16 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         Some(cfg.allowed_origin.as_str())
     } else {
         None
+    };
+
+    let _ordinary = if control_request(&req, &shared) {
+        None
+    } else {
+        match InFlight::try_enter(&shared.ordinary_in_flight, cfg.connections.ordinary()) {
+            Some(guard) => Some(guard),
+            None => return write_json(&mut stream, 503,
+                &err_body("gateway busy; retry later", "overloaded"), cors),
+        }
     };
 
     if req.method == "OPTIONS" {
@@ -1734,6 +1784,7 @@ mod reviewer_regressions {
     fn shared() -> Shared {
         let config = Config {
             backoff: Default::default(),
+            connections: Default::default(),
             keys: HashMap::new(),
             admin_key: String::new(),
             daily_limit: 200,
@@ -1750,6 +1801,7 @@ mod reviewer_regressions {
             spend: Mutex::new(crate::spend::Store::open(None).unwrap()),
             unknown_owner_requests: Mutex::new(0),
             in_flight: Arc::new(AtomicUsize::new(0)),
+            ordinary_in_flight: Arc::new(AtomicUsize::new(0)),
             read_budget_ms: AtomicU64::new(REQUEST_READ_BUDGET.as_millis() as u64),
             auth: Auth::new(config.oauth.clone()),
             config,
@@ -1790,7 +1842,7 @@ mod reviewer_regressions {
         let address = listener.local_addr().unwrap();
         let client = TcpStream::connect(address).unwrap();
         let (stream, _) = listener.accept().unwrap();
-        spawn_handler(stream, shared.clone());
+        let _ = spawn_handler(stream, shared.clone());
         assert_eq!(shared.in_flight.load(Ordering::SeqCst), 1,
             "the accepted connection must count before its child can run");
         drop(client); // lets the child's read fail so it exits
@@ -5590,6 +5642,218 @@ mod framing_matrix_tests {
             rejects(format!("content-length: {raw}\r\n"), "bad length");
             assert_eq!(parse_error, Some("bad length"));
         }
+    }
+
+}
+
+#[cfg(test)]
+mod connection_admission_tests {
+    use super::*;
+    use super::reviewer_regressions::keys_shared;
+    use std::net::Shutdown;
+
+    #[test]
+    fn partial_requests_below_cap_are_all_spawned() {
+        let state = keys_shared();
+        let mut clients = Vec::new();
+        let mut workers = Vec::new();
+        for _ in 0..4 {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+            let (server, _) = listener.accept().unwrap();
+            if let Some(worker) = spawn_handler(server, state.clone()) { workers.push(worker); }
+            clients.push(client);
+        }
+        let observed = state.in_flight.load(Ordering::SeqCst);
+        for client in clients { client.shutdown(Shutdown::Both).unwrap(); }
+        for worker in workers { worker.join().unwrap(); }
+        assert_eq!(observed, 4, "four unread requests remain admitted below the cap");
+        assert_eq!(state.in_flight.load(Ordering::SeqCst), 0, "closed test sockets drain");
+    }
+    #[test]
+    fn total_connection_cap_rejects_the_sixty_fifth_unread_socket() {
+        let state = keys_shared();
+        let mut clients = Vec::new();
+        let mut workers = Vec::new();
+        for _ in 0..65 {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+            let (server, _) = listener.accept().unwrap();
+            if let Some(worker) = spawn_handler(server, state.clone()) { workers.push(worker); }
+            clients.push(client);
+        }
+        let observed = state.in_flight.load(Ordering::SeqCst);
+        for client in clients { client.shutdown(Shutdown::Both).unwrap(); }
+        for worker in workers { worker.join().unwrap(); }
+        assert_eq!(observed, 64, "65th socket must not start a handler");
+        assert_eq!(state.in_flight.load(Ordering::SeqCst), 0);
+    }
+
+    fn request(state: Arc<Shared>, method: &str, path: &str, cookie: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut client = TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        client.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+        let (server, _) = listener.accept().unwrap();
+        let worker = spawn_handler(server, state).expect("test request fits total cap");
+        write!(client, "{method} {path} HTTP/1.1\r\nhost: x\r\ncookie: aqua_session={cookie}\r\ncontent-length: 0\r\n\r\n").unwrap();
+        let mut response = String::new();
+        client.read_to_string(&mut response).unwrap();
+        worker.join().unwrap();
+        response
+    }
+
+    #[test]
+    fn ordinary_saturation_keeps_console_and_login_routes_usable() {
+        let state = keys_shared();
+        // Fixed literal models 56 ordinary requests already admitted.
+        state.ordinary_in_flight.store(56, Ordering::SeqCst);
+        let owner = state.auth.create_session("luke", Role::Owner).unwrap();
+        let rejected = request(state.clone(), "GET", "/v1/models", &owner);
+        let console = request(state.clone(), "GET", "/console", &owner);
+        let landing = request(state.clone(), "GET", "/", "");
+        let login = request(state.clone(), "GET", "/login/github", "");
+        assert!(rejected.starts_with("HTTP/1.1 503"), "ordinary requests cannot consume reserve: {rejected}");
+        assert!(console.starts_with("HTTP/1.1 200"));
+        assert!(landing.starts_with("HTTP/1.1 200"));
+        assert!(login.contains("github login is not configured"), "login reached its own handler");
+        assert_eq!(state.ordinary_in_flight.load(Ordering::SeqCst), 56);
+    }
+
+    #[test]
+    fn only_named_control_preflights_use_reserve_actions_stay_authenticated() {
+        let state = keys_shared();
+        state.ordinary_in_flight.store(56, Ordering::SeqCst);
+        for path in ["/auth/me", "/auth/logout", "/v1/keys", "/v1/settings", "/v1/admin/caps"] {
+            assert!(request(state.clone(), "OPTIONS", path, "").starts_with("HTTP/1.1 204"), "control preflight {path}");
+        }
+        for path in ["/v1/chat/completions", "/v1/images/generations", "/unknown", "/v1/keys/garbage/revoke"] {
+            assert!(request(state.clone(), "OPTIONS", path, "").starts_with("HTTP/1.1 503"), "no reserved unknown/inference preflight {path}");
+        }
+        assert!(request(state.clone(), "POST", "/v1/keys", "").starts_with("HTTP/1.1 503"));
+        state.ordinary_in_flight.store(0, Ordering::SeqCst);
+        assert!(request(state.clone(), "POST", "/v1/keys", "").starts_with("HTTP/1.1 401"));
+    }
+
+    #[test]
+    fn configured_ordinary_saturation_uses_real_handlers_and_releases() {
+        let mut inner = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        inner.config.connections = crate::config::ConnectionLimits { total: 4, reserve: 1 };
+        let state = Arc::new(inner);
+        let owner = state.auth.create_session("luke", Role::Owner).unwrap();
+        let spend = state.spend.lock().unwrap(); // hold actual models route at a real dependency
+        let mut workers = Vec::new();
+        for _ in 0..3 {
+            let state = state.clone(); let owner = owner.clone();
+            workers.push(thread::spawn(move || request(state, "GET", "/v1/models", &owner)));
+        }
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while state.ordinary_in_flight.load(Ordering::SeqCst) != 3 && Instant::now() < deadline {
+            thread::yield_now();
+        }
+        let admitted = state.ordinary_in_flight.load(Ordering::SeqCst);
+        let overflow = request(state.clone(), "GET", "/v1/models", &owner);
+        let console = request(state.clone(), "GET", "/console", &owner);
+        drop(spend);
+        for worker in workers { assert!(worker.join().unwrap().starts_with("HTTP/1.1 200")); }
+        assert_eq!(admitted, 3, "three real ordinary handlers reach the spend lock");
+        assert!(overflow.starts_with("HTTP/1.1 503"));
+        assert!(console.starts_with("HTTP/1.1 200"));
+        assert_eq!(state.ordinary_in_flight.load(Ordering::SeqCst), 0);
+        assert!(request(state.clone(), "GET", "/v1/models", &owner).starts_with("HTTP/1.1 200"));
+    }
+
+    #[test]
+    fn atomic_admission_never_exceeds_limit_and_unwind_releases() {
+        let counter = Arc::new(AtomicUsize::new(0));
+        let gate = Arc::new(std::sync::Barrier::new(17));
+        let held = Arc::new(std::sync::Barrier::new(17));
+        let mut workers = Vec::new();
+        for _ in 0..16 {
+            let counter=counter.clone(); let gate=gate.clone(); let held=held.clone();
+            workers.push(thread::spawn(move || {
+                gate.wait();
+                let guard=InFlight::try_enter(&counter, 4);
+                held.wait();
+                gate.wait();
+                guard.is_some()
+            }));
+        }
+        gate.wait(); held.wait();
+        let peak=counter.load(Ordering::SeqCst);
+        gate.wait();
+        let admitted=workers.into_iter().map(|w| usize::from(w.join().unwrap())).sum::<usize>();
+        assert_eq!(peak,4); assert_eq!(admitted,4); assert_eq!(counter.load(Ordering::SeqCst),0);
+        let unwind=counter.clone();
+        assert!(thread::spawn(move || { let _g=InFlight::try_enter(&unwind,4).unwrap(); panic!("owned unwind fixture"); }).join().is_err());
+        assert_eq!(counter.load(Ordering::SeqCst),0);
+    }
+
+    #[test]
+    fn session_does_not_reserve_inference_unknown_or_unauthorized_actions() {
+        let state=keys_shared();
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        state.ordinary_in_flight.store(56,Ordering::SeqCst);
+        for (method,path,cookie) in [
+            ("POST","/v1/chat/completions",owner.as_str()),
+            ("POST","/v1/images/generations",owner.as_str()),
+            ("GET","/unknown",owner.as_str()),
+            ("GET","/console","forged-session"),
+            ("POST","/v1/keys/invalid/revoke",owner.as_str()),
+        ] {
+            assert!(request(state.clone(),method,path,cookie).starts_with("HTTP/1.1 503"),"must use ordinary pool: {method} {path}");
+        }
+        assert!(request(state.clone(),"GET","/admin",&friend).starts_with("HTTP/1.1 403"),"reserve never grants owner authorization");
+        assert!(request(state.clone(),"POST","/v1/keys",&owner).starts_with("HTTP/1.1 403"),"reserve never bypasses existing CSRF check");
+        let callback=request(state.clone(),"GET","/auth/github/callback","");
+        assert!(callback.contains("github login is not configured"));
+        state.auth.revoke(&owner);
+        assert!(request(state.clone(),"GET","/console",&owner).starts_with("HTTP/1.1 503"),"revoked sessions lose reserve");
+    }
+
+    #[test]
+    fn configured_total_rejects_without_worker_and_capacity_is_reusable() {
+        let mut inner=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        inner.config.connections=crate::config::ConnectionLimits {total:4,reserve:1};
+        let state=Arc::new(inner);
+        let mut clients=Vec::new(); let mut workers=Vec::new();
+        for _ in 0..4 {
+            let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+            let client=TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+            workers.push(spawn_handler(listener.accept().unwrap().0,state.clone()).unwrap());
+            clients.push(client);
+        }
+        let listener=TcpListener::bind("127.0.0.1:0").unwrap();
+        let mut rejected=TcpStream::connect(listener.local_addr().unwrap()).unwrap();
+        rejected.set_read_timeout(Some(Duration::from_secs(3))).unwrap();
+        let excess=spawn_handler(listener.accept().unwrap().0,state.clone());
+        let mut bytes=Vec::new(); let read_result=rejected.read_to_end(&mut bytes);
+        let count=state.in_flight.load(Ordering::SeqCst);
+        for client in clients { client.shutdown(Shutdown::Both).unwrap(); }
+        for worker in workers { worker.join().unwrap(); }
+        assert!(excess.is_none()); assert_eq!(count,4);
+        assert_eq!(read_result.unwrap(),0,"over-cap socket closed without response");
+        assert_eq!(state.in_flight.load(Ordering::SeqCst),0);
+        assert!(request(state.clone(),"GET","/","").starts_with("HTTP/1.1 200"));
+        assert_eq!(state.in_flight.load(Ordering::SeqCst),0);
+    }
+
+    #[test]
+    fn settings_resolve_diagnostic_reserve_keeps_existing_owner_auth() {
+        let state=keys_shared();
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        state.ordinary_in_flight.store(56,Ordering::SeqCst);
+        let allowed=request(state.clone(),"GET","/v1/admin/resolve?model=x",&owner);
+        let denied=request(state.clone(),"GET","/v1/admin/resolve?model=x",&friend);
+        let preflight=request(state.clone(),"OPTIONS","/v1/admin/resolve","");
+        let bad_method=request(state.clone(),"POST","/v1/admin/resolve?model=x",&owner);
+        assert!(allowed.starts_with("HTTP/1.1 200"),"owner diagnostic reaches existing handler: {allowed}");
+        assert!(denied.starts_with("HTTP/1.1 401"),"friend remains unauthorized: {denied}");
+        assert!(preflight.starts_with("HTTP/1.1 204"));
+        assert!(bad_method.starts_with("HTTP/1.1 503"),"only GET and OPTIONS reserve this path");
+        state.ordinary_in_flight.store(0,Ordering::SeqCst);
+        assert!(request(state.clone(),"POST","/v1/admin/resolve?model=x",&owner).starts_with("HTTP/1.1 405"));
     }
 
 }
