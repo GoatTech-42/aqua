@@ -380,3 +380,87 @@ mod intake_registry_tests {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    const TIMEOUT_VARS: [&str; 3] = [
+        "AQUA_UPSTREAM_IDLE_SECS",
+        "AQUA_GITHUB_TIMEOUT_SECS",
+        "AQUA_GITHUB_IDLE_SECS",
+    ];
+
+    // Restores the captured values on drop, including on panic, so a failed
+    // assertion can never leak test values into the process env.
+    struct EnvGuard(Vec<(&'static str, Option<String>)>);
+    impl EnvGuard {
+        fn capture(vars: &[&'static str]) -> Self {
+            Self(vars.iter().map(|v| (*v, std::env::var(v).ok())).collect())
+        }
+    }
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            for (k, v) in &self.0 {
+                match v {
+                    Some(val) => std::env::set_var(k, val),
+                    None => std::env::remove_var(k),
+                }
+            }
+        }
+    }
+
+    // Verified on this tree: no other test calls config::from_env or touches
+    // these three vars, so this single-writer test faces no concurrent env
+    // writer. Concurrent from_env READERS of disjoint vars are unaffected by
+    // these mutations. If another env-writing test is ever added, guard all
+    // of them with one shared mutex.
+    #[test]
+    fn timeout_env_clamps_and_defaults() {
+        let _guard = EnvGuard::capture(&TIMEOUT_VARS);
+        let [v_idle, v_gh_global, v_gh_idle] = TIMEOUT_VARS;
+        for v in TIMEOUT_VARS { std::env::remove_var(v); }
+
+        // unset: upstream idle resolves to its 60s default; the GitHub
+        // knobs stay None so the agent builder's named consts apply
+        let c = super::from_env();
+        assert_eq!(c.upstream_idle, Duration::from_secs(60));
+        assert_eq!(c.oauth.exchange_global, None);
+        assert_eq!(c.oauth.exchange_idle, None);
+
+        // garbage parses to the same defaults, never a panic
+        for v in TIMEOUT_VARS { std::env::set_var(v, "not-a-number"); }
+        let c = super::from_env();
+        assert_eq!(c.upstream_idle, Duration::from_secs(60));
+        assert_eq!(c.oauth.exchange_global, None);
+        assert_eq!(c.oauth.exchange_idle, None);
+
+        // in-range values pass through
+        std::env::set_var(v_idle, "45");
+        std::env::set_var(v_gh_global, "30");
+        std::env::set_var(v_gh_idle, "20");
+        let c = super::from_env();
+        assert_eq!(c.upstream_idle, Duration::from_secs(45));
+        assert_eq!(c.oauth.exchange_global, Some(Duration::from_secs(30)));
+        assert_eq!(c.oauth.exchange_idle, Some(Duration::from_secs(20)));
+
+        // below range clamps up to the floor, never zero
+        std::env::set_var(v_idle, "0");
+        std::env::set_var(v_gh_global, "0");
+        std::env::set_var(v_gh_idle, "0");
+        let c = super::from_env();
+        assert_eq!(c.upstream_idle, Duration::from_secs(1));
+        assert_eq!(c.oauth.exchange_global, Some(Duration::from_secs(1)));
+        assert_eq!(c.oauth.exchange_idle, Some(Duration::from_secs(1)));
+
+        // above range clamps down to the cap
+        std::env::set_var(v_idle, "999999");
+        std::env::set_var(v_gh_global, "999999");
+        std::env::set_var(v_gh_idle, "999999");
+        let c = super::from_env();
+        assert_eq!(c.upstream_idle, Duration::from_secs(600));
+        assert_eq!(c.oauth.exchange_global, Some(Duration::from_secs(120)));
+        assert_eq!(c.oauth.exchange_idle, Some(Duration::from_secs(60)));
+    }
+}

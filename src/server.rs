@@ -147,7 +147,7 @@ pub const GITHUB_CALL_IDLE: Duration = Duration::from_secs(10);
 const GITHUB_TOKEN_URL: &str = "https://github.com/login/oauth/access_token";
 const GITHUB_USER_URL: &str = "https://api.github.com/user";
 
-pub fn github_agent(cfg: &OAuthConfig) -> ureq::Agent {
+fn github_agent(cfg: &OAuthConfig) -> ureq::Agent {
     ureq::Agent::config_builder()
         .http_status_as_error(false)
         .timeout_global(Some(cfg.exchange_global.unwrap_or(GITHUB_CALL_GLOBAL)))
@@ -846,7 +846,7 @@ const AUTH_FAIL_MAP_CAP: usize = 10_000;
 
 // GitHub OAuth: exchange the callback code for the user's login. Errors are
 // generic on purpose; the upstream body never reaches the client.
-pub fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str, token_url: &str, user_url: &str) -> Result<String, &'static str> {
+fn github_exchange(agent: &ureq::Agent, cfg: &OAuthConfig, code: &str, token_url: &str, user_url: &str) -> Result<String, &'static str> {
     let body = format!(
         "client_id={}&client_secret={}&code={}&redirect_uri={}",
         auth::url_encode(&cfg.client_id),
@@ -2531,5 +2531,98 @@ mod image_core_http_tests {
         let r=browser_api(state.clone(),"POST","/v1/images/generations","",None,"none",Some(&bearer),BODY);assert!(r.starts_with("HTTP/1.1 403"));assert!(!r.contains(key["key"].as_str().unwrap()));assert!(r.contains("privacy_error"));
         // A missing/unknown model is never changed to flux or text auto.
         let r=browser_api(state,"POST","/v1/images/generations","",None,"none",Some(&bearer),r#"{"model":"flux","prompt":"x"}"#);assert!(r.starts_with("HTTP/1.1 400"));
+    }
+}
+
+#[cfg(test)]
+mod exchange_tests {
+    //! GitHub login exchange bounds: github_agent's default resolution and
+    //! stalled-endpoint behavior, moved in from tests/auth.rs so the agent
+    //! builder and exchange stay private (lib.rs exports remain minimal).
+    //! The old-style flat-300s agent below is the pre-patch configuration;
+    //! it must land on a different outcome than the bounded agent.
+    use super::*;
+    use std::io::Read;
+
+    fn json_listener(body: &'static str, stall: Duration) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            while let Ok((mut socket, _)) = listener.accept() {
+                let mut buf = [0u8; 4096];
+                let mut head = Vec::new();
+                while !head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    match socket.read(&mut buf) { Ok(0) | Err(_) => break, Ok(n) => head.extend_from_slice(&buf[..n]) }
+                }
+                std::thread::sleep(stall);
+                let resp = format!("HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}", body.len(), body);
+                let _ = socket.write_all(resp.as_bytes());
+            }
+        });
+        url
+    }
+
+    fn exchange_cfg(global: Option<Duration>, idle: Option<Duration>) -> OAuthConfig {
+        OAuthConfig { exchange_global: global, exchange_idle: idle, ..Default::default() }
+    }
+
+    // the pre-patch configuration: flat 300s global, no per-read floor
+    fn old_style_agent() -> ureq::Agent {
+        ureq::Agent::config_builder()
+            .http_status_as_error(false)
+            .timeout_global(Some(Duration::from_secs(300)))
+            .build()
+            .into()
+    }
+
+    #[test]
+    fn github_agent_resolves_named_defaults_and_overrides() {
+        let agent = github_agent(&exchange_cfg(None, None));
+        assert_eq!(agent.config().timeouts().global, Some(GITHUB_CALL_GLOBAL));
+        assert_eq!(agent.config().timeout_per_read(), Some(GITHUB_CALL_IDLE));
+        let agent = github_agent(&exchange_cfg(Some(Duration::from_secs(7)), Some(Duration::from_secs(3))));
+        assert_eq!(agent.config().timeouts().global, Some(Duration::from_secs(7)));
+        assert_eq!(agent.config().timeout_per_read(), Some(Duration::from_secs(3)));
+    }
+
+    #[test]
+    fn github_exchange_completes_when_github_answers() {
+        let tok = json_listener("{\"access_token\":\"tok\"}", Duration::ZERO);
+        let user = json_listener("{\"login\":\"testuser\"}", Duration::ZERO);
+        let cfg = exchange_cfg(None, None);
+        let got = github_exchange(&github_agent(&cfg), &cfg, "code", &tok, &user);
+        assert_eq!(got, Ok("testuser".to_string()), "healthy GitHub must log in: {got:?}");
+    }
+
+    #[test]
+    fn github_exchange_stalled_token_endpoint_fails_fast() {
+        let tok = json_listener("{\"access_token\":\"tok\"}", Duration::from_secs(3));
+        let user = json_listener("{\"login\":\"testuser\"}", Duration::ZERO);
+        let cfg = exchange_cfg(Some(Duration::from_secs(30)), Some(Duration::from_millis(300)));
+        let started = Instant::now();
+        let got = github_exchange(&github_agent(&cfg), &cfg, "code", &tok, &user);
+        assert!(got.is_err(), "stalled token exchange must fail, got {got:?}");
+        assert!(started.elapsed() < Duration::from_millis(2500), "stalled token exchange held the login: {:?}", started.elapsed());
+        // mutant control: the old flat-300s agent rides out the 3s stall and completes
+        let started = Instant::now();
+        let got = github_exchange(&old_style_agent(), &cfg, "code", &tok, &user);
+        assert_eq!(got, Ok("testuser".to_string()), "mutant control must differ: {got:?}");
+        assert!(started.elapsed() >= Duration::from_secs(3));
+    }
+
+    #[test]
+    fn github_exchange_stalled_user_endpoint_fails_fast() {
+        let tok = json_listener("{\"access_token\":\"tok\"}", Duration::ZERO);
+        let user = json_listener("{\"login\":\"testuser\"}", Duration::from_secs(3));
+        let cfg = exchange_cfg(Some(Duration::from_secs(30)), Some(Duration::from_millis(300)));
+        let started = Instant::now();
+        let got = github_exchange(&github_agent(&cfg), &cfg, "code", &tok, &user);
+        assert!(got.is_err(), "stalled user lookup must fail, got {got:?}");
+        assert!(started.elapsed() < Duration::from_millis(2500), "stalled user lookup held the login: {:?}", started.elapsed());
+        // mutant control: the old flat-300s agent rides out the 3s stall and completes
+        let started = Instant::now();
+        let got = github_exchange(&old_style_agent(), &cfg, "code", &tok, &user);
+        assert_eq!(got, Ok("testuser".to_string()), "mutant control must differ: {got:?}");
+        assert!(started.elapsed() >= Duration::from_secs(3));
     }
 }
