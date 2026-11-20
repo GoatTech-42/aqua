@@ -654,7 +654,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         }
         // Only the socket peer is trusted; proxy headers cannot create fresh buckets.
         let admitted = stream.peer_addr().ok().map(|addr| shared.login_starts.lock().unwrap().admit_at(addr.ip(), Instant::now())).unwrap_or(false);
-        if !admitted { return write_json(&mut stream,429,&err_body("too many login starts","rate_limit_error"),cors); }
+        if !admitted { return write_json(&mut stream,429,&err_body("too many sign-in attempts. try again later.","rate_limit_error"),cors); }
         let state = match shared.auth.new_state() {Ok(state)=>state,Err(_)=>return write_json(&mut stream,503,&err_body("sign-in is unavailable right now. try again shortly.","auth_error"),cors)};
         return write_redirect(&mut stream, &auth::authorize_url(&shared.auth.cfg, &state), &[]);
     }
@@ -6476,7 +6476,14 @@ mod login_start_limit_tests {
             write!(client,"GET /login/github HTTP/1.1\r\nhost: api.aqua.test\r\nx-forwarded-for: 192.0.2.{i}\r\ncf-connecting-ip: 198.51.100.{i}\r\nauthorization: Bearer rotating-{i}\r\ncookie: aqua_session={session}\r\n\r\n").unwrap();
             let mut response = String::new(); let read = client.read_to_string(&mut response); worker.join().unwrap().unwrap(); read.unwrap();
             if i < 5 { assert!(response.starts_with("HTTP/1.1 302")); }
-            else { assert!(response.starts_with("HTTP/1.1 429"), "same peer must be limited: {response}"); assert!(!response.contains("location:")); assert!(!response.contains("set-cookie:")); }
+            else {
+                assert!(response.starts_with("HTTP/1.1 429"), "same peer must be limited: {response}");
+                let (_, body) = response.split_once("\r\n\r\n").expect("HTTP response body");
+                let body: Value = serde_json::from_str(body).expect("JSON error body");
+                assert_eq!(body, json!({"error":{"message":"too many sign-in attempts. try again later.","type":"rate_limit_error"}}));
+                assert!(!response.to_ascii_lowercase().contains("retry-after:"));
+                assert!(!response.contains("location:")); assert!(!response.contains("set-cookie:"));
+            }
         }
         assert!(state.auth.get_session(&session).is_some());
         // Only five states were allocated by HTTP. Denied starts must allocate none.
