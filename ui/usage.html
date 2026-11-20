@@ -496,6 +496,19 @@ function banner(kind,text){
   return '<div class="banner'+(kind==='bad'?' bad':'')+'"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17.5v.01"/></svg><div>'+esc(text)+'</div></div>';
 }
 function stamp(){return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}).toLowerCase()}
+/* stamp honesty (same rule as console + settings): live relative age, absolute UTC title, clock-skew handling */
+function stampRel(ageMs){var mins=Math.floor(ageMs/60000),hrs=Math.floor(ageMs/3600000),days=Math.floor(ageMs/86400000);return ageMs<120000?'just now':ageMs<3600000?mins+' min ago':ageMs<172800000?hrs+(hrs===1?' hour ago':' hours ago'):days+(days===1?' day ago':' days ago')}
+var usageStampAt=null;
+function paintUsageStamp(){
+  var el=$('stamp');
+  if(usageStampAt===null)return;
+  var ageMs=Date.now()-usageStampAt;
+  if(ageMs<-300000){el.textContent='updated, clock skew / age unknown';el.title='recorded update time is in the future';return}
+  el.textContent='updated '+stampRel(Math.max(0,ageMs));
+  el.title='last updated '+new Date(usageStampAt).toUTCString().replace('GMT','UTC');
+}
+function clearUsageStamp(){usageStampAt=null;$('stamp').title=''}
+setInterval(paintUsageStamp,30000);
 
 /* ---------- spend (/v1/admin/usage) ---------- */
 function priceText(p,per){
@@ -788,15 +801,15 @@ $('filter').addEventListener('change',function(){MET.f=$('filter').value;if(MET.
 var seqS=0;
 function load(){loadMet();
   var my=++seqS;
-  $('state').textContent='';$('stamp').textContent='loading';
+  $('state').textContent='';clearUsageStamp();$('stamp').textContent='loading';
   fetchJSON('/v1/admin/usage').then(function(r){
     if(my!==seqS)return;
     if(r.status===401){deny('your session expired. sign in again.');return}
     if(r.status===403){deny('this page is for the owner login only.');return}
-    if(r.status===503){clearSpend();$('state').textContent='the gateway is unavailable right now. nothing is shown rather than zeros. try again shortly.';$('stamp').textContent='unavailable';return}
-    if(r.status!==200||!r.body||typeof r.body!=='object'){clearSpend();$('state').textContent='could not read usage (status '+r.status+'). nothing is shown. try again shortly.';$('stamp').textContent='failed';return}
-    render(r.body);$('stamp').textContent='updated '+stamp();
-  },function(){if(my!==seqS)return;clearSpend();$('state').textContent='could not reach the gateway. nothing is shown rather than zeros.';$('stamp').textContent='failed'});
+    if(r.status===503){clearSpend();$('state').textContent='the gateway is unavailable right now. nothing is shown rather than zeros. try again shortly.';clearUsageStamp();$('stamp').textContent='unavailable';return}
+    if(r.status!==200||!r.body||typeof r.body!=='object'){clearSpend();$('state').textContent='could not read usage (status '+r.status+'). nothing is shown. try again shortly.';clearUsageStamp();$('stamp').textContent='failed';return}
+    render(r.body);usageStampAt=Date.now();paintUsageStamp();
+  },function(){if(my!==seqS)return;clearSpend();$('state').textContent='could not reach the gateway. nothing is shown rather than zeros.';clearUsageStamp();$('stamp').textContent='failed'});
 }
 fetchJSON('/auth/me').then(function(r){
   if(r.status!==200){deny(r.status===401?'':'could not confirm your session.');return}
