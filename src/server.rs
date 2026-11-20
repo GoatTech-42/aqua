@@ -5246,4 +5246,66 @@ mod framing_matrix_tests {
     #[test] fn auth_precedence_baseline_invalid_key() { auth_precedence_baseline(Some("Bearer not-the-key"), false); }
     #[test] fn auth_precedence_baseline_valid_bearer() { auth_precedence_baseline(Some("Bearer offline-owner-key"), true); }
 
+    // Characterization, not a security recommendation: duplicate field lines
+    // use the parser's last value; one Cookie value selects the first
+    // syntactically valid session token, even when that session is stale.
+    fn duplicate_auth_characterization(kind: &str, valid_first: bool) {
+        let mut upstream = Responder::start();
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.keys.insert("offline-owner-key".into(), crate::config::KeyEntry { name: "luke".into(), role: Role::Owner });
+        state.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: upstream.url.clone(), models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-upstream".into(), context: None,
+            }],
+        }];
+        let state = Arc::new(state);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let stale = "00000000000000000000000000000000";
+        assert!(state.auth.get_session(stale).is_none(), "stale fixture must not resolve");
+        let (first, second) = if valid_first { (cookie.as_str(), stale) } else { (stale, cookie.as_str()) };
+        let framing = format!("content-length: {}\r\n", BODY.len()+1);
+        let (bytes, accepted, header_key, expected_value) = match kind {
+            "authorization" => {
+                let (a,b) = if valid_first { ("Bearer offline-owner-key", "Bearer not-the-key") }
+                            else { ("Bearer not-the-key", "Bearer offline-owner-key") };
+                (request(&cookie, &format!("Authorization: {a}\r\naUtHoRiZaTiOn: {b}\r\n{framing}")),
+                    !valid_first, "authorization", b.to_string())
+            }
+            "cookie-lines" => {
+                let raw = request(first, &format!("CoOkIe: aqua_session={second}\r\n{framing}"));
+                (raw, !valid_first, "cookie", format!("aqua_session={second}"))
+            }
+            "cookie-tokens" => {
+                let value = format!("aqua_session={first}; aqua_session={second}");
+                (request(value.strip_prefix("aqua_session=").unwrap(), &framing),
+                    valid_first, "cookie", value)
+            }
+            _ => panic!("unknown characterization"),
+        };
+        let (mut client, mut server) = pair();
+        client.write_all(bytes.as_bytes()).unwrap();
+        client.shutdown(Shutdown::Write).unwrap();
+        let parsed = read_request_within(&mut server, Duration::from_secs(2)).unwrap();
+        let candidate = gateway_call(state.clone(), bytes);
+        let candidate_hits = upstream.hits.load(Ordering::SeqCst);
+        let healthy = gateway_call(state, request(&cookie, &framing));
+        upstream.finish();
+        assert_eq!(parsed.headers.get(header_key), Some(&expected_value), "parser's last field line wins");
+        if kind == "cookie-tokens" {
+            assert_eq!(auth::session_cookie(&parsed.headers).as_deref(), Some(first), "first syntactically valid session token wins");
+        }
+        let expected_status = if accepted { "HTTP/1.1 200" } else { "HTTP/1.1 401" };
+        assert!(candidate.starts_with(expected_status), "{kind}, valid_first={valid_first}: {candidate:?}");
+        assert_eq!(candidate_hits, usize::from(accepted), "candidate dispatch reflects characterized auth selection");
+        assert!(healthy.starts_with("HTTP/1.1 200") && healthy.contains("framing healthy control"), "same-session healthy control: {healthy:?}");
+        assert_eq!(upstream.hits.load(Ordering::SeqCst), usize::from(accepted)+1);
+    }
+    #[test] fn duplicate_auth_characterization_valid_then_invalid() { duplicate_auth_characterization("authorization", true); }
+    #[test] fn duplicate_auth_characterization_invalid_then_valid() { duplicate_auth_characterization("authorization", false); }
+    #[test] fn duplicate_cookie_characterization_valid_then_stale_lines() { duplicate_auth_characterization("cookie-lines", true); }
+    #[test] fn duplicate_cookie_characterization_stale_then_valid_lines() { duplicate_auth_characterization("cookie-lines", false); }
+    #[test] fn duplicate_cookie_characterization_valid_then_stale_tokens() { duplicate_auth_characterization("cookie-tokens", true); }
+    #[test] fn duplicate_cookie_characterization_stale_then_valid_tokens() { duplicate_auth_characterization("cookie-tokens", false); }
+
 }
