@@ -27,8 +27,8 @@ five modified html files pass node --check.
 2. Prose em dashes: replaced with a period (new sentence) or a colon (label+qualifier).
 3. Meta separators: ' · ' per house style (admin ' · uncapped', landing '200 · streamed',
    landing 'aqua · invite-only model gateway').
-4. KEPT, flagged for QA ruling: the '—' no-data placeholder glyphs (9 uses across
-   console/keys/playground) and the ui/README line that documents that convention.
+4. KEPT, flagged for QA ruling: the '—' no-data placeholder glyphs (10 uses: console 1,
+   keys 1, playground 8) and the ui/README line that documents that convention.
    Replacing the glyph changes meaning (it reads as 'no value'), so it needs an
    explicit ruling, e.g. keep, or switch to a different placeholder everywhere
    including the live tree.
