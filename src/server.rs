@@ -295,7 +295,11 @@ fn read_request_within(stream: &mut TcpStream, budget: Duration) -> Result<Reque
                     return Err("bad request"); // duplicate Content-Length: ambiguous framing, reject
                 }
                 seen_len = true;
-                len = v.trim().parse().map_err(|_| "bad length")?;
+                let raw = v.trim();
+                if raw.is_empty() || !raw.bytes().all(|b| b.is_ascii_digit()) {
+                    return Err("bad length");
+                }
+                len = raw.parse().map_err(|_| "bad length")?;
             }
             headers.insert(k, v.trim().to_string());
         }
@@ -5384,5 +5388,49 @@ mod framing_matrix_tests {
     #[test] fn split_cookie_session_first_control() { split_cookie_control(false, true); }
     #[test] fn split_cookie_session_last_control() { split_cookie_control(false, false); }
     #[test] fn split_cookie_bearer_only_control() { split_cookie_control(true, false); }
+
+    #[test]
+    fn content_length_plus_rejected() {
+        let (mut client, mut server) = pair();
+        client.write_all(b"POST /x HTTP/1.1\r\ncontent-length: +2\r\n\r\n{}").unwrap();
+        client.shutdown(Shutdown::Write).unwrap();
+        assert_eq!(read_request_within(&mut server, Duration::from_secs(2)).err(), Some("bad length"));
+        rejects(format!("content-length: +{}\r\n", BODY.len()), "bad length");
+    }
+
+    #[test]
+    fn content_length_decimal_controls() {
+        for raw in ["0", "000", "2", "0002", " \t2\t "] {
+            let len = if raw.trim().parse::<usize>().unwrap() == 0 { 0 } else { 2 };
+            let (mut client, mut server) = pair();
+            write!(client, "POST /x HTTP/1.1\r\ncontent-length: {raw}\r\n\r\n{{}}").unwrap();
+            client.shutdown(Shutdown::Write).unwrap();
+            let parsed = read_request_within(&mut server, Duration::from_secs(2)).unwrap();
+            assert_eq!(parsed.body, &b"{}"[..len], "valid decimal {raw:?}");
+        }
+    }
+    #[test]
+    fn content_length_leading_zero_http_control() {
+        let mut upstream = Responder::start();
+        let mut state = Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers = vec![crate::config::Provider {
+            id: "inferbase".into(), status: Status::Personal, api_key: "offline-synthetic".into(),
+            base_url: upstream.url.clone(), models: vec![crate::config::ModelEntry {
+                public: "fixture-chat".into(), upstream: "fixture-upstream".into(), context: None,
+            }],
+        }];
+        let state = Arc::new(state);
+        let cookie = state.auth.create_session("luke", Role::Owner).unwrap();
+        let response = gateway_call(state, request(&cookie, &format!("content-length: \t000{}\t \r\n", BODY.len()+1)));
+        upstream.finish();
+        assert!(response.starts_with("HTTP/1.1 200") && response.contains("framing healthy control"), "valid decimal HTTP control: {response:?}");
+        assert_eq!(upstream.hits.load(Ordering::SeqCst), 1);
+    }
+    #[test]
+    fn content_length_overflow_and_nondigits_rejected() {
+        for raw in ["99999999999999999999999999999999", "-2", "2x", "2,2", "２", ""] {
+            rejects(format!("content-length: {raw}\r\n"), "bad length");
+        }
+    }
 
 }
