@@ -86,6 +86,12 @@ pub struct Config {
     // aggregate deadline shared by ALL fallback attempts of one client
     // request: a 300s stall on every candidate must not multiply
     pub upstream_budget: std::time::Duration,
+    // idle floor for a single upstream exchange: any socket read (response
+    // headers or body chunk) that stalls longer than this fails the attempt.
+    // ureq's per-read timeout restarts on every successful read, so a
+    // drip-feeding upstream making progress faster than this window survives
+    // (bounded only by upstream_budget); a stuck one is cut here.
+    pub upstream_idle: std::time::Duration,
 }
 
 struct RegistryEntry {
@@ -302,6 +308,12 @@ pub fn from_env() -> Config {
             .map(|n| n.clamp(1, 3600))
             .map(std::time::Duration::from_secs)
             .unwrap_or(std::time::Duration::from_secs(300)),
+        upstream_idle: env("AQUA_UPSTREAM_IDLE_SECS")
+            .and_then(|v| v.parse::<u64>().ok())
+            // sensible bounds: a wild env value can never panic the clock math
+            .map(|n| n.clamp(1, 600))
+            .map(std::time::Duration::from_secs)
+            .unwrap_or(std::time::Duration::from_secs(60)),
         oauth: OAuthConfig {
             client_id: env("AQUA_GITHUB_CLIENT_ID").unwrap_or_default(),
             client_secret: env("AQUA_GITHUB_CLIENT_SECRET").unwrap_or_default(),

@@ -154,6 +154,7 @@ fn config(providers: Vec<Provider>, auto_shortlist: Vec<&str>) -> Config {
         oauth: Default::default(), spend: Default::default(),
         auto_shortlist: auto_shortlist.into_iter().map(|s| s.to_string()).collect(),
         upstream_budget: Duration::from_secs(300),
+        upstream_idle: Duration::from_secs(60),
     }
 }
 
@@ -1609,4 +1610,133 @@ fn trial_rejects_oversize_multiple_choices_and_does_not_follow_redirects() {
     assert_eq!(first.hits.load(Ordering::SeqCst),0);
     assert_ne!(chat(&agent,&srv.base,"ownerkey",pin_msg("one")).status(),200);
     assert_eq!(first.hits.load(Ordering::SeqCst),1);assert_eq!(next.hits.load(Ordering::SeqCst),0);
+}
+
+// -- upstream idle floor (upstream_idle) vs aggregate ceiling (upstream_budget) --
+// The floor is ureq's per-read timeout on the attempt agent: it restarts on
+// every successful socket read, so it cuts stalls without bounding healthy
+// streams. The ceiling stays the pre-existing per-attempt timeout_global cut
+// from the shared request budget. Headers are committed before any mid-stream
+// cut, so a cut always ends the SSE body honestly (no [DONE]), never a 504.
+
+fn raw_sse_listener(script: impl Fn(std::net::TcpStream) + Send + 'static) -> String {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    thread::spawn(move || {
+        while let Ok((socket, _)) = listener.accept() {
+            script(socket);
+        }
+    });
+    url
+}
+
+#[test]
+fn stalled_sse_upstream_cut_at_idle_floor() {
+    let url = raw_sse_listener(|mut socket| {
+        read_request(&mut socket);
+        socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\ndata: {\"choices\":[]}\n\n").unwrap();
+        socket.flush().unwrap();
+        // stall far past the floor; the cleanup write may fail once the server gave up
+        thread::sleep(Duration::from_secs(5));
+        let _ = socket.write_all(b"data: [DONE]\n\n");
+    });
+    let mut cfg = config(vec![provider("logfare", &url, Status::Personal, vec![("one", "qwen-3.8-27b", None)])], vec![]);
+    cfg.upstream_idle = Duration::from_millis(300);
+    let srv = serve(cfg);
+    let started = Instant::now();
+    let mut payload = pin_msg("one"); payload["stream"] = true.into();
+    let mut resp = chat(&client(), &srv.base, "ownerkey", payload);
+    assert_eq!(resp.status(), 200, "headers commit before any mid-stream cut");
+    let body = resp.body_mut().read_to_string().unwrap();
+    assert!(started.elapsed() < Duration::from_secs(4), "stalled stream pinned the handler: {:?}", started.elapsed());
+    assert!(!body.contains("[DONE]"), "cut must end the stream honestly, no fabricated DONE: {body:?}");
+}
+
+#[test]
+fn dripping_sse_stream_survives_idle_floor() {
+    let url = raw_sse_listener(|mut socket| {
+        read_request(&mut socket);
+        socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\n").unwrap();
+        socket.flush().unwrap();
+        // steady progress under the floor: 10 chunks 50ms apart = 500ms total, past the 300ms floor
+        for _ in 0..10 {
+            socket.write_all(b"data: {\"choices\":[]}\n\n").unwrap(); socket.flush().unwrap();
+            thread::sleep(Duration::from_millis(50));
+        }
+        socket.write_all(b"data: [DONE]\n\n").unwrap();
+    });
+    let mut cfg = config(vec![provider("logfare", &url, Status::Personal, vec![("one", "qwen-3.8-27b", None)])], vec![]);
+    cfg.upstream_idle = Duration::from_millis(300);
+    let srv = serve(cfg);
+    let mut payload = pin_msg("one"); payload["stream"] = true.into();
+    let mut resp = chat(&client(), &srv.base, "ownerkey", payload);
+    assert_eq!(resp.status(), 200);
+    let body = resp.body_mut().read_to_string().unwrap();
+    assert!(body.contains("[DONE]"), "stream with steady progress must complete past the floor: {body:?}");
+}
+
+#[test]
+fn stalled_nonstream_upstream_fails_over_to_503_within_budget() {
+    let url = raw_sse_listener(|mut socket| {
+        read_request(&mut socket);
+        // never answer within the floor: each attempt must die on the idle
+        // floor, not the client's patience; the cleanup write ends the mutant's wait
+        thread::sleep(Duration::from_secs(5));
+        let _ = socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 14\r\n\r\n{\"choices\":[]}");
+    });
+    let mut cfg = config(vec![provider("logfare", &url, Status::Personal, vec![("one", "qwen-3.8-27b", None)])], vec![]);
+    cfg.upstream_idle = Duration::from_millis(300);
+    cfg.upstream_budget = Duration::from_secs(30);
+    let srv = serve(cfg);
+    let started = Instant::now();
+    let resp = chat(&client(), &srv.base, "ownerkey", pin_msg("one"));
+    assert_eq!(resp.status(), 503, "stalled upstream must fail over and exhaust as 503");
+    assert!(started.elapsed() < Duration::from_secs(4), "non-stream stall pinned the handler: {:?}", started.elapsed());
+}
+
+#[test]
+fn stalled_json_body_after_headers_cut_at_idle_floor() {
+    let url = raw_sse_listener(|mut socket| {
+        read_request(&mut socket);
+        // headers commit, then the JSON body stalls mid-way past the floor
+        socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: 14\r\n\r\n{\"cho").unwrap();
+        socket.flush().unwrap();
+        thread::sleep(Duration::from_secs(5));
+        let _ = socket.write_all(b"ices\":[]}");
+    });
+    let mut cfg = config(vec![provider("logfare", &url, Status::Personal, vec![("one", "qwen-3.8-27b", None)])], vec![]);
+    cfg.upstream_idle = Duration::from_millis(300);
+    cfg.upstream_budget = Duration::from_secs(30);
+    let srv = serve(cfg);
+    let started = Instant::now();
+    let resp = chat(&client(), &srv.base, "ownerkey", pin_msg("one"));
+    assert_eq!(resp.status(), 503, "stalled body must fail over and exhaust as 503");
+    assert!(started.elapsed() < Duration::from_secs(4), "mid-body stall pinned the handler: {:?}", started.elapsed());
+}
+
+#[test]
+fn dripping_stream_still_capped_by_aggregate_budget() {
+    let url = raw_sse_listener(|mut socket| {
+        read_request(&mut socket);
+        socket.write_all(b"HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\nconnection: close\r\n\r\n").unwrap();
+        socket.flush().unwrap();
+        // progress fast enough to beat the floor, long enough to cross the ceiling
+        for _ in 0..30 {
+            if socket.write_all(b"data: {\"choices\":[]}\n\n").is_err() { break; }
+            let _ = socket.flush();
+            thread::sleep(Duration::from_millis(50));
+        }
+        let _ = socket.write_all(b"data: [DONE]\n\n");
+    });
+    let mut cfg = config(vec![provider("logfare", &url, Status::Personal, vec![("one", "qwen-3.8-27b", None)])], vec![]);
+    cfg.upstream_idle = Duration::from_millis(300);
+    cfg.upstream_budget = Duration::from_millis(800);
+    let srv = serve(cfg);
+    let started = Instant::now();
+    let mut payload = pin_msg("one"); payload["stream"] = true.into();
+    let mut resp = chat(&client(), &srv.base, "ownerkey", payload);
+    assert_eq!(resp.status(), 200);
+    let body = resp.body_mut().read_to_string().unwrap();
+    assert!(started.elapsed() < Duration::from_secs(4), "aggregate ceiling did not bind the drip: {:?}", started.elapsed());
+    assert!(!body.contains("[DONE]"), "stream past the aggregate budget must be cut honestly: {body:?}");
 }

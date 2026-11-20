@@ -131,7 +131,7 @@ fn config(providers: Vec<Provider>) -> Config {
     let mut keys = HashMap::new();
     keys.insert("ownerkey".into(), KeyEntry { name: "luke".into(), role: aqua::Role::Owner });
     keys.insert("friendkey".into(), KeyEntry { name: "sam".into(), role: aqua::Role::Friend });
-    Config { keys, admin_key: "adminsecret".into(), daily_limit: 200, allowed_origin: String::new(), providers, oauth: Default::default(), spend: Default::default(), auto_shortlist: vec!["publicmodel-7b".into()], upstream_budget: Duration::from_secs(300) }
+    Config { keys, admin_key: "adminsecret".into(), daily_limit: 200, allowed_origin: String::new(), providers, oauth: Default::default(), spend: Default::default(), auto_shortlist: vec!["publicmodel-7b".into()], upstream_budget: Duration::from_secs(300), upstream_idle: Duration::from_secs(60) }
 }
 
 struct Running { base: String, _h: aqua::Server }

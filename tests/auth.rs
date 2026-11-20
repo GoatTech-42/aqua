@@ -27,6 +27,7 @@ fn cfg_with(oauth: OAuthConfig) -> aqua::Config {
         spend: Default::default(),
         auto_shortlist: vec![],
         upstream_budget: Duration::from_secs(300),
+        upstream_idle: Duration::from_secs(60),
     }
 }
 

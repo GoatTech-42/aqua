@@ -1306,6 +1306,10 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         let attempt_agent: ureq::Agent = ureq::Agent::config_builder()
             .http_status_as_error(false)
             .timeout_global(Some(remaining))
+            // idle floor: a stalled upstream read fails the attempt in
+            // upstream_idle instead of holding it to the aggregate budget;
+            // restarts per read, so steady drip-feeds survive
+            .timeout_per_read(Some(shared.config.upstream_idle))
             .max_redirects(if owner_trial(&p.id) {0} else {10})
             .build()
             .into();
@@ -1674,6 +1678,7 @@ mod reviewer_regressions {
             oauth: Default::default(), spend: Default::default(),
             auto_shortlist: vec![],
             upstream_budget: std::time::Duration::from_secs(300),
+            upstream_idle: std::time::Duration::from_secs(60),
         };
         Shared {
             keys: Mutex::new(crate::keys::Store::open(None).unwrap()),
