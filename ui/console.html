@@ -807,7 +807,8 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   });
   // Session cookie only; saved browser keys are legacy and were cleared above.
   function listModels() {
-    return fetch(base + '/models', { credentials: 'include', cache: 'no-store', headers: { 'content-type': 'application/json' } });
+    return fetch(base + '/models', { credentials: 'include', cache: 'no-store', headers: { 'content-type': 'application/json' } })
+      .catch(function () { throw { kind: 'network' }; });
   }
 
   // Sync stamp: honest relative age refreshed every 30s, absolute UTC in the
@@ -831,10 +832,11 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   window.renderSync = renderSync;
 
   listModels().then(function (r) {
-    if (!r.ok) { throw new Error('http ' + r.status); }
-    return r.json();
+    if (!r.ok) { throw { kind: 'http', status: r.status }; }
+    return r.json().catch(function () { throw { kind: 'response' }; });
   }).then(function (j) {
-    var models = (j.data || []);
+    if (!j || !Array.isArray(j.data)) throw { kind: 'response' };
+    var models = j.data;
     syncAt = Date.now(); renderSync();
     setInterval(renderSync, 30000);
     document.getElementById('aqua-finding').textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + ' listed for your account, behind one endpoint. listed does not confirm access, remaining quota or consent.';
@@ -848,11 +850,24 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     syncDetailA11y();
     status.textContent = 'model names are real; which provider serves a model is never shown here. auto model picking is proposed, not live: it would choose an eligible coding model for you. nextrouter models stay direct-pick only under the current plan.';
   }).catch(function (e) {
-    document.getElementById('aqua-sync').textContent = 'not connected';
-    document.getElementById('aqua-finding').textContent = 'could not reach the gateway at ' + base + ' (' + e.message + ').';
+    var title = 'could not read the model list.', next = 'reload the page to try again.', pill = 'unreadable';
+    if (e.kind === 'network') {
+      title = 'could not reach the gateway.'; next = 'check your connection and try again.'; pill = 'offline';
+    } else if (e.kind === 'http') {
+      title = 'could not load models.'; next = 'try again later.'; pill = 'error';
+      if (e.status === 429) { title = 'too many requests.'; next = 'try again in a bit.'; pill = 'rate limited'; }
+      else if (e.status === 503) { title = 'models are unavailable right now.'; pill = 'unavailable'; }
+      else if (e.status === 401) { title = 'sign in again to load models.'; next = 'reload the page to sign in.'; pill = 'sign-in required'; }
+      else if (e.status === 403) { title = 'not allowed to load models.'; next = 'check your access before trying again.'; pill = 'not allowed'; }
+    }
+    syncAt = 0;
+    var sync = document.getElementById('aqua-sync');
+    sync.textContent = e.kind === 'network' ? 'not connected' : 'not updated';
+    sync.title = '';
+    document.getElementById('aqua-finding').textContent = title + ' ' + next;
     rows.textContent = '';
-    rows.appendChild(makeRow('could not reach the gateway at ' + base, 'reload the page to try again.', 'offline', false));
-    status.textContent = 'the gateway is unavailable right now. reload the page to try again.';
+    rows.appendChild(makeRow(title, next, pill, false));
+    status.textContent = title + ' ' + next;
   });
 })();
 </script>
