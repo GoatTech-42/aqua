@@ -745,9 +745,12 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     pill.className = 'pill ' + (v === 'healthy' || v === 'ok' || v === 'up' ? 'pill-live' : (v === 'degraded' || v === 'partial' ? 'pill-warn' : (v === 'down' || v === 'off' || v === 'unavailable' ? 'pill-off' : 'pill-neutral')));
     pill.textContent = v;
     var tp = [];
-    if (typeof h.healthy_routes === 'number' && typeof h.eligible_routes === 'number') tp.push(h.healthy_routes + ' of ' + h.eligible_routes + ' routes answered 200');
-    if (typeof h.observed_at === 'number' && Number.isSafeInteger(h.observed_at) && h.observed_at > 0) { var od = new Date(h.observed_at * 1000); if (Number.isFinite(od.getTime())) tp.push('observed ' + od.toUTCString().replace('GMT', 'UTC')); }
-    else if (typeof h.observed_at === 'string' && h.observed_at) tp.push('observed ' + h.observed_at);
+    if (typeof h.healthy_routes === 'number' && typeof h.eligible_routes === 'number') {
+      var allUnknown = h.healthy_routes === 0 && h.failed_routes === 0 && h.unknown_routes === h.eligible_routes && h.eligible_routes > 0;
+      tp.push(allUnknown ? 'no recent observations on ' + h.eligible_routes + ' route' + (h.eligible_routes === 1 ? '' : 's') : h.healthy_routes + ' of ' + h.eligible_routes + ' routes answered 200');
+    }
+    if (typeof h.observed_at === 'number' && Number.isSafeInteger(h.observed_at) && h.observed_at > 0) { var od = new Date(h.observed_at * 1000); if (Number.isFinite(od.getTime())) tp.push('last observed ' + od.toUTCString().replace('GMT', 'UTC')); }
+    else if (typeof h.observed_at === 'string' && h.observed_at) tp.push('last observed ' + h.observed_at);
     if (tp.length) { pill.title = tp.join(', '); addDetail(st, pill.title); }
     st.appendChild(pill); return st;
   }
