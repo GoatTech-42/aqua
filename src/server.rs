@@ -1541,7 +1541,8 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
 
         if !want_stream {
             let mut buf = Vec::new();
-            if resp.body_mut().as_reader().take(MAX_RESPONSE as u64).read_to_end(&mut buf).is_err() {
+            if resp.body_mut().as_reader().take(MAX_RESPONSE as u64 + 1).read_to_end(&mut buf).is_err()
+                || buf.len() > MAX_RESPONSE {
                 shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
                 set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
                 continue;
@@ -6536,5 +6537,115 @@ mod login_start_window_tests {
         gate.wait(); for worker in workers { worker.join().unwrap(); }
         assert_eq!(accepted.load(Ordering::SeqCst), 60); let limit = limit.lock().unwrap(); assert_eq!(limit.global.as_ref().unwrap().count, 60);
         assert!(limit.peers.values().all(|v| v.count <= 5));
+    }
+}
+
+#[cfg(test)]
+mod json_body_cap_tests {
+    use super::*;
+    use super::reviewer_regressions::{keys_shared, browser_api};
+    use std::sync::mpsc::{channel, Receiver};
+
+    const VALID: &str = r#"{"id":"cap-test","object":"chat.completion","choices":[{"index":0,"message":{"role":"assistant","content":"cap control"},"finish_reason":"stop"}]}"#;
+    fn padded(n: usize) -> Vec<u8> {
+        assert_eq!(MAX_RESPONSE, 4_000_000, "fixture boundary must track the agreed cap explicitly");
+        let mut b = VALID.as_bytes().to_vec();
+        assert!(n >= b.len());
+        b.resize(n, b' ');
+        b
+    }
+    fn cap_stub(prefix: Vec<u8>, tail: Vec<u8>, gate: Option<Receiver<()>>,
+        close_delimited: bool) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let worker = thread::spawn(move || {
+            let until = Instant::now()+Duration::from_secs(5);
+            let mut socket = loop {
+                match listener.accept() {
+                    Ok((s,_)) => break s,
+                    Err(e) if e.kind()==std::io::ErrorKind::WouldBlock => {
+                        assert!(Instant::now()<until,"no loopback dispatch");
+                        thread::sleep(Duration::from_millis(2));
+                    }
+                    Err(e) => panic!("accept: {e}"),
+                }
+            };
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            socket.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let request = read_request(&mut socket).unwrap();
+            assert_eq!(request.path,"/chat/completions");
+            let length = if close_delimited { String::new() }
+                else {format!("content-length: {}\r\n",prefix.len()+tail.len())};
+            write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n{length}connection: close\r\n\r\n").unwrap();
+            // A cap-enforcing gateway can close before the rest is written.
+            if socket.write_all(&prefix).is_err() { return; }
+            if let Some(gate)=gate {gate.recv_timeout(Duration::from_secs(5)).unwrap();}
+            let _=socket.write_all(&tail);
+        });
+        (url,worker)
+    }
+    fn cap_request(url: String, idle: Duration) -> (String,Arc<Shared>) {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.upstream_budget=Duration::from_secs(3);
+        state.config.upstream_idle=idle;
+        state.config.providers=vec![crate::config::Provider {
+            id:"inferbase".into(),status:Status::Personal,api_key:"offline-synthetic".into(),base_url:url,
+            models:vec![crate::config::ModelEntry {public:"fixture-chat".into(),upstream:"cap-upstream".into(),context:None}],
+        }];
+        set_cooldown(&state,"inferbase",60,false);
+        let state=Arc::new(state);
+        let cookie=state.auth.create_session("luke",Role::Owner).unwrap();
+        let response=browser_api(state.clone(),"POST","/v1/chat/completions",&cookie,
+            Some("https://aqua.test"),"same-site",None,
+            r#"{"model":"fixture-chat","messages":[{"role":"user","content":"offline"}],"stream":false}"#);
+        (response,state)
+    }
+    fn assert_rejected(response: &str,state:&Arc<Shared>) {
+        let health=state.observations.lock().unwrap().aggregate(
+            [("inferbase","fixture-chat","cap-upstream")].into_iter());
+        assert!(response.starts_with("HTTP/1.1 503"),"oversize/incomplete upstream must not succeed: {}",response.lines().next().unwrap_or(""));
+        assert_eq!(health["healthy_routes"],0);
+        assert_eq!(health["failed_routes"],1);
+        assert!(state.health.lock().unwrap().get("inferbase").is_some_and(|c|c.until>Instant::now()));
+        assert!(state.route_latency.lock().unwrap().is_empty());
+    }
+    #[test]
+    fn json_cap_plus_one_whitespace_is_rejected() {
+        let (url,worker)=cap_stub(padded(MAX_RESPONSE),vec![b' '],None,false);
+        let (response,state)=cap_request(url,Duration::from_secs(2));worker.join().unwrap();
+        assert_rejected(&response,&state);
+    }
+    #[test]
+    fn json_cap_prefix_with_invalid_tail_is_rejected() {
+        let (url,worker)=cap_stub(padded(MAX_RESPONSE),b"not-json".to_vec(),None,false);
+        let (response,state)=cap_request(url,Duration::from_secs(2));worker.join().unwrap();
+        assert_rejected(&response,&state);
+    }
+    #[test]
+    fn json_cap_close_delimited_oversize_is_rejected() {
+        let (url,worker)=cap_stub(padded(MAX_RESPONSE),vec![b' '],None,true);
+        let (response,state)=cap_request(url,Duration::from_secs(2));worker.join().unwrap();
+        assert_rejected(&response,&state);
+    }
+    #[test]
+    fn json_cap_declared_tail_stall_is_not_success() {
+        let (tx,rx)=channel();
+        let (url,worker)=cap_stub(padded(MAX_RESPONSE),vec![b' '],Some(rx),false);
+        let (response,state)=cap_request(url,Duration::from_millis(150));
+        tx.send(()).unwrap();worker.join().unwrap();
+        assert_rejected(&response,&state);
+    }
+    #[test]
+    fn json_cap_exact_and_under_cap_valid_controls() {
+        for n in [MAX_RESPONSE-1,MAX_RESPONSE] {
+            let (url,worker)=cap_stub(padded(n),vec![],None,false);
+            let (response,state)=cap_request(url,Duration::from_secs(2));worker.join().unwrap();
+            assert!(response.starts_with("HTTP/1.1 200")&&response.contains("cap control"));
+            assert!(!state.health.lock().unwrap().contains_key("inferbase"));
+            let health=state.observations.lock().unwrap().aggregate(
+                [("inferbase","fixture-chat","cap-upstream")].into_iter());
+            assert_eq!(health["healthy_routes"],1);
+        }
     }
 }
