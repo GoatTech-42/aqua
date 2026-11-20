@@ -763,7 +763,8 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
           // absolute reading and say the age is unknown instead of "just now".
           tp.push('last observed ' + od.toUTCString().replace('GMT', 'UTC') + ' (clock skew / age unknown)');
         } else {
-          var rel = ageMs < 120000 ? 'just now' : ageMs < 3600000 ? Math.round(ageMs / 60000) + ' min ago' : ageMs < 172800000 ? Math.round(ageMs / 3600000) + ' hours ago' : Math.round(ageMs / 86400000) + ' days ago';
+          var mins = Math.floor(ageMs / 60000), hrs = Math.floor(ageMs / 3600000), days = Math.floor(ageMs / 86400000);
+          var rel = ageMs < 120000 ? 'just now' : ageMs < 3600000 ? mins + ' min ago' : ageMs < 172800000 ? hrs + (hrs === 1 ? ' hour ago' : ' hours ago') : days + (days === 1 ? ' day ago' : ' days ago');
           tp.push('last observed ' + rel + ' (' + od.toUTCString().replace('GMT', 'UTC') + ')');
           if (ageMs > 86400000) tp.push('stale: the gateway records health passively from real traffic, so this reading may be out of date');
         }
