@@ -767,7 +767,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                     "id": p.id,
                     "status": p.status.as_str(),
                     "models": p.models.iter().map(|m| json!({ "public": m.public, "upstream": m.upstream })).collect::<Vec<Value>>(),
-                    "configured": !p.api_key.is_empty(),
+                    "configured": p.configured(),
                     "retention": crate::preferences::facts(&p.id),
                 })
             })
@@ -775,7 +775,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
         let mut models: Vec<Value> = Vec::new();
         for p in &cfg.providers {
             for m in &p.models {
-                let route = json!({"provider":p.id,"upstream":m.upstream,"status":p.status.as_str(),"configured":!p.api_key.is_empty(),"retention":crate::preferences::facts(&p.id)});
+                let route = json!({"provider":p.id,"upstream":m.upstream,"status":p.status.as_str(),"configured":p.configured(),"retention":crate::preferences::facts(&p.id)});
                 if let Some(row) = models.iter_mut().find(|row|row["id"].as_str()==Some(&m.public)) {
                     row["routes"].as_array_mut().unwrap().push(route);
                     row["binding_count"] = json!(row["routes"].as_array().unwrap().len());
@@ -925,7 +925,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 seen.insert(ALIAS.to_string());
             }
             for p in &shared.config.providers {
-                if p.status == Status::Off || p.api_key.is_empty() || (owner_only(&p.id) && entry.role!=Role::Owner) || !crate::preferences::allows(&p.id,strict) {
+                if p.status == Status::Off || !p.configured() || (owner_only(&p.id) && entry.role!=Role::Owner) || !crate::preferences::allows(&p.id,strict) {
                     continue;
                 }
                 if (p.status != Status::Friends || p.id == "zro") && entry.role != Role::Owner {
@@ -1132,7 +1132,7 @@ fn openrouter_currently_serving(shared:&Shared) -> bool {
 }
 fn route_serving(p:&crate::config::Provider, role:Role, strict:bool, openrouter_ok:bool) -> bool {
     p.status != Status::Off
-        && crate::preferences::allows(&p.id,strict) && !p.api_key.is_empty()
+        && crate::preferences::allows(&p.id,strict) && p.configured()
         && !p.base_url.is_empty() && !p.models.is_empty()
         && (!owner_only(&p.id) || role==Role::Owner)
         && (role==Role::Owner || (p.status==Status::Friends && p.id!="zro"))
@@ -1146,6 +1146,7 @@ fn route_model_serving(cfg:&crate::config::Config, p:&crate::config::Provider, m
 }
 fn chat_model_eligible(provider:&str,model:&str)->bool {
     if provider=="nextrouter" {return crate::config::NEXTROUTER_CHAT_MODELS.contains(&model);}
+    if provider=="pollinations" {return model=="openai-fast";}
     !owner_trial(provider)||trial_model(provider,model)
 }
 
@@ -1226,7 +1227,7 @@ fn resolve_model(shared: &Shared, requested: &str, strict: bool, role: Role) -> 
     let now = Instant::now();
     let rows: Vec<Value> = candidates.iter().map(|(p,m)| json!({
         "provider":p.id,"upstream":m.upstream,"status":p.status.as_str(),
-        "configured":!p.api_key.is_empty(),
+        "configured":p.configured(),
         "deferred":health.get(&p.id).is_some_and(|cd|cd.hard && cd.until>now)
     })).collect();
     json!({"requested":requested,"canonical":canonical,"known":!rows.is_empty(),"candidates":rows})
@@ -1271,7 +1272,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         p.status != Status::Off
             && (!owner_only(&p.id) || entry.role==Role::Owner)
             && crate::preferences::allows(&p.id,strict)
-            && !p.api_key.is_empty()
+            && p.configured()
             && !p.base_url.is_empty()
             && !p.models.is_empty()
             && ((p.status == Status::Friends && p.id != "zro") || entry.role == Role::Owner)
@@ -1401,7 +1402,8 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     let mut tried: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for (p, m) in candidates {
         // Audience gate is separate from trial payload/RPM/redirect policy.
-        if (owner_only(&p.id) && entry.role!=Role::Owner) || !chat_model_eligible(&p.id,&m.upstream) {continue;}
+        if !p.configured() || (owner_only(&p.id) && entry.role!=Role::Owner) || !chat_model_eligible(&p.id,&m.upstream) {continue;}
+        if p.id=="pollinations" && want_stream {continue;}
         // Re-read privacy at dispatch: a concurrent settings change must not let
         // a queued request escape through a route newly excluded by its owner.
         let store=shared.spend.lock().unwrap();
@@ -1480,24 +1482,32 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             // upstream_idle instead of holding it to the aggregate budget;
             // restarts per read, so steady drip-feeds survive
             .timeout_per_read(Some(shared.config.upstream_idle))
-            .max_redirects(if owner_trial(&p.id) || p.id=="nextrouter" {0} else {10})
+            .max_redirects(if owner_trial(&p.id) || matches!(p.id.as_str(),"nextrouter"|"pollinations") {0} else {10})
             .build()
             .into();
-        let url = format!("{}/chat/completions", p.base_url.trim_end_matches('/'));
+        let url = if p.id=="pollinations" {"https://text.pollinations.ai/openai".into()}
+            else {format!("{}/chat/completions", p.base_url.trim_end_matches('/'))};
         if (owner_trial(&p.id) || p.id=="nextrouter") && !reserve_trial_rpm(shared,&p.id) {continue;}
         let mut spend = match reserve_spend(shared,entry,m,&payload,&p.id) {
             Ok(guard) => guard,
             Err(AdmissionError::AccountUnavailable) => continue,
             Err(AdmissionError::Spend(status,message,code)) => return write_json(stream,status,&spend_error(message,code),cors),
         };
+        let _anonymous_slot = if p.id=="pollinations" {
+            match crate::pollinations::acquire() {Some(slot)=>Some(slot),None=>continue}
+        } else {None};
         guard.dispatched = true;
         shared.observations.lock().unwrap().attempt(&p.id,&m.public,&m.upstream);
         let attempt_started=Instant::now();
-        let request = attempt_agent.post(&url)
-            .header("authorization", &format!("Bearer {}", p.api_key))
-            .header("content-type", "application/json");
-        let request = if p.id=="nextrouter" {request.config().user_agent("").build()} else {request};
-        let resp = request.send_json(&Value::Object(up_body));
+        let resp = if p.id=="pollinations" {
+            crate::pollinations::send(&attempt_agent,&url,&Value::Object(up_body))
+        } else {
+            let request = attempt_agent.post(&url)
+                .header("authorization", &format!("Bearer {}", p.api_key))
+                .header("content-type", "application/json");
+            let request = if p.id=="nextrouter" {request.config().user_agent("").build()} else {request};
+            request.send_json(&Value::Object(up_body))
+        };
         let mut resp = match resp {
             Ok(r) => r,
             Err(_) => {
@@ -1556,6 +1566,11 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
                 set_cooldown(shared, &p.id, shared.config.backoff.soft_secs(), false);
                 continue;
             };
+            if p.id=="pollinations" && !crate::pollinations::valid_response(&json) {
+                shared.observations.lock().unwrap().finish(&p.id,&m.public,&m.upstream,false);
+                set_cooldown(shared,&p.id,shared.config.backoff.soft_secs(),false);
+                continue;
+            }
             // A parseable body is not yet a completion: providers answer 2xx
             // with error envelopes, nulls and empty objects. Only a real
             // completion (non-empty choices, no top-level error) may commit
@@ -1668,8 +1683,8 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
 
 // Personal status never permits these development/trial accounts to serve friends.
 // Owner requested light local call/concurrency controls, not spend/token caps.
-fn owner_only(id: &str) -> bool { owner_trial(id) || matches!(id,"hmsrelay"|"nextrouter") }
-fn lowest_priority(id: &str) -> bool { matches!(id,"hmsrelay"|"sambanova"|"nextrouter") }
+fn owner_only(id: &str) -> bool { owner_trial(id) || matches!(id,"hmsrelay"|"nextrouter"|"pollinations") }
+fn lowest_priority(id: &str) -> bool { matches!(id,"hmsrelay"|"sambanova"|"nextrouter"|"pollinations") }
 fn owner_trial(id: &str) -> bool { matches!(id,"nim"|"radeon"|"logfare"|"sambanova") }
 fn trial_model(provider:&str,model:&str)->bool {
     match provider {
@@ -7138,4 +7153,51 @@ mod migration_r4_transport_tests {
         assert_eq!(route_candidates(&state,"frontier",false,Role::Owner).0.len(),1);
         assert!(owner_only("nextrouter"));assert!(!owner_trial("nextrouter"));assert!(lowest_priority("nextrouter"));
     }
+}
+
+#[cfg(test)]
+mod pollinations_route_tests {
+    use super::*;
+    use super::reviewer_regressions::keys_shared;
+    fn route()->crate::config::Provider {
+        crate::config::Provider{id:"pollinations".into(),base_url:"https://text.pollinations.ai".into(),api_key:String::new(),
+            status:Status::Friends,models:vec![crate::config::ModelEntry{public:"gpt-oss-20b".into(),upstream:"openai-fast".into(),context:None}]}
+    }
+    #[test]
+    fn anonymous_route_serves_only_owner_and_remains_below_normal_bindings() {
+        let mut s=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        let p=route();let mut normal=p.clone();normal.id="normal".into();normal.api_key="fixture".into();
+        s.config.providers=vec![p,normal];
+        let (routes,_,_)=route_candidates(&s,"gpt-oss-20b",false,Role::Owner);
+        assert_eq!(routes.iter().map(|(p,_)|p.id.as_str()).collect::<Vec<_>>(),vec!["normal","pollinations"]);
+        assert!(route_candidates(&s,"gpt-oss-20b",false,Role::Friend).0.iter().all(|(p,_)|p.id!="pollinations"));
+        assert!(route_candidates(&s,"gpt-oss-20b",true,Role::Owner).0.is_empty());
+        assert!(route_candidates(&s,"gpt-oss-120b",false,Role::Owner).0.is_empty());
+        s.config.providers[0].status=Status::Off;
+        assert_eq!(route_candidates(&s,"gpt-oss-20b",false,Role::Owner).0.len(),1);
+    }
+    #[test]
+    fn anonymous_route_rejects_catalog_drift_and_destination_override() {
+        assert!(!chat_model_eligible("pollinations","openai"));
+        assert!(!chat_model_eligible("pollinations","gpt-oss-120b"));
+        let mut p=route();p.base_url="https://gen.pollinations.ai".into();
+        assert!(!route_serving(&p,Role::Owner,false,true));
+    }
+    #[test]
+    fn pollinations_http_models_hide_from_friends_and_stream_dispatch_is_denied() {
+        use super::reviewer_regressions::browser_api;
+        let mut s=Arc::try_unwrap(keys_shared()).ok().unwrap();s.config.providers=vec![route()];
+        let state=Arc::new(s);
+        let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let friend=state.auth.create_session("sam",Role::Friend).unwrap();
+        let list=browser_api(state.clone(),"GET","/v1/models",&owner,None,"same-site",None,"");
+        assert!(list.starts_with("HTTP/1.1 200"));assert!(list.contains("gpt-oss-20b"));
+        let list=browser_api(state.clone(),"GET","/v1/models",&friend,None,"same-site",None,"");
+        assert!(list.starts_with("HTTP/1.1 200"));assert!(!list.contains("gpt-oss-20b"));
+        let denied=browser_api(state.clone(),"POST","/v1/chat/completions",&friend,Some("https://aqua.test"),"same-site",None,r#"{"model":"gpt-oss-20b","messages":[{"role":"user","content":"offline fixture"}]}"#);
+        assert!(denied.starts_with("HTTP/1.1 400"),"{denied}");
+        let denied=browser_api(state,"POST","/v1/chat/completions",&owner,Some("https://aqua.test"),"same-site",None,r#"{"model":"gpt-oss-20b","stream":true,"messages":[{"role":"user","content":"offline fixture"}]}"#);
+        assert!(denied.starts_with("HTTP/1.1 503"),"{denied}");
+    }
+
 }

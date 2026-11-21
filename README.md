@@ -464,3 +464,37 @@ terms and live configuration are verified. No training or consent setting is
 changed by this source.
 
 Thread creation uses fallible OS spawn results: bind returns an error if the accept thread cannot start, and a handler spawn failure closes that connection. Existing admission/drain tests pass, but the OS thread-creation failure branch has not been exercised by fault injection.
+
+
+### Pollinations Classic: anonymous owner evaluation
+
+Disabled by default. Source registration does not enable this route. After
+independent QA and deployment approval, opt in explicitly with:
+
+    AQUA_STATUS_POLLINATIONS=personal
+    POLLINATIONS_MODELS="gpt-oss-20b=openai-fast"
+
+No API key is used. The destination is fixed to
+`https://text.pollinations.ai/openai`, with no endpoint override, bearer token,
+cookie, forwarded client headers, redirect following, or `gen.pollinations.ai`
+continuation. Only the exact mapping above is accepted. The route stays
+owner-only even if its status is accidentally set to `friends`. Within the
+canonical `gpt-oss-20b` model it is in the lowest provider-priority group. It
+cannot make another canonical model silently resolve to GPT-OSS 20B.
+
+This first version is JSON-only. Streaming requests skip this route, and JSON
+responses must report `model: gpt-oss-20b` before their contents reach clients.
+Missing or changed response identity fails closed rather than claiming the
+pinned model was served. The anonymous alias can change upstream; this guard
+checks the returned label, not the underlying model weights.
+
+One process-wide request may be in flight, held until the response body finishes
+or the attempt fails. Dispatch starts are at least 60 seconds apart, including
+failed attempts. This is a conservative local limit, not a published quota or a
+remaining-balance claim. Multiple Aqua processes do not share this local gate;
+keep only one enabled instance per egress while evaluating the anonymous tier.
+Upstream limits may apply to the shared IP. No paid fallback is configured for
+this adapter. Retention is unknown, so strict privacy mode excludes it.
+
+Source checks: https://text.pollinations.ai/models,
+https://pollinations.ai/privacy, https://pollinations.ai/terms.

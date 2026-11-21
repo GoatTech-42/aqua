@@ -71,6 +71,15 @@ pub struct Provider {
     pub status: Status,
 }
 
+impl Provider {
+    pub(crate) fn configured(&self) -> bool {
+        if self.id=="pollinations" {
+            self.base_url=="https://text.pollinations.ai" && !self.models.is_empty() && self.models.iter().all(|m|
+                m.public=="gpt-oss-20b" && m.upstream=="openai-fast")
+        } else { !self.api_key.is_empty() }
+    }
+}
+
 /// Handler admission limits. Normalized on use, including programmatic configs.
 #[derive(Clone, Debug)]
 pub struct ConnectionLimits {
@@ -214,6 +223,7 @@ struct RegistryEntry {
 // route costs nothing: enable with AQUA_STATUS_<ID> only after the provider
 // lane has verified cost (no credits, no metered billing) and terms.
 const REGISTRY: &[RegistryEntry] = &[
+    RegistryEntry { id:"pollinations", base_url:"https://text.pollinations.ai", base_url_env:None, key_env:"", models_env:Some("POLLINATIONS_MODELS") },
     RegistryEntry { id:"nextrouter", base_url:"https://nextrouter.me/v1", base_url_env:None, key_env:"NEXTROUTER_API_KEY", models_env:Some("NEXTROUTER_MODELS") },
     RegistryEntry {
         id: "openrouter",
@@ -374,6 +384,7 @@ pub fn sanitize_models(
             "inferbase" => m.upstream == "deepseek-v4-flash",
             "hmsrelay" => m.upstream == "deepseek-v4.1-flash-free",
             "sambanova" => m.upstream == "gemma-4-31B-it",
+            "pollinations" => m.public == "gpt-oss-20b" && m.upstream == "openai-fast",
             _ => true,
         };
         if !allowed { continue; }
@@ -490,7 +501,7 @@ pub fn from_env() -> Config {
                 Provider {
                     id: p.id.to_string(),
                     base_url,
-                    api_key: env(p.key_env).unwrap_or_default(),
+                    api_key: if p.key_env.is_empty() {String::new()} else {env(p.key_env).unwrap_or_default()},
                     models,
                     status,
                 }
@@ -689,4 +700,45 @@ mod migration_r4_config_tests {
         assert_eq!(clean.len(),1);assert_eq!(clean[0].public,"minimax-m3.1-flash");assert_eq!(clean[0].upstream,"minimaxai/minimax-m3.1-flash");assert_eq!(clean[0].context,Some(8192));
         assert!(sanitize_models("nim",vec![entry("minimax-m3.1-flash","other")],&meta).is_empty());
     }
+}
+
+#[cfg(test)]
+mod pollinations_config_tests {
+    use super::*;
+    #[test]
+    fn pollinations_anonymous_route_is_registered_without_key_or_endpoint_override() {
+        let row=REGISTRY.iter().find(|p|p.id=="pollinations").expect("anonymous route registered");
+        assert_eq!(row.base_url,"https://text.pollinations.ai");
+        assert_eq!(row.base_url_env,None);
+        let valid=ModelEntry{public:"gpt-oss-20b".into(),upstream:"openai-fast".into(),context:None};
+        assert_eq!(sanitize_models("pollinations",vec![valid.clone()],&HashMap::new()).len(),1);
+        for (public,upstream) in [("gpt-oss-120b","openai-fast"),("gpt-oss-20b","openai"),("gpt-oss-20b","paid-model")] {
+            assert!(sanitize_models("pollinations",vec![ModelEntry{public:public.into(),upstream:upstream.into(),..valid.clone()}],&HashMap::new()).is_empty());
+        }
+    }
+    #[test]
+    fn pollinations_requires_nonempty_exact_binding_even_in_programmatic_configs() {
+        let mut p=Provider{id:"pollinations".into(),base_url:"https://text.pollinations.ai".into(),api_key:"accidental-stored-secret".into(),models:vec![],status:Status::Personal};
+        assert!(!p.configured());
+        p.models=vec![ModelEntry{public:"gpt-oss-20b".into(),upstream:"openai-fast".into(),context:None}];
+        assert!(p.configured());
+        p.models[0].upstream="openai".into();assert!(!p.configured());
+        p.models[0].upstream="openai-fast".into();p.models[0].public="gpt-oss-120b".into();assert!(!p.configured());
+    }
+
+    #[test]
+    fn pollinations_env_is_default_off_and_opt_in_is_keyless() {
+        struct Restore(Vec<(&'static str,Option<std::ffi::OsString>)>);
+        impl Drop for Restore {fn drop(&mut self){for (key,value) in &self.0 {match value {Some(v)=>std::env::set_var(key,v),None=>std::env::remove_var(key)}}}}
+        let vars=["AQUA_STATUS_POLLINATIONS","POLLINATIONS_MODELS"];
+        let _restore=Restore(vars.iter().map(|key|(*key,std::env::var_os(key))).collect());
+        for key in vars {std::env::remove_var(key);}
+        let cfg=from_env();let p=cfg.providers.iter().find(|p|p.id=="pollinations").unwrap();
+        assert_eq!(p.status,Status::Off);assert!(!p.configured());assert!(p.api_key.is_empty());
+        std::env::set_var("AQUA_STATUS_POLLINATIONS","personal");
+        std::env::set_var("POLLINATIONS_MODELS","gpt-oss-20b=openai-fast");
+        let cfg=from_env();let p=cfg.providers.iter().find(|p|p.id=="pollinations").unwrap();
+        assert_eq!(p.status,Status::Personal);assert!(p.configured());assert!(p.api_key.is_empty());
+    }
+
 }

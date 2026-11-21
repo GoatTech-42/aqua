@@ -20,3 +20,5 @@ pub use server::{bind, bind_addr, Server};
 mod spend;
 
 pub use spend::{Settings as SpendSettings, Price as ModelPrice, Caps as SpendCaps};
+
+mod pollinations;
