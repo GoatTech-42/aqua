@@ -925,7 +925,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 seen.insert(ALIAS.to_string());
             }
             for p in &shared.config.providers {
-                if p.status == Status::Off || p.api_key.is_empty() || (owner_trial(&p.id) && entry.role!=Role::Owner) || !crate::preferences::allows(&p.id,strict) {
+                if p.status == Status::Off || p.api_key.is_empty() || (owner_only(&p.id) && entry.role!=Role::Owner) || !crate::preferences::allows(&p.id,strict) {
                     continue;
                 }
                 if (p.status != Status::Friends || p.id == "zro") && entry.role != Role::Owner {
@@ -934,7 +934,7 @@ fn handle(mut stream: TcpStream, shared: Arc<Shared>) -> std::io::Result<()> {
                 if p.id=="cloudflare" {continue;}
                 if p.id=="openrouter" && (cfg.spend.account_verified_day!=chrono_day() || cfg.spend.openrouter_allowance==0 || !shared.spend.lock().unwrap().durable()) {continue;}
                 for m in &p.models {
-                    if owner_trial(&p.id) && !trial_model(&p.id,&m.upstream) {continue;}
+                    if !chat_model_eligible(&p.id,&m.upstream) {continue;}
                     if p.id=="openrouter" && !OPENROUTER_FREE.contains(&m.upstream.as_str()) {continue;}
                     if entry.role != Role::Owner && cfg.spend.restricted(&m.public) { continue; }
                     if m.public == ALIAS || !seen.insert(m.public.clone()) {
@@ -1134,7 +1134,7 @@ fn route_serving(p:&crate::config::Provider, role:Role, strict:bool, openrouter_
     p.status != Status::Off
         && crate::preferences::allows(&p.id,strict) && !p.api_key.is_empty()
         && !p.base_url.is_empty() && !p.models.is_empty()
-        && (!owner_trial(&p.id) || role==Role::Owner)
+        && (!owner_only(&p.id) || role==Role::Owner)
         && (role==Role::Owner || (p.status==Status::Friends && p.id!="zro"))
         && p.id!="cloudflare"
         && (p.id!="openrouter" || openrouter_ok)
@@ -1145,6 +1145,7 @@ fn route_model_serving(cfg:&crate::config::Config, p:&crate::config::Provider, m
         && (role==Role::Owner || !cfg.spend.restricted(&m.public))
 }
 fn chat_model_eligible(provider:&str,model:&str)->bool {
+    if provider=="nextrouter" {return crate::config::NEXTROUTER_CHAT_MODELS.contains(&model);}
     !owner_trial(provider)||trial_model(provider,model)
 }
 
@@ -1188,10 +1189,12 @@ fn route_candidates<'a>(shared: &'a Shared, requested: &str, strict: bool, role:
             candidates.extend(fresh);
             candidates.extend(cooled.into_iter().map(|(c, _)| c));
             candidates.extend(deferred);
-            // The 1017 snapshot is failover, never a latency-promoted primary.
-            if name == "deepseek-v4.1-flash" {
-                candidates[start..].sort_by_key(|(_,m)|m.upstream == "deepseek-v4.1-flash-1017");
-            }
+            // Stable tier ordering overrides latency and soft cooldown ordering.
+            // Existing snapshot semantics stay inside the normal-provider tier.
+            candidates[start..].sort_by_key(|(p,m)|(
+                lowest_priority(&p.id),
+                name == "deepseek-v4.1-flash" && m.upstream == "deepseek-v4.1-flash-1017"
+            ));
         };
         if requested == ALIAS {
             for name in &shared.config.auto_shortlist {
@@ -1266,7 +1269,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     drop(store);
     let eligible = |p: &&crate::config::Provider| {
         p.status != Status::Off
-            && (!owner_trial(&p.id) || entry.role==Role::Owner)
+            && (!owner_only(&p.id) || entry.role==Role::Owner)
             && crate::preferences::allows(&p.id,strict)
             && !p.api_key.is_empty()
             && !p.base_url.is_empty()
@@ -1291,7 +1294,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             .providers
             .iter()
             .filter(eligible)
-            .any(|p| p.models.iter().any(|m| m.public == name && (!owner_trial(&p.id)||trial_model(&p.id,&m.upstream))))
+            .any(|p| p.models.iter().any(|m| m.public == name && chat_model_eligible(&p.id,&m.upstream)))
     };
     if requested != ALIAS && !known(requested) {
         return write_json(stream, 400, &err_body("unknown model", "invalid_request"), cors);
@@ -1310,7 +1313,7 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             let mut cooled: Vec<(_, Instant)> = Vec::new();
             let mut deferred: Vec<(&crate::config::Provider, &crate::config::ModelEntry)> = Vec::new();
             for p in shared.config.providers.iter().filter(eligible) {
-                for m in p.models.iter().filter(|m| m.public == name && (!owner_trial(&p.id)||trial_model(&p.id,&m.upstream))) {
+                for m in p.models.iter().filter(|m| m.public == name && chat_model_eligible(&p.id,&m.upstream)) {
                     if entry.role != Role::Owner && shared.config.spend.restricted(&m.public) { continue; }
                     match health.get(p.id.as_str()) {
                         Some(cd) if cd.until > now => {
@@ -1334,10 +1337,12 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             candidates.extend(fresh);
             candidates.extend(cooled.into_iter().map(|(c, _)| c));
             candidates.extend(deferred);
-            // The 1017 snapshot is failover, never a latency-promoted primary.
-            if name == "deepseek-v4.1-flash" {
-                candidates[start..].sort_by_key(|(_,m)|m.upstream == "deepseek-v4.1-flash-1017");
-            }
+            // Stable tier ordering overrides latency and soft cooldown ordering.
+            // Existing snapshot semantics stay inside the normal-provider tier.
+            candidates[start..].sort_by_key(|(p,m)|(
+                lowest_priority(&p.id),
+                name == "deepseek-v4.1-flash" && m.upstream == "deepseek-v4.1-flash-1017"
+            ));
         };
         if requested == ALIAS {
             for name in &shared.config.auto_shortlist {
@@ -1395,6 +1400,8 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
     let mut saw_rate_limit = false;
     let mut tried: std::collections::HashSet<&str> = std::collections::HashSet::new();
     for (p, m) in candidates {
+        // Audience gate is separate from trial payload/RPM/redirect policy.
+        if (owner_only(&p.id) && entry.role!=Role::Owner) || !chat_model_eligible(&p.id,&m.upstream) {continue;}
         // Re-read privacy at dispatch: a concurrent settings change must not let
         // a queued request escape through a route newly excluded by its owner.
         let store=shared.spend.lock().unwrap();
@@ -1473,11 +1480,11 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
             // upstream_idle instead of holding it to the aggregate budget;
             // restarts per read, so steady drip-feeds survive
             .timeout_per_read(Some(shared.config.upstream_idle))
-            .max_redirects(if owner_trial(&p.id) {0} else {10})
+            .max_redirects(if owner_trial(&p.id) || p.id=="nextrouter" {0} else {10})
             .build()
             .into();
         let url = format!("{}/chat/completions", p.base_url.trim_end_matches('/'));
-        if owner_trial(&p.id) && !reserve_trial_rpm(shared,&p.id) {continue;}
+        if (owner_trial(&p.id) || p.id=="nextrouter") && !reserve_trial_rpm(shared,&p.id) {continue;}
         let mut spend = match reserve_spend(shared,entry,m,&payload,&p.id) {
             Ok(guard) => guard,
             Err(AdmissionError::AccountUnavailable) => continue,
@@ -1486,11 +1493,11 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
         guard.dispatched = true;
         shared.observations.lock().unwrap().attempt(&p.id,&m.public,&m.upstream);
         let attempt_started=Instant::now();
-        let resp = attempt_agent
-            .post(&url)
+        let request = attempt_agent.post(&url)
             .header("authorization", &format!("Bearer {}", p.api_key))
-            .header("content-type", "application/json")
-            .send_json(&Value::Object(up_body));
+            .header("content-type", "application/json");
+        let request = if p.id=="nextrouter" {request.config().user_agent("").build()} else {request};
+        let resp = request.send_json(&Value::Object(up_body));
         let mut resp = match resp {
             Ok(r) => r,
             Err(_) => {
@@ -1661,9 +1668,12 @@ fn chat(stream: &mut TcpStream, shared: &Shared, req: &Request, entry: &crate::c
 
 // Personal status never permits these development/trial accounts to serve friends.
 // Owner requested light local call/concurrency controls, not spend/token caps.
-fn owner_trial(id: &str) -> bool { matches!(id,"nim"|"radeon"|"logfare") }
+fn owner_only(id: &str) -> bool { owner_trial(id) || matches!(id,"hmsrelay"|"nextrouter") }
+fn lowest_priority(id: &str) -> bool { matches!(id,"hmsrelay"|"sambanova"|"nextrouter") }
+fn owner_trial(id: &str) -> bool { matches!(id,"nim"|"radeon"|"logfare"|"sambanova") }
 fn trial_model(provider:&str,model:&str)->bool {
     match provider {
+        "sambanova"=>model=="gemma-4-31B-it",
         "logfare"=>matches!(model,"qwen-3.8-27b"|"deepseek-v4.1-flash-1017"|"glm-5.3-flash"|"glm-5.3"|"kimi-k2.6"|"kimi-k2.7-code"),
         "nim"=>matches!(model,"z-ai/glm-5.3-flash"|"minimaxai/minimax-m3.1-flash"|"mistralai/mistral-large-4-1t-a52b"|"stepfun-ai/step-5-preview"|"nvidia/nemotron-3-ultra-550b-a55b"|"nvidia/nemotron-3.5-super-vl-120b-a12b"|"nvidia/nemotron-3.5-lightning-30b-a3b"),
         "radeon"=>matches!(model,"GLM-5.3-Flash"|"MiMo-V2.6-Flash"|"DeepSeek-V4.1-Flash"|"DeepSeek-V4-Flash"|"Qwen3.8-27B"),
@@ -1671,11 +1681,11 @@ fn trial_model(provider:&str,model:&str)->bool {
     }
 }
 fn reserve_trial_rpm(shared:&Shared,provider:&str)->bool {
-    if !owner_trial(provider) {return false;}
+    if !owner_trial(provider) && provider!="nextrouter" {return false;}
     let mut all=shared.trial_recent.lock().unwrap();
     let calls=all.entry(provider.into()).or_default();
     let now=Instant::now();calls.retain(|t|now.duration_since(*t)<Duration::from_secs(60));
-    if calls.len()>=2 {return false;}
+    if calls.len()>=if provider=="nextrouter" {30} else {2} {return false;}
     calls.push(now);true
 }
 // Successful response-header latency, not token throughput or full answer time.
@@ -6926,5 +6936,206 @@ mod openrouter_atomic_admission_controls {
         assert_eq!(l["next_id"],1,"only fallback spend reservation committed");
         assert_eq!(l["reservations"],json!({}));
         cleanup(Arc::try_unwrap(s).ok().unwrap(),path);
+    }
+}
+
+#[cfg(test)]
+mod lowest_provider_route_tests {
+    use super::*;
+    use super::reviewer_regressions::{keys_shared,browser_api};
+    fn provider(id:&str,url:&str)->crate::config::Provider {
+        crate::config::Provider{id:id.into(),base_url:url.into(),api_key:"fixture".into(),status:Status::Personal,
+            models:vec![crate::config::ModelEntry{public:"same".into(),upstream:match id {
+                "hmsrelay"=>"deepseek-v4.1-flash-free","sambanova"=>"gemma-4-31B-it","nextrouter"=>"grok-4.7",_=>"private"
+            }.into(),context:None}]}
+    }
+    #[test]
+    fn lowest_tier_overrides_fast_latency_and_soft_cooldown_but_preserves_model_pin() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers=vec![provider("hmsrelay","http://127.0.0.1:1"),provider("sambanova","http://127.0.0.1:1"),provider("normal","http://127.0.0.1:1")];
+        for id in ["hmsrelay","sambanova"] {state.route_latency.get_mut().unwrap().insert((id.into(),"same".into()),1);}
+        state.route_latency.get_mut().unwrap().insert(("normal".into(),"same".into()),999);
+        for soft in [false,true] {
+            if soft {state.health.get_mut().unwrap().insert("normal".into(),Cooldown{until:Instant::now()+Duration::from_secs(60),hard:false});}
+            let (routes,immediate,_)=route_candidates(&state,"same",false,Role::Owner);
+            assert_eq!(routes.iter().map(|(p,_)|p.id.as_str()).collect::<Vec<_>>(),vec!["normal","hmsrelay","sambanova"]);
+            assert_eq!(immediate,3);
+        }
+        assert!(route_candidates(&state,"different",false,Role::Owner).0.is_empty());
+        assert!(route_candidates(&state,"same",true,Role::Owner).0.is_empty());
+        assert!(route_candidates(&state,"same",false,Role::Friend).0.is_empty());
+        for p in &mut state.config.providers {p.status=Status::Off;}
+        assert!(route_candidates(&state,"same",false,Role::Owner).0.is_empty());
+    }
+    #[test]
+    fn low_priority_does_not_relax_hard_cooldown_and_samba_is_owner_evaluation_only() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        let mut samba=provider("sambanova","http://127.0.0.1:1");samba.status=Status::Friends;
+        state.config.providers=vec![samba];
+        assert!(route_candidates(&state,"same",false,Role::Friend).0.is_empty());
+        state.health.get_mut().unwrap().insert("sambanova".into(),Cooldown{until:Instant::now()+Duration::from_secs(60),hard:true});
+        let (_,immediate,hard)=route_candidates(&state,"same",false,Role::Owner);assert_eq!(immediate,0);assert!(hard);
+        assert!(!trial_model("sambanova","gpt-oss-120b"));
+        assert!(trial_model("sambanova","gemma-4-31B-it"));
+    }
+    #[test]
+    fn auto_remains_model_first_not_global_provider_tier_first() {
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        let low=provider("hmsrelay","http://127.0.0.1:1");
+        let mut normal=provider("normal","http://127.0.0.1:1");normal.models[0].public="later-model".into();
+        state.config.providers=vec![normal,low];state.config.auto_shortlist=vec!["same".into(),"later-model".into()];
+        let (routes,_,_)=route_candidates(&state,ALIAS,false,Role::Owner);
+        assert_eq!(routes.iter().map(|(p,_)|p.id.as_str()).collect::<Vec<_>>(),vec!["hmsrelay","normal"]);
+    }
+    fn valid_body(model:&str)->String {
+        json!({"model":model,"messages":[{"role":"user","content":"Reply with a short greeting."}]}).to_string()
+    }
+    // Bounded loopback responder. A mistakenly promoted low-tier route gets a
+    // real successful answer, so ordering assertions cannot pass via fallback.
+    fn responder(listener:TcpListener,content:&'static str)->JoinHandle<bool> {
+        thread::spawn(move||{
+            listener.set_nonblocking(true).unwrap();let until=Instant::now()+Duration::from_secs(5);
+            let mut socket=loop {match listener.accept() {
+                Ok((s,_))=>break s,
+                Err(e) if e.kind()==std::io::ErrorKind::WouldBlock=>{
+                    if Instant::now()>=until {return false;}thread::sleep(Duration::from_millis(5));
+                },Err(e)=>panic!("accept: {e}"),
+            }};
+            socket.set_read_timeout(Some(Duration::from_secs(5))).unwrap();let _=read_request(&mut socket).unwrap();
+            let body=json!({"choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":content}}]}).to_string();
+            write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",body.len()).unwrap();true
+        })
+    }
+    #[test]
+    fn friends_status_cannot_expose_either_provider_in_resolver_or_dispatch() {
+        for id in ["hmsrelay","sambanova","nextrouter"] {for model in ["same",ALIAS] {
+            let listener=TcpListener::bind("127.0.0.1:0").unwrap();listener.set_nonblocking(true).unwrap();
+            let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+            let mut p=provider(id,&format!("http://{}",listener.local_addr().unwrap()));p.status=Status::Friends;
+            state.config.providers=vec![p];state.config.auto_shortlist=vec!["same".into()];
+            let state=Arc::new(state);
+            assert!(route_candidates(&state,model,false,Role::Friend).0.is_empty());
+            assert_eq!(route_candidates(&state,model,false,Role::Owner).0.len(),1);
+            let friend=state.auth.create_session("sam",Role::Friend).unwrap();let body=valid_body(model);
+            let response=browser_api(state.clone(),"POST","/v1/chat/completions",&friend,Some("https://aqua.test"),"same-site",None,&body);
+            assert!(!response.starts_with("HTTP/1.1 200"),"{id}: {response}");
+            assert!(matches!(listener.accept(),Err(e) if e.kind()==std::io::ErrorKind::WouldBlock));
+            // Identical provider/state/payload, changed role only: Owner must
+            // dispatch, proving denial was not an invalid-payload no-op.
+            let worker=responder(listener,"owner control");let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+            let response=browser_api(state,"POST","/v1/chat/completions",&owner,Some("https://aqua.test"),"same-site",None,&body);
+            assert!(worker.join().unwrap(),"owner never dispatched {id}");
+            assert!(response.starts_with("HTTP/1.1 200")&&response.contains("owner control"),"{id}: {response}");
+        }}
+        assert!(owner_only("hmsrelay"));assert!(!owner_trial("hmsrelay"));
+        // Samba has two independent audience barriers: owner_only and its
+        // existing owner_trial dispatch gate. This is end-to-end denial proof,
+        // not a claim that mutating owner_only alone exposes Samba.
+        assert!(owner_trial("sambanova"));
+    }
+    #[test]
+    fn actual_dispatch_lowest_tier_for_both_providers_pinned_auto_and_soft_cooled() {
+        ordering_cases("hmsrelay");ordering_cases("sambanova");ordering_cases("nextrouter");
+    }
+    #[test]
+    fn actual_dispatch_lowest_tier_samba_valid_payload_and_control() {
+        ordering_cases("sambanova");
+    }
+    fn ordering_cases(low:&str) {
+        for auto in [false,true] {for soft in [false,true] {
+            let primary=TcpListener::bind("127.0.0.1:0").unwrap();let primary_url=format!("http://{}",primary.local_addr().unwrap());
+            let relay=TcpListener::bind("127.0.0.1:0").unwrap();relay.set_nonblocking(true).unwrap();let relay_url=format!("http://{}",relay.local_addr().unwrap());
+            let primary_worker=responder(primary,"normal route");
+            let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+            state.config.providers=vec![provider(low,&relay_url),provider("normal",&primary_url)];
+            state.config.auto_shortlist=vec!["same".into()];
+            state.route_latency.get_mut().unwrap().insert((low.into(),"same".into()),1);
+            if soft {state.health.get_mut().unwrap().insert("normal".into(),Cooldown{until:Instant::now()+Duration::from_secs(60),hard:false});}
+            let state=Arc::new(state);let session=state.auth.create_session("luke",Role::Owner).unwrap();
+            let body=valid_body(if auto {ALIAS}else{"same"});
+            // Low listener is live and can answer successfully. Removing or
+            // reversing the tier must select this response and fail below.
+            let low_worker=responder(relay,"low route control");
+            let response=browser_api(state.clone(),"POST","/v1/chat/completions",&session,Some("https://aqua.test"),"same-site",None,&body);
+            let normal_called=primary_worker.join().unwrap();
+            if !normal_called || !response.contains("normal route") {
+                let _=low_worker.join();
+                panic!("ordering violation {low} auto={auto} soft={soft}: {response}");
+            }
+            assert!(response.starts_with("HTTP/1.1 200"),"{response}");
+            // Same state/payload, only normal route becomes hard cooled. The
+            // healthy low-tier route must now dispatch and return its answer.
+            state.health.lock().unwrap().insert("normal".into(),Cooldown{until:Instant::now()+Duration::from_secs(60),hard:true});
+            let control=browser_api(state,"POST","/v1/chat/completions",&session,Some("https://aqua.test"),"same-site",None,&body);
+            assert!(low_worker.join().unwrap(),"healthy {low} was never dispatched");
+            assert!(control.starts_with("HTTP/1.1 200")&&control.contains("low route control"),"{low} control: {control}");
+        }}
+    }
+}
+
+#[cfg(test)]
+mod migration_r4_transport_tests {
+    use super::*;
+    use super::reviewer_regressions::{keys_shared,browser_api};
+    fn provider(id:&str,status:Status,public:&str,url:&str)->crate::config::Provider {
+        crate::config::Provider{id:id.into(),base_url:url.into(),api_key:"synthetic".into(),status,models:vec![crate::config::ModelEntry{public:public.into(),upstream:"grok-4.7".into(),context:None}]}
+    }
+    fn bounded_accept(listener:TcpListener)->TcpStream {
+        listener.set_nonblocking(true).unwrap();let until=Instant::now()+Duration::from_secs(5);
+        loop {match listener.accept() {
+            Ok((s,_))=>{s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();return s;},
+            Err(e)if e.kind()==std::io::ErrorKind::WouldBlock=>{assert!(Instant::now()<until,"expected upstream dispatch");thread::sleep(Duration::from_millis(5));},
+            Err(e)=>panic!("accept: {e}"),
+        }}
+    }
+    #[test] fn nextrouter_redirect_does_not_reach_second_server() {
+      // 307/308 alone are insufficient: ureq already refuses to replay POST
+      // bodies there. 302/303 follow as GET unless our explicit guard stops it.
+      for (id,status,expected_hits) in [("nextrouter",302,0),("nextrouter",303,0),("nextrouter",307,0),("nextrouter",308,0),("fixture",303,1)] {
+        let second=TcpListener::bind("127.0.0.1:0").unwrap();second.set_nonblocking(true).unwrap();let location=format!("http://{}/redirect-target",second.local_addr().unwrap());
+        let stop=Arc::new(AtomicBool::new(false));let stop_worker=stop.clone();let hits=Arc::new(std::sync::atomic::AtomicUsize::new(0));let count=hits.clone();
+        let capture=thread::spawn(move||{let deadline=Instant::now()+Duration::from_secs(3);while !stop_worker.load(Ordering::SeqCst)&&Instant::now()<deadline {match second.accept(){Ok((mut socket,_))=>{count.fetch_add(1,Ordering::SeqCst);let _=read_request(&mut socket).unwrap();let body=r#"{"choices":[{"message":{"content":"redirect control"},"finish_reason":"stop"}]}"#;write!(socket,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",body.len()).unwrap();return;},Err(e)if e.kind()==std::io::ErrorKind::WouldBlock=>thread::yield_now(),Err(e)=>panic!("{e}")}}});
+        let first=TcpListener::bind("127.0.0.1:0").unwrap();let url=format!("http://{}",first.local_addr().unwrap());
+        let worker=thread::spawn(move||{let mut socket=bounded_accept(first);let _=read_request(&mut socket).unwrap();write!(socket,"HTTP/1.1 {status} Redirect\r\nlocation: {location}\r\ncontent-length: 0\r\nconnection: close\r\n\r\n").unwrap();});
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();let mut provider=provider(id,Status::Personal,"frontier",&url);provider.models[0].upstream="grok-4.7".into();state.config.providers=vec![provider];state.config.upstream_budget=Duration::from_secs(1);let state=Arc::new(state);let session=state.auth.create_session("luke",Role::Owner).unwrap();
+        let response=browser_api(state,"POST","/v1/chat/completions",&session,Some("https://aqua.test"),"same-site",None,r#"{"model":"frontier","messages":[{"role":"user","content":"hi"}]}"#);worker.join().unwrap();stop.store(true,Ordering::SeqCst);capture.join().unwrap();
+        assert_eq!(hits.load(Ordering::SeqCst),expected_hits,"{id} {status} second-server connections");assert!(response.starts_with(if expected_hits==0{"HTTP/1.1 503"}else{"HTTP/1.1 200"}),"{id} {status}: {response}");
+      }
+    }
+    #[test] fn nextrouter_reservation_caps_at_30_and_keeps_other_trial_cap() {
+      let state=keys_shared();for _ in 0..30 {assert!(reserve_trial_rpm(&state,"nextrouter"));}assert!(!reserve_trial_rpm(&state,"nextrouter"));
+      assert!(reserve_trial_rpm(&state,"nim"));assert!(reserve_trial_rpm(&state,"nim"));assert!(!reserve_trial_rpm(&state,"nim"));
+      state.trial_recent.lock().unwrap().get_mut("nextrouter").unwrap().iter_mut().for_each(|t|*t=Instant::now()-Duration::from_secs(61));assert!(reserve_trial_rpm(&state,"nextrouter"));
+    }
+    #[test] fn nextrouter_real_dispatch_omits_ua_but_other_provider_retains_default() {
+      for id in ["nextrouter","fixture"] {
+        let upstream=TcpListener::bind("127.0.0.1:0").unwrap();let url=format!("http://{}",upstream.local_addr().unwrap());
+        let worker=thread::spawn(move||{let mut c=bounded_accept(upstream);let req=read_request(&mut c).unwrap();let body=r#"{"choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}"#;write!(c,"HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",body.len()).unwrap();req.headers});
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();let mut p=provider(id,Status::Personal,"next-explicit",&url);p.models[0].upstream="grok-4.7".into();state.config.providers=vec![p];let state=Arc::new(state);let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+        let response=browser_api(state,"POST","/v1/chat/completions",&owner,Some("https://aqua.test"),"same-site",None,r#"{"model":"next-explicit","messages":[{"role":"user","content":"hi"}]}"#);assert!(response.starts_with("HTTP/1.1 200"),"{response}");let headers=worker.join().unwrap();
+        if id=="nextrouter" {assert!(!headers.contains_key("user-agent"));}else{assert!(headers["user-agent"].starts_with("ureq/"));}
+      }
+    }
+
+
+    #[test]
+    fn nextrouter_runtime_gate_rejects_unqualified_manual_bindings_and_friend_access() {
+        for upstream in ["flux-2-dev","claude-sonnet-5","gpt-oss-120b"] {
+            let listener=TcpListener::bind("127.0.0.1:0").unwrap();listener.set_nonblocking(true).unwrap();
+            let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+            let mut p=provider("nextrouter",Status::Friends,"frontier",&format!("http://{}",listener.local_addr().unwrap()));p.models[0].upstream=upstream.into();
+            state.config.providers=vec![p];state.config.auto_shortlist=vec!["frontier".into()];let state=Arc::new(state);let owner=state.auth.create_session("luke",Role::Owner).unwrap();
+            for name in ["frontier",ALIAS] {
+                assert!(route_candidates(&state,name,false,Role::Owner).0.is_empty());
+                let body=json!({"model":name,"messages":[{"role":"user","content":"hi"}]}).to_string();
+                assert!(!browser_api(state.clone(),"POST","/v1/chat/completions",&owner,Some("https://aqua.test"),"same-site",None,&body).starts_with("HTTP/1.1 200"));
+            }
+            assert!(state.trial_recent.lock().unwrap().is_empty());assert!(matches!(listener.accept(),Err(e)if e.kind()==std::io::ErrorKind::WouldBlock));
+        }
+        let mut state=Arc::try_unwrap(keys_shared()).ok().unwrap();
+        state.config.providers=vec![provider("nextrouter",Status::Friends,"frontier","http://127.0.0.1:1")];
+        assert!(route_candidates(&state,"frontier",false,Role::Friend).0.is_empty());
+        assert_eq!(route_candidates(&state,"frontier",false,Role::Owner).0.len(),1);
+        assert!(owner_only("nextrouter"));assert!(!owner_trial("nextrouter"));assert!(lowest_priority("nextrouter"));
     }
 }

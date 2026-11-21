@@ -643,8 +643,10 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
            d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
   }
   function apiError(r, body) {
-    var detail = body && typeof body.error === 'string' ? body.error
+    var detail = body && body.error && typeof body.error.message === 'string' ? body.error.message
+               : body && typeof body.error === 'string' ? body.error
                : body && typeof body.message === 'string' ? body.message : '';
+    if (detail && !/[.!?]$/.test(detail)) detail += '.';
     if (r.status === 401) { location.replace('/'); return 'signed out.'; }
     if (r.status === 403) return 'not allowed from this origin.' + (detail ? ' ' + detail : '');
     if (r.status === 503) return 'the gateway is unavailable right now. try again shortly, or hit refresh.';

@@ -28,7 +28,7 @@ impl Status {
     fn parse(s: &str) -> Option<Status> {
         match s.to_ascii_lowercase().as_str() {
             "off" => Some(Status::Off),
-            "personal" => Some(Status::Personal),
+            "enabled" | "personal" => Some(Status::Personal),
             "friends" => Some(Status::Friends),
             _ => None,
         }
@@ -214,6 +214,7 @@ struct RegistryEntry {
 // route costs nothing: enable with AQUA_STATUS_<ID> only after the provider
 // lane has verified cost (no credits, no metered billing) and terms.
 const REGISTRY: &[RegistryEntry] = &[
+    RegistryEntry { id:"nextrouter", base_url:"https://nextrouter.me/v1", base_url_env:None, key_env:"NEXTROUTER_API_KEY", models_env:Some("NEXTROUTER_MODELS") },
     RegistryEntry {
         id: "openrouter",
         base_url: "https://openrouter.ai/api/v1",
@@ -287,6 +288,20 @@ const REGISTRY: &[RegistryEntry] = &[
         key_env: "GONKA_BROKER_API_KEY",
         models_env: Some("GONKA_MODELS"),
     },
+    RegistryEntry {
+        id: "hmsrelay",
+        base_url: "https://100milionseek.top/v1",
+        base_url_env: None,
+        key_env: "HMSRELAY_API_KEY",
+        models_env: Some("HMSRELAY_MODELS"),
+    },
+    RegistryEntry {
+        id: "sambanova",
+        base_url: "https://api.sambanova.ai/v1",
+        base_url_env: None,
+        key_env: "SAMBANOVA_API_KEY",
+        models_env: Some("SAMBANOVA_MODELS"),
+    },
 ];
 
 pub fn parse_keys(value: Option<String>, role: Role, out: &mut HashMap<String, KeyEntry>) {
@@ -337,6 +352,8 @@ pub fn parse_model_meta(value: Option<String>) -> HashMap<String, u32> {
 // One provider's model list, cleaned: no empty ids, no reserved alias, no
 // public name carrying the provider id, no duplicates; verified context
 // metadata attached by public name.
+pub(crate) const NEXTROUTER_CHAT_MODELS: &[&str] = &["grok-4.7","Qwen4-Max-Preview","Qwen3.8-Max","muse-spark-open","kimi-k3.1-pro","claude-opus-5","claude-haiku-5.5","claude-haiku-3-5","claude-opus-5-5"];
+
 pub fn sanitize_models(
     provider_id: &str,
     entries: Vec<ModelEntry>,
@@ -351,9 +368,12 @@ pub fn sanitize_models(
         // Intake adapters are exact-model allowlists, not general catalogs.
         // Never turn an operator typo into a paid or unqualified fallback.
         let allowed = match provider_id {
+            "nextrouter" => NEXTROUTER_CHAT_MODELS.contains(&m.upstream.as_str()),
             "orcarouter" => m.upstream == "deepseek/deepseek-v4.1-flash-free",
             "zai" => matches!(m.upstream.as_str(), "glm-4.7-flash" | "glm-4.5-flash"),
             "inferbase" => m.upstream == "deepseek-v4-flash",
+            "hmsrelay" => m.upstream == "deepseek-v4.1-flash-free",
+            "sambanova" => m.upstream == "gemma-4-31B-it",
             _ => true,
         };
         if !allowed { continue; }
@@ -362,7 +382,11 @@ pub fn sanitize_models(
             continue;
         }
         // public names must never carry the provider id
-        if m.public.contains(provider_id) {
+        // Restore this exact known maker-model alias without relaxing the
+        // provider-name filter for any other binding.
+        let nim_minimax = provider_id=="nim" && m.public=="minimax-m3.1-flash"
+            && m.upstream=="minimaxai/minimax-m3.1-flash";
+        if m.public.contains(provider_id) && !nim_minimax {
             continue;
         }
         if !seen.insert(m.public.clone()) {
@@ -611,5 +635,58 @@ mod auth_throttle_config_tests {
         for (p,want) in [(AuthThrottle{failures:0,window_secs:0,entries:0},(1,1,1)),(AuthThrottle{failures:u32::MAX,window_secs:u64::MAX,entries:usize::MAX},(1000,3600,100000))] {
             assert_eq!((p.failures(),p.window().as_secs(),p.entries()),want);
         }
+    }
+}
+
+#[cfg(test)]
+mod lowest_provider_registry_tests {
+    use super::*;
+    #[test]
+    fn lowest_provider_wiring_and_exact_allowlists() {
+        for (id,base,key,models,allowed) in [
+            ("hmsrelay","https://100milionseek.top/v1","HMSRELAY_API_KEY","HMSRELAY_MODELS","deepseek-v4.1-flash-free"),
+            ("sambanova","https://api.sambanova.ai/v1","SAMBANOVA_API_KEY","SAMBANOVA_MODELS","gemma-4-31B-it"),
+        ] {
+            let row=REGISTRY.iter().find(|p|p.id==id).unwrap();
+            assert_eq!(row.base_url,base);assert_eq!(row.base_url_env,None);
+            assert_eq!(row.key_env,key);assert_eq!(row.models_env,Some(models));
+            let entries=[allowed,"gpt-oss-120b","paid-model","Gemma-4-31B-it"].iter().enumerate()
+                .map(|(i,up)|ModelEntry{public:format!("model-{i}"),upstream:up.to_string(),context:None}).collect();
+            let clean=sanitize_models(id,entries,&HashMap::new());
+            assert_eq!(clean.len(),1);assert_eq!(clean[0].upstream,allowed);
+        }
+    }
+}
+
+#[cfg(test)]
+mod nextrouter_claude_intake_tests {
+    use super::*;
+    #[test]
+    fn four_exact_claudes_and_existing_frontier_ids_survive_no_lookalikes() {
+        let old=["grok-4.7","Qwen4-Max-Preview","Qwen3.8-Max","muse-spark-open","kimi-k3.1-pro"];
+        let claude=["claude-opus-5","claude-haiku-5.5","claude-haiku-3-5","claude-opus-5-5"];
+        let rejected=["claude-opus-5-paid","claude-opus-5.5","claude-haiku-3.5","claude-sonnet-5","gpt-oss-120b","flux-2-dev"];
+        let entries=old.iter().chain(claude.iter()).chain(rejected.iter()).map(|id|ModelEntry{public:id.to_string(),upstream:id.to_string(),context:None}).collect();
+        let clean=sanitize_models("nextrouter",entries,&HashMap::new());
+        assert_eq!(clean.iter().map(|m|m.upstream.as_str()).collect::<Vec<_>>(),old.iter().chain(claude.iter()).copied().collect::<Vec<_>>());
+        assert_eq!(Status::parse("enabled"),Some(Status::Personal));
+        assert_eq!(Status::parse("personal"),Some(Status::Personal));
+    }
+}
+
+#[cfg(test)]
+mod migration_r4_config_tests {
+    use super::*;
+    #[test]
+    fn live_registry_status_and_minimax_mapping_survive() {
+        let p=REGISTRY.iter().find(|p|p.id=="nextrouter").unwrap();
+        assert_eq!(p.base_url,"https://nextrouter.me/v1");assert_eq!(p.key_env,"NEXTROUTER_API_KEY");assert_eq!(p.models_env,Some("NEXTROUTER_MODELS"));
+        for status in ["enabled","ENABLED","personal","PERSONAL"] {assert_eq!(Status::parse(status),Some(Status::Personal));}
+        assert_eq!(Status::parse("off"),Some(Status::Off));assert_eq!(Status::parse("invalid"),None);
+        let entry=|public:&str,upstream:&str|ModelEntry{public:public.into(),upstream:upstream.into(),context:None};
+        let mut meta=HashMap::new();meta.insert("minimax-m3.1-flash".into(),8192);
+        let clean=sanitize_models("nim",vec![entry("minimax-m3.1-flash","minimaxai/minimax-m3.1-flash"),entry("minimax-m3.1-flash","other"),entry("nim/model","private"),entry("model-nim","private")],&meta);
+        assert_eq!(clean.len(),1);assert_eq!(clean[0].public,"minimax-m3.1-flash");assert_eq!(clean[0].upstream,"minimaxai/minimax-m3.1-flash");assert_eq!(clean[0].context,Some(8192));
+        assert!(sanitize_models("nim",vec![entry("minimax-m3.1-flash","other")],&meta).is_empty());
     }
 }
