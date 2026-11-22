@@ -579,7 +579,7 @@ section { margin-bottom:2.5rem; }
       <div id="aqua-body" hidden>
     <h1>routing</h1>
     <p class="sub">which provider serves each model, in order.<span id="aqua-sub-live" hidden> health and latency samples are measured. order may be config, manual or proposed; prices and limits are source-based estimates.</span></p>
-    <p class="note warn" id="aqua-mock">proposal - the routing apis are not live yet, so this page is a mock. layout, states and conflict handling are final. the data is a fixture. eligibility shown is illustrative, not an account access check.</p>
+    <p class="note warn" id="aqua-mock">proposal - the routing apis are not live yet, so this page is a mock. layout, states and conflict handling are final. the data is a fixture. eligibility shown is illustrative, not an account access check. changes you make here are not saved.</p>
 
     <section aria-labelledby="t-auto">
       <div class="auto-card aqua-in">
@@ -780,7 +780,7 @@ section { margin-bottom:2.5rem; }
   var mockState = null;
   var mockLog = [];
   function mockSnap() { return JSON.parse(JSON.stringify(mockState)); }
-  function mockNote(text) { mockLog.unshift({ t: new Date().toLocaleTimeString(), kind: 'you', text: text }); }
+  function mockNote(text) { mockLog.unshift({ t: new Date().toLocaleTimeString(), kind: 'you', text: text + ' (fixture)' }); }
   function mockRecheck(m) {
     var seenNonFree = false;
     m.free_first_violated = m.pinned && m.order.some(function (c) { if (!c.free) { seenNonFree = true; return false; } return seenNonFree; });
@@ -803,7 +803,7 @@ section { margin-bottom:2.5rem; }
   }
   function mockApplyAuto(next) {
     mockState.settings.auto = next; mockState.settings_rev++;
-    mockNote('you turned auto-reorder ' + (next ? 'on' : 'off') + ' (fixture - no background job runs until the backend lands).');
+    mockNote('you turned auto-reorder ' + (next ? 'on' : 'off') + ' - no background job runs until the backend lands.');
   }
 
   function latText(c) {
@@ -999,7 +999,7 @@ section { margin-bottom:2.5rem; }
     var st = document.getElementById('aqua-l-status');
     var wrap = document.getElementById('aqua-log');
     wrap.textContent = '';
-    if (!items.length) { st.textContent = 'no changes yet.'; return; }
+    if (!items.length) { st.textContent = LIVE ? 'no changes yet.' : 'no changes yet. this fixture log resets on reload.'; return; }
     st.textContent = '';
     items.forEach(function (it) {
       var row = el('div', 'logrow');
