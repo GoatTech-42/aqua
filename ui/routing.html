@@ -681,7 +681,8 @@ section { margin-bottom:2.5rem; }
     return fetch(base + path.replace(/^\/v1/, ''), opts).then(function (r) {
       return r.json().catch(function () { return null; }).then(function (body) {
         if (!r.ok) {
-          var detail = body && typeof body.error === 'string' ? body.error : '';
+          var detail = body && body.error && typeof body.error.message === 'string' ? body.error.message : body && typeof body.error === 'string' ? body.error : '';
+          if (detail && !/[.!?]$/.test(detail)) detail += '.';
           var msg, code = 'http';
           if (r.status === 401) { msg = 'session expired - reload to sign in again.'; code = 'auth'; }
           else if (r.status === 400) { msg = detail || 'that order was rejected.'; code = 'bad_request'; }

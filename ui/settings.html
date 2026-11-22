@@ -259,7 +259,7 @@ html { font-size: clamp(16px, 0.75vw + 8.32px, 36px); }
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
   --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
-  --warn:var(--muted);
+  --warn:#e3b341;
   --accent:#2fd4bf; --accent-ink:#03251f;
   --radius-card:0.7rem; --radius-control:0.5rem;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
@@ -688,8 +688,10 @@ h2 { margin-top:2rem; }
     return fetch(serverOrigin + path, opts).then(function (r) {
       return r.json().catch(function () { return null; }).then(function (body) {
         if (!r.ok) {
-          var detail = body && typeof body.error === 'string' ? body.error
+          var detail = body && body.error && typeof body.error.message === 'string' ? body.error.message
+                     : body && typeof body.error === 'string' ? body.error
                      : body && typeof body.message === 'string' ? body.message : '';
+          if (detail && !/[.!?]$/.test(detail)) detail += '.';
           if (r.status === 401) throw Error('session expired - reload to sign in again.');
           if (r.status === 403) throw Error('not allowed.' + (detail ? ' ' + detail : ''));
           if (r.status === 503) throw Error('storage is unavailable right now. try again shortly.');
