@@ -429,6 +429,9 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .mrow { display:block; padding:0.375rem 0.75rem; border-radius:0.4375rem; color:var(--muted); text-decoration:none; font-size:0.875rem; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mrow:hover { color:var(--text); }
 .mrow.on { background:#161616; color:#fff; }
+button.mrow { font-family:inherit; background:none; border:0; width:100%; text-align:left; }
+#aqua-rail button.mrow:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+#aqua-stream button.mrow:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .keynotice { margin:0 var(--pad-x); padding-top:1rem; font-size:0.875rem; color:var(--warn); }
 @media (max-width: 900px) {
   .pg { grid-template-columns:1fr; height:auto; min-height:calc(100vh - 3.375rem); }
@@ -604,6 +607,8 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     request('/v1/models').then(function (r) { if (!r.ok) throw Error('http ' + r.status); return r.json(); }).then(function (j) {
       var rail = document.getElementById('aqua-rail');
       var models = j.data || [];
+      var fail = document.getElementById('aqua-pg-fail');
+      if (fail) fail.remove();
       rail.textContent = '';
       sel.textContent = '';
       var autoOpt = document.createElement('option'); autoOpt.value = 'auto'; autoOpt.textContent = 'auto'; sel.appendChild(autoOpt);
@@ -619,7 +624,25 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
       });
     }).catch(function (e) {
       var rail = document.getElementById('aqua-rail');
-      if (e.message !== 'signed out.') { rail.innerHTML = '<span class="mrow">could not load models</span>'; }
+      if (e.message !== 'signed out.') {
+        rail.innerHTML = '<span class="mrow">could not load models.</span>';
+        var retry = document.createElement('button');
+        retry.type = 'button'; retry.className = 'mrow'; retry.textContent = 'try again shortly.';
+        retry.addEventListener('click', function () { loadModels(); });
+        rail.appendChild(retry);
+        // the rail is hidden below 760px, so mirror the failure and retry into the stream.
+        var oldFail = document.getElementById('aqua-pg-fail');
+        if (oldFail) oldFail.remove();
+        if (stream.children.length === 1 && !stream.firstElementChild.id && !stream.querySelector('.who') && !stream.querySelector('.route')) stream.textContent = '';
+        var f = document.createElement('div');
+        f.className = 'msg'; f.id = 'aqua-pg-fail';
+        f.innerHTML = '<div class="body">could not load models.</div>';
+        var retry2 = document.createElement('button');
+        retry2.type = 'button'; retry2.className = 'mrow'; retry2.textContent = 'try again shortly.';
+        retry2.addEventListener('click', function () { loadModels(); });
+        f.querySelector('.body').appendChild(retry2);
+        stream.appendChild(f);
+      }
     });
   }
   loadModels();

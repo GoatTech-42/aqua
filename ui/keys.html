@@ -319,6 +319,7 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .stamp { display:flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; color:var(--faint); }
 .stamp svg { width:0.875rem; height:0.875rem; }
 
+#aqua-refresh[hidden] { display:none; }
 .btn { display:inline-flex; align-items:center; gap:0.4375rem; min-height:2.375rem; padding:0 0.9375rem; border-radius:var(--radius-control);
   font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; border:1px solid var(--control); background:transparent; color:var(--text); white-space:nowrap;
   transition:border-color .15s ease, filter .15s ease; }
@@ -491,6 +492,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
       </div>
 
       <p class="stateline" id="aqua-status" role="status" aria-live="polite">loading keys...</p>
+      <p><button type="button" class="btn" id="aqua-refresh" hidden>refresh</button></p>
 
       <div class="table aqua-in aqua-in-3" id="aqua-table" hidden>
         <div class="thead"><span class="h">name</span><span class="h">key</span><span class="h">created</span><span class="h">last used</span><span class="h" style="text-align:right"></span></div>
@@ -616,8 +618,8 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     if (detail && !/[.!?]$/.test(detail)) detail += '.';
     if (r.status === 401) { location.replace('/'); return 'signed out.'; }
     if (r.status === 403) return 'not allowed from this origin.' + (detail ? ' ' + detail : '');
-    if (r.status === 503) return 'key storage is unavailable right now. try again shortly.';
-    if (r.status === 404) return 'key not found - it may already be revoked.';
+    if (r.status === 503) return 'the gateway is unavailable right now. try again shortly, or hit refresh.';
+    if (r.status === 404) return 'not found. it may already be revoked or removed.';
     if (r.status === 400) return detail || 'that name is not allowed, or you already have 16 keys.';
     return 'request failed (http ' + r.status + ').' + (detail ? ' ' + detail : '');
   }
@@ -698,10 +700,12 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     return request('/v1/keys').then(function (body) {
       keys = (body && Array.isArray(body.data)) ? body.data : [];
       keys.sort(function (a, b) { return (b.created || 0) - (a.created || 0); });
+      document.getElementById('aqua-refresh').hidden = true;
       render();
       if (!quiet) say(keys.length + ' of 16 keys.');
       return true;
     }).catch(function (e) {
+      document.getElementById('aqua-refresh').hidden = false;
       if (!quiet) { say('could not load keys. ' + e.message, true); return false; }
       throw e;
     });
@@ -749,6 +753,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     });
   });
 
+  document.getElementById('aqua-refresh').addEventListener('click', function () { load(); });
   load();
 })();
 </script>

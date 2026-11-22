@@ -787,10 +787,10 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     status.textContent = 'model names are real; which provider serves a model is never shown here. auto model picking is proposed, not live: it would choose an eligible coding model for you. nextrouter models stay direct-pick only under the current plan.';
   }).catch(function (e) {
     document.getElementById('aqua-sync').textContent = 'not connected';
-    document.getElementById('aqua-finding').textContent = 'could not reach the api at ' + base + ' (' + e.message + ').';
+    document.getElementById('aqua-finding').textContent = 'could not reach the gateway at ' + base + ' (' + e.message + ').';
     rows.textContent = '';
-    rows.appendChild(makeRow('backend not reachable', base, 'offline', false));
-    status.textContent = 'check that the deployment is up, then reload.';
+    rows.appendChild(makeRow('could not reach the gateway at ' + base, 'reload the page to try again.', 'offline', false));
+    status.textContent = 'the gateway is unavailable right now. reload the page to try again.';
   });
 })();
 </script>
