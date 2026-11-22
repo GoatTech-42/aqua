@@ -429,7 +429,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .reveal .rv-key { margin-top:0.75rem; display:flex; align-items:stretch; max-width:44rem; }
 .reveal .rv-key .ktiles { flex:1; min-width:0; display:flex; align-items:center; padding:0 0.875rem; min-height:2.5rem; background:#000;
   border:1px solid var(--control); border-right:none; border-radius:var(--radius-control) 0 0 var(--radius-control);
-  font-family:var(--mono); font-size:0.9375rem; color:#f2f2f2; overflow-x:auto; white-space:nowrap; cursor:text; }
+  font-family:var(--mono); font-size:0.9375rem; color:#f2f2f2; overflow-wrap:anywhere; cursor:text; }
 .reveal .rv-key .ktiles::selection, .reveal .rv-key .ktiles *::selection { background:#f2f2f2; color:#000; }
 .reveal .rv-key .cp { display:inline-flex; align-items:center; gap:0.375rem; padding:0 0.875rem; background:#fff; color:#000;
   border:1px solid #fff; border-radius:0 var(--radius-control) var(--radius-control) 0; font:inherit; font-size:0.875rem; font-weight:500; cursor:pointer; }
@@ -621,6 +621,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   var revealKey = document.getElementById('aqua-reveal-key');
   var revealTitle = document.getElementById('aqua-reveal-title');
   var revealCopy = document.getElementById('aqua-reveal-copy');
+  var revealedId = null;
   function dismissReveal(restoreFocus) {
     if (reveal.hidden) return;
     reveal.hidden = true;
@@ -705,6 +706,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
           .then(function () {
             keys = keys.filter(function (x) { return x.id !== k.id; });
             render();
+            if (k.id === revealedId) dismissReveal(false);
             say('revoked "' + k.name + '".');
             // Keep focus on a surviving control: the rebuilt row is gone.
             status.tabIndex = -1; status.focus();
@@ -734,7 +736,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
       keys.sort(function (a, b) { return (b.created || 0) - (a.created || 0); });
       document.getElementById('aqua-refresh').hidden = true;
       render();
-      if (!quiet) say(keys.length + ' of 16 key' + (keys.length === 1 ? '' : 's') + '.');
+      if (!quiet) say(keys.length + ' of 16 keys.');
       return true;
     }).catch(function (e) {
       document.getElementById('aqua-refresh').hidden = false;
@@ -752,12 +754,13 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     say('creating key…');
     request('/v1/keys', { method: 'POST', body: JSON.stringify({ name: name }) })
       .then(function (body) {
+        revealedId = body && body.id ? body.id : null;
         revealTitle.textContent = 'key "' + (body.name || name) + '" created';
         revealKey.textContent = body.key || '';
         reveal.hidden = false;
         nameInput.value = '';
         revealCopy.querySelector('span').textContent = 'copy';
-        say('copy the key below. it will not be shown again.');
+        say('copy it now. it will not be shown again.');
         return load();
       })
       .catch(function (e) {
