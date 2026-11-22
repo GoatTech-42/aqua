@@ -379,7 +379,15 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
 .pill-warn { background:#211a0c; border:1px solid #3a2e15; color:var(--warn); }
 
+.dim{color:var(--faint);font-size:.85rem}
 .phonebar { display:none; }
+.phonebar .pb-nav { margin-left:auto; position:relative; }
+.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
+.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
+.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
+.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
+.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
+.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 @media (max-width: 760px) {
   .app { grid-template-columns:1fr; }
@@ -467,7 +475,7 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
     <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
   </aside>
   <main class="main" id="main" tabindex="-1">
-    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">playground</span></div>
+    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">playground</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html" aria-current="page">playground</a><a href="/keys.html">api keys</a><a href="/usage.html">usage</a><a href="/routing.html">routing</a><a href="/settings.html">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
     <div class="pg">
       <section class="conv">
         <p class="keynotice" id="aqua-keynotice" hidden></p>
@@ -554,6 +562,7 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
   }
   var so = document.getElementById('aqua-signout');
   so.style.display = '';
+  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
   so.addEventListener('click', function (ev) {
     ev.preventDefault();
     fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
