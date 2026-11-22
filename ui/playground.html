@@ -310,6 +310,9 @@ svg { display:block; }
 
 /* ---- canvas ---- */
 .main { min-width:0; min-height:0; overflow-y:auto; }
+.skiplink { position:absolute; left:-9999px; top:0.5rem; z-index:200; background:var(--ground); color:var(--accent); font-size:0.85rem; padding:0.4rem 0.75rem; border:1px solid var(--line); border-radius:var(--radius-control); }
+.skiplink:focus { left:0.5rem; outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
+.main:focus { outline:none; }
 .side { overflow-y:auto; }
 .canvas { padding:var(--pad-top) var(--pad-x) 4rem; max-width:var(--canvas-max); margin:0 auto; width:100%; }
 .titlerow { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; }
@@ -443,6 +446,7 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
 </style>
 </head>
 <body>
+<a class="skiplink" href="#main">skip to content</a>
 <div class="app">
   <aside class="side">
     <a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
@@ -461,7 +465,7 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
     <div class="spacer"></div>
     <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
   </aside>
-  <main class="main">
+  <main class="main" id="main" tabindex="-1">
     <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">playground</span></div>
     <div class="pg">
       <section class="conv">
