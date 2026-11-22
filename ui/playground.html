@@ -245,10 +245,7 @@
   src: url(/fonts/f04.woff2) format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-html[data-session-pending] { visibility:hidden; }
-.denied { margin-top:6rem; text-align:center; }
-.denied h1 { margin-top:1.125rem; }
-.denied .sub { margin-left:auto; margin-right:auto; }</style>
+html[data-session-pending] { visibility:hidden; }</style>
 <noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -256,13 +253,13 @@ html[data-session-pending] { visibility:hidden; }
 <style>
 /* aqua shell - shared by landing, console, playground, keys, settings.
    black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
-   deliberately larger UI (16px at <=1024, ~23.9px at 1920, ~29.6px at 2560, 40px at 3840). All component sizes in rem. */
-html { font-size: clamp(16px, 0.885vw + 6.93px, 40px); }
+   deliberately larger UI (16px at <=1024, ~22.7px at 1920, ~27.5px at 2560, 36px at 3840+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.75vw + 8.32px, 36px); }
 :root {
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
   --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
-  --warn:#e3b341;
+  --warn:#e8c445;
   --accent:#2fd4bf; --accent-ink:#03251f;
   --radius-card:0.625rem; --radius-control:0.5rem;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
@@ -310,9 +307,6 @@ svg { display:block; }
 .userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
 .userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; display:inline-flex; align-items:center; min-height:1.5rem; }
 .userrow a:hover { color:var(--text); }
-.userrow button { margin-left:auto; font-family:inherit; font-size:0.78rem; color:var(--faint); background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; min-height:1.5rem; }
-.userrow button:hover { color:var(--text); }
-.userrow button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 /* ---- canvas ---- */
 .main { min-width:0; min-height:0; overflow-y:auto; }
@@ -333,13 +327,9 @@ h2 { font-size:1.25rem; font-weight:600; letter-spacing:-0.01em; }
 .btn:disabled { color:var(--muted); cursor:wait; }
 .btn:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
 a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
-.skiplink { position:absolute; left:-9999px; top:0.5rem; z-index:200; background:var(--ground); color:var(--accent); font-size:0.85rem; padding:0.4rem 0.75rem; border:1px solid var(--line); border-radius:var(--radius-control); text-decoration:none; }
-.skiplink:focus { left:0.5rem; }
-.main:focus { outline:none; }
 #aqua-send:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .pgsel:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .cbox input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
-.msearch input::placeholder, .cbox input::placeholder { color:#8a8a8a; }
 .msearch input:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .btn-solid { background:#fff; color:#000; border-color:#fff; }
 .btn-solid:hover { border-color:#fff; filter:brightness(0.9); }
@@ -385,15 +375,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .pill-live { background:#141414; border:1px solid #242424; color:#d4d4d4; }
 .pill-warn { background:#211a0c; border:1px solid #3a2e15; color:var(--warn); }
 
-.dim{color:var(--faint);font-size:.85rem}
 .phonebar { display:none; }
-.phonebar .pb-nav { margin-left:auto; position:relative; }
-.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
-.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
-.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
-.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
-.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
-.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 @media (max-width: 760px) {
   .app { grid-template-columns:1fr; }
@@ -419,7 +401,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .pghead { display:flex; align-items:baseline; gap:0.625rem; padding:1rem var(--pad-x); border-bottom:1px solid var(--rule); }
 .pghead .m { font-weight:600; font-size:1.0625rem; }
 .pghead .s { color:var(--faint); font-size:0.875rem; }
-.pghead .pgsel { display:none; margin-left:auto; background:var(--surface); border:1px solid #767676; border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.875rem; padding:0.375rem 0.5rem; max-width:11rem; }
+.pghead .pgsel { display:none; margin-left:auto; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.875rem; padding:0.375rem 0.5rem; max-width:11rem; }
 .stream { flex:1; overflow-y:auto; padding:1.5rem var(--pad-x); display:flex; flex-direction:column; gap:1.375rem; }
 .msg { max-width:68ch; }
 .msg .who, .msg .route { font-family:var(--mono); font-size:0.72rem; margin-bottom:0.375rem; }
@@ -428,8 +410,8 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .msg .route.err { color:var(--warn); }
 .msg .body { color:#e8e8e8; line-height:1.6; white-space:pre-wrap; }
 .composer { border-top:1px solid var(--rule); padding:1rem var(--pad-x); }
-.cbox { display:flex; gap:0.625rem; align-items:center; background:var(--surface); border:1px solid #767676; border-radius:var(--radius-control); padding:0.375rem 0.375rem 0.375rem 0.875rem; }
-.cbox:focus-within { border-color:var(--muted); }
+.cbox { display:flex; gap:0.625rem; align-items:center; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); padding:0.375rem 0.375rem 0.375rem 0.875rem; }
+.cbox:focus-within { border-color:var(--control); }
 .cbox input { flex:1; background:none; border:0; outline:0; color:var(--text); font:inherit; min-width:0; }
 .cbox button { background:#fff; color:#000; border:0; border-radius:0.375rem; width:2.25rem; height:2.25rem; display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none; }
 .cbox button:disabled { opacity:0.4; cursor:default; }
@@ -442,15 +424,11 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .pgnote { margin-top:1.25rem; font-size:0.8125rem; color:var(--faint); line-height:1.6; }
 .pgnote a { color:var(--muted); }
 .msearch { padding:0 0.375rem 0.375rem; }
-.msearch input { width:100%; background:var(--surface); border:1px solid #767676; border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.8125rem; padding:0.375rem 0.625rem; outline:0; }
+.msearch input { width:100%; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-control); color:var(--text); font:inherit; font-size:0.8125rem; padding:0.375rem 0.625rem; outline:0; }
 .msearch input:focus { border-color:var(--control); }
 .mrow { display:block; padding:0.375rem 0.75rem; border-radius:0.4375rem; color:var(--muted); text-decoration:none; font-size:0.875rem; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-button.mrow { font-family:inherit; background:none; border:0; width:100%; text-align:left; }
 .mrow:hover { color:var(--text); }
 .mrow.on { background:#161616; color:#fff; }
-#aqua-rail button.mrow:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-#aqua-stream button.mrow:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-.kv .unk[tabindex]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .keynotice { margin:0 var(--pad-x); padding-top:1rem; font-size:0.875rem; color:var(--warn); }
 @media (max-width: 900px) {
   .pg { grid-template-columns:1fr; height:auto; min-height:calc(100vh - 3.375rem); }
@@ -462,43 +440,36 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
 </style>
 </head>
 <body>
-<a class="skiplink" href="#main">skip to content</a>
 <div class="app">
   <aside class="side">
-    <a class="brand" href="/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
     <nav class="nav">
       <div class="navlabel">gateway</div>
-      <a href="/console.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
-      <a href="/playground.html" class="on" aria-current="page"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
-      <a href="/keys.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
-      <a href="/usage.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
-      <a href="/routing.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
-      <a href="/settings.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+      <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html" class="on" aria-current="page"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/usage.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+      <a href="/routing.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+      <a href="/settings.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
     </nav>
       <div class="navlabel">models</div>
       <div class="msearch"><input id="aqua-filter" placeholder="filter models" aria-label="filter models"></div>
       <div id="aqua-rail"><span class="mrow">loading models…</span></div>
     <div class="spacer"></div>
-    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
   </aside>
-  <main class="main" id="main" tabindex="-1">
-    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">playground</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html" aria-current="page">playground</a><a href="/keys.html">api keys</a><a href="/usage.html">usage</a><a href="/routing.html">routing</a><a href="/settings.html">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
-      <div id="aqua-denied" class="denied" hidden>
-    <h1>sign in first</h1>
-    <p class="sub">this page needs your account. <a id="aqua-denied-signin" href="/login/github">sign in with github</a> to continue.</p>
-  </div>
-
-      <div id="aqua-body" hidden>
+  <main class="main">
+    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">playground</span></div>
     <div class="pg">
       <section class="conv">
         <p class="keynotice" id="aqua-keynotice" hidden></p>
         <div class="pghead"><span class="m" id="aqua-route">auto</span><span class="s" id="aqua-routesub">router default</span><select class="pgsel" id="aqua-pgsel" aria-label="model"></select></div>
-        <div class="stream" id="aqua-stream" role="log" aria-live="polite">
+        <div class="stream" id="aqua-stream">
           <div class="msg"><div class="body">pick a model and ask something.</div></div>
         </div>
         <div class="composer">
           <div class="cbox">
-            <input id="aqua-input" placeholder="ask anything…" autocomplete="off" aria-label="message">
+            <input id="aqua-input" placeholder="ask anything…" autocomplete="off">
             <button id="aqua-send" aria-label="send"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg></button>
           </div>
         </div>
@@ -508,12 +479,11 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
         <div class="kv"><span class="k">model</span><span class="v" id="aqua-kv-model"><span class="unk">unknown</span></span></div>
         <div class="kv"><span class="k">latency</span><span class="v" id="aqua-kv-latency"><span class="unk">unknown</span></span></div>
         <div class="kv"><span class="k">tokens</span><span class="v" id="aqua-kv-tokens"><span class="unk">unknown</span></span></div>
-        <div class="kv"><span class="k">cost</span><span class="v"><span class="unk" tabindex="0" title="the gateway does not report a per-request virtual estimate; virtual usage is metered on the usage page. provider charges are not shown here">unknown</span></span></div>
+        <div class="kv"><span class="k">cost</span><span class="v"><span class="unk" title="the gateway does not report a per-request virtual estimate; virtual usage is metered on the usage page. provider charge: not reported">unknown</span></span></div>
         <p class="pgnote">on the <b>auto</b> route a full upstream window fails over to the next model in the pool. same request, same code.</p>
         <p class="pgnote">apps authenticate with an <a href="/keys.html">api key</a>. the playground uses your browser sign-in.</p>
       </aside>
     </div>
-      </div>
   </main>
 </div>
 
@@ -550,7 +520,6 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
   var sessionAbort = new AbortController();
   var sessionTimeout = setTimeout(function () { sessionAbort.abort(); }, 10000);
   var serverOrigin = AQUA.baseUrl().replace(/\/v1$/, '');
-  document.getElementById('aqua-denied-signin').setAttribute('href', serverOrigin + '/login/github');
   try {
     var sessionResponse = await fetch(serverOrigin + '/auth/me', {
       credentials: 'include', cache: 'no-store', signal: sessionAbort.signal
@@ -560,17 +529,12 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
     if (!me || typeof me.login !== 'string' || !me.login ||
         me.role !== 'owner') throw Error('invalid session');
   } catch (_) {
-    document.documentElement.removeAttribute('data-session-pending');
-    document.getElementById('aqua-denied').hidden = false;
-    document.getElementById('aqua-user').textContent = '';
-    document.getElementById('aqua-usersub').textContent = '';
-    document.getElementById('aqua-rail').textContent = '';
+    location.replace('/?need=signin');
     return;
   } finally {
     clearTimeout(sessionTimeout);
   }
   document.documentElement.removeAttribute('data-session-pending');
-  document.getElementById('aqua-body').hidden = false;
   addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
   addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
 
@@ -582,7 +546,6 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
   }
   var so = document.getElementById('aqua-signout');
   so.style.display = '';
-  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
   so.addEventListener('click', function (ev) {
     ev.preventDefault();
     fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
@@ -592,7 +555,7 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
   if (localStorage.getItem('aqua_key') !== null) {
     localStorage.removeItem('aqua_key');
     var notice = document.getElementById('aqua-keynotice');
-    notice.textContent = 'sign-in replaces saved keys. make a key on the api keys page for apps.';
+    notice.textContent = 'sign-in replaces saved keys - make a key on the api keys page for apps.';
     notice.hidden = false;
   }
 
@@ -637,50 +600,26 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
   var sel = document.getElementById('aqua-pgsel');
   sel.addEventListener('change', function () { setModel(sel.value, sel.value === 'auto' ? 'router default' : ''); });
 
-  function loadModels(retrySource) {
+  function loadModels() {
     request('/v1/models').then(function (r) { if (!r.ok) throw Error('http ' + r.status); return r.json(); }).then(function (j) {
-      var restoreFocus = retrySource && document.activeElement === retrySource;
       var rail = document.getElementById('aqua-rail');
       var models = j.data || [];
-      var fail = document.getElementById('aqua-pg-fail');
-      if (fail) fail.remove();
       rail.textContent = '';
       sel.textContent = '';
       var autoOpt = document.createElement('option'); autoOpt.value = 'auto'; autoOpt.textContent = 'auto'; sel.appendChild(autoOpt);
-      if (restoreFocus) input.focus();
       if (!models.length) { rail.innerHTML = '<span class="mrow">no models available</span>'; return; }
       models.forEach(function (m) {
-        var a = document.createElement('button');
-        a.type = 'button';
+        var a = document.createElement('a');
         a.className = 'mrow' + (m.id === model ? ' on' : '');
+        a.href = '#';
         a.textContent = m.id;
-        a.addEventListener('click', function () { setModel(m.id); });
+        a.addEventListener('click', function (ev) { ev.preventDefault(); setModel(m.id); });
         rail.appendChild(a);
         var o = document.createElement('option'); o.value = m.id; o.textContent = m.id; sel.appendChild(o);
       });
     }).catch(function (e) {
-      var restoreFocus = retrySource && document.activeElement === retrySource;
       var rail = document.getElementById('aqua-rail');
-      if (e.message !== 'signed out.') {
-        rail.innerHTML = '<span class="mrow">could not load models.</span>';
-        var retry = document.createElement('button');
-        retry.type = 'button'; retry.className = 'mrow'; retry.textContent = 'try again shortly.';
-        retry.addEventListener('click', function () { loadModels(retry); });
-        rail.appendChild(retry);
-        // the rail is hidden below 760px, so mirror the failure and retry into the stream.
-        var oldFail = document.getElementById('aqua-pg-fail');
-        if (oldFail) oldFail.remove();
-        if (stream.children.length === 1 && !stream.firstElementChild.id && !stream.querySelector('.who') && !stream.querySelector('.route')) stream.textContent = '';
-        var f = document.createElement('div');
-        f.className = 'msg'; f.id = 'aqua-pg-fail';
-        f.innerHTML = '<div class="body">could not load models.</div>';
-        var retry2 = document.createElement('button');
-        retry2.type = 'button'; retry2.className = 'mrow'; retry2.textContent = 'try again shortly.';
-        retry2.addEventListener('click', function () { loadModels(retry2); });
-        f.querySelector('.body').appendChild(retry2);
-        stream.appendChild(f);
-        if (restoreFocus) (retry.offsetParent ? retry : retry2).focus();
-      }
+      if (e.message !== 'signed out.') { rail.innerHTML = '<span class="mrow">could not load models</span>'; }
     });
   }
   loadModels();
@@ -694,10 +633,69 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
   var input = document.getElementById('aqua-input');
   var sendBtn = document.getElementById('aqua-send');
   var inFlight = false;
-  function send() {
-    if (inFlight) { return; }
+  function validUsage(value) {
+    return value && Number.isSafeInteger(value.prompt_tokens) && value.prompt_tokens >= 0 &&
+      Number.isSafeInteger(value.completion_tokens) && value.completion_tokens >= 0 ? value : null;
+  }
+
+  async function readReply(response, progress) {
+    if (!(response.headers.get('content-type') || '').toLowerCase().startsWith('text/event-stream')) {
+      return response.json();
+    }
+    if (!response.body) throw Error('the reply stream was missing');
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder('utf-8', { fatal: true });
+    var buffer = '', data = [], reply = '', used = 'unknown', usage = null, finish = null, done = false, bytes = 0;
+    function frame() {
+      if (!data.length) return;
+      var text = data.join('\n'); data = [];
+      if (done) throw Error('unexpected data after the reply ended');
+      if (text === '[DONE]') { done = true; return; }
+      var value = JSON.parse(text);
+      if (value.error) throw Error('the reply stream reported an error');
+      if (typeof value.model === 'string' && value.model.trim()) used = value.model;
+      if (!Array.isArray(value.choices)) throw Error('invalid reply stream');
+      var choice = value.choices.find(function (c) { return c.index === 0 || c.index === undefined; });
+      if (choice) {
+        if (choice.delta && choice.delta.content != null) {
+          if (typeof choice.delta.content !== 'string') throw Error('invalid reply text');
+          reply += choice.delta.content;
+        }
+        if (choice.finish_reason != null) finish = choice.finish_reason;
+      }
+      if (value.usage) usage = validUsage(value.usage);
+      progress(reply, used);
+    }
+    try {
+      while (!done) {
+        var chunk = await reader.read();
+        if (chunk.done) { buffer += decoder.decode(); break; }
+        bytes += chunk.value.byteLength;
+        if (bytes > 4000000) throw Error('reply exceeded the size limit');
+        buffer += decoder.decode(chunk.value, { stream: true });
+        var newline;
+        while ((newline = buffer.indexOf('\n')) !== -1) {
+          var line = buffer.slice(0, newline).replace(/\r$/, '');
+          buffer = buffer.slice(newline + 1);
+          if (line === '') frame();
+          else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+        }
+      }
+      if (!done || !['stop', 'length'].includes(finish) || !reply.trim()) {
+        throw Error('the reply ended before completion');
+      }
+      return { model: used, choices: [{ message: { content: reply }, finish_reason: finish }], usage: usage };
+    } finally {
+      // Stop reading on [DONE] or error; never keep a failed stream open or resend it.
+      await reader.cancel().catch(function () {});
+      reader.releaseLock();
+    }
+  }
+
+  async function send() {
+    if (inFlight) return;
     var text = input.value.trim();
-    if (!text) { return; }
+    if (!text) return;
     inFlight = true;
     document.getElementById('aqua-kv-model').textContent = 'unknown';
     document.getElementById('aqua-kv-latency').textContent = 'unknown';
@@ -707,43 +705,47 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
     addMsg('you', text);
     history.push({ role: 'user', content: text });
     var pending = addMsg(null, '…', 'routing…');
-    var t0 = performance.now();
-    // A lost response here may still have consumed tokens server-side: never auto-repeat.
-    request('/v1/chat/completions', { method: 'POST', body: JSON.stringify({ model: model, messages: history }) })
-      .then(function (r) {
-        return r.json().then(function (j) { return { ok: r.ok, status: r.status, body: j }; });
-      }).then(function (res) {
-        var dt = ((performance.now() - t0) / 1000).toFixed(2) + ' s';
-        if (!res.ok) {
-          var eb = res.body && res.body.error;
-          var msg = (eb && eb.message) || (typeof eb === 'string' ? eb : '') || ('the request failed. try again, and reload the page if it keeps failing.');
-          pending.querySelector('.body').textContent = msg;
-          var rl = pending.querySelector('.route');
-          rl.textContent = res.status === 401 ? 'signed out' : 'error';
-          rl.classList.add('err');
-          history.pop();
-          return;
-        }
-        var choice = res.body.choices && res.body.choices[0];
-        var reply = (choice && choice.message && choice.message.content) || '(empty reply)';
-        var used = typeof res.body.model === 'string' && res.body.model.trim() ? res.body.model : 'unknown';
-        var usage = res.body.usage;
-        if (!usage || !Number.isSafeInteger(usage.prompt_tokens) || usage.prompt_tokens < 0 || !Number.isSafeInteger(usage.completion_tokens) || usage.completion_tokens < 0) usage = null;
-        var route = used + ' · ' + dt + (usage ? (' · ' + usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '') + (choice && choice.finish_reason === 'length' ? ' · partial: output limit reached' : '');
-        pending.querySelector('.body').textContent = reply;
-        pending.querySelector('.route').textContent = route;
-        history.push({ role: 'assistant', content: reply });
-        document.getElementById('aqua-kv-model').textContent = used;
-        document.getElementById('aqua-kv-latency').textContent = dt;
-        document.getElementById('aqua-kv-tokens').textContent = usage ? (usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : 'unknown';
-      }).catch(function (e) {
-        if (e.message === 'signed out.') { return; }
-        pending.querySelector('.body').textContent = 'could not confirm a reply (' + e.message + '). this may already have used tokens, and was not retried.';
-        var rl = pending.querySelector('.route');
-        rl.textContent = 'not confirmed';
-        rl.classList.add('err');
-        history.pop();
-      }).finally(function () { inFlight = false; sendBtn.disabled = false; input.focus(); });
+    var body = pending.querySelector('.body'), routeLabel = pending.querySelector('.route');
+    var t0 = performance.now(), partial = '';
+    try {
+      // A lost response may have consumed tokens: never automatically repeat it.
+      var response = await request('/v1/chat/completions', {
+        method: 'POST', body: JSON.stringify({ model: model, messages: history, stream: true, aqua_playground_fast: true })
+      });
+      if (!response.ok) {
+        var errorBody = await response.json().catch(function () { return null; });
+        var error = errorBody && errorBody.error;
+        body.textContent = (error && error.message) || (typeof error === 'string' ? error : '') || ('the gateway returned http ' + response.status + '. this request was not retried.');
+        routeLabel.textContent = 'error'; routeLabel.classList.add('err');
+        history.pop(); return;
+      }
+      var result = await readReply(response, function (content, returnedModel) {
+        partial = content;
+        body.textContent = content || '…';
+        routeLabel.textContent = returnedModel + ' · streaming…';
+        stream.scrollTop = stream.scrollHeight;
+      });
+      var choice = result.choices && result.choices[0];
+      var reply = choice && choice.message && choice.message.content;
+      if (typeof reply !== 'string' || !reply.trim()) throw Error('the reply contained no text');
+      var used = typeof result.model === 'string' && result.model.trim() ? result.model : 'unknown';
+      var usage = validUsage(result.usage);
+      var dt = ((performance.now() - t0) / 1000).toFixed(2) + ' s';
+      body.textContent = reply;
+      routeLabel.textContent = used + ' · ' + dt + (usage ? (' · ' + usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : '') + (choice.finish_reason === 'length' ? ' · partial: output limit reached' : '');
+      history.push({ role: 'assistant', content: reply });
+      document.getElementById('aqua-kv-model').textContent = used;
+      document.getElementById('aqua-kv-latency').textContent = dt;
+      document.getElementById('aqua-kv-tokens').textContent = usage ? (usage.prompt_tokens + ' in / ' + usage.completion_tokens + ' out') : 'unknown';
+    } catch (e) {
+      if (e.message === 'signed out.') return;
+      body.textContent = (partial ? partial + '\n\n' : '') + 'could not confirm a complete reply (' + e.message + '). this may already have used tokens, and was not retried.';
+      routeLabel.textContent = partial ? 'interrupted · partial reply' : 'not confirmed';
+      routeLabel.classList.add('err');
+      history.pop();
+    } finally {
+      inFlight = false; sendBtn.disabled = false; input.focus();
+    }
   }
   sendBtn.addEventListener('click', send);
   input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { send(); } });

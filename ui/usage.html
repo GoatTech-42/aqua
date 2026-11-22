@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>aqua - usage</title>
+<title>usage - aqua</title>
 <style>
 /* self-hosted fonts (v3.4 rebuild): no third-party requests; same families and weights as before */
 /* latin-ext */
@@ -253,7 +253,7 @@ html[data-session-pending] body{visibility:hidden}
 :root{--ground:#000;--surface:#0b0b0b;--line:#1d1d1d;--text:#fff;--muted:#a8a8a8;--faint:#7c7c7c;--aqua:#2fd4bf;--aqua-ink:#03251f;--warn:#e3b341;--accent:#2fd4bf}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html{font-size:clamp(16px,0.885vw + 6.93px,40px);background:var(--ground);color-scheme:dark}
+html{font-size:clamp(16px,0.75vw + 8.32px,36px);background:var(--ground);color-scheme:dark}
 body{margin:0;background:var(--ground);color:var(--text);font-family:'Instrument Sans',system-ui,sans-serif;line-height:1.45;height:100vh;overflow:hidden}
 .mono,.num{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
 svg.i{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -263,7 +263,7 @@ svg.i{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-width:1.5;
 .brand{display:flex;align-items:center;gap:.625rem;padding:.25rem .625rem 1.125rem;text-decoration:none;color:var(--text)}
 .brand svg{width:1.375rem;height:1.375rem;stroke:var(--accent)}
 .brand .wm{font-weight:500;font-size:1.125rem;letter-spacing:-.01em}
-.navlabel{font-size:max(0.72rem, 12px);font-weight:600;letter-spacing:.09em;color:var(--faint);padding:1.125rem .75rem .4375rem}
+.navlabel{font-size:.72rem;font-weight:600;letter-spacing:.09em;color:var(--faint);padding:1.125rem .75rem .4375rem}
 .nav{display:flex;flex-direction:column;gap:2px}
 .nav a{display:flex;align-items:center;gap:.625rem;min-height:2.375rem;padding:0 .75rem;border-radius:.5rem;color:var(--muted);text-decoration:none;font-size:.9375rem;font-weight:450}
 .nav a svg{color:#7a7a7a;width:1.0625rem;height:1.0625rem;flex:none}
@@ -272,27 +272,18 @@ svg.i{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-width:1.5;
 .nav a.on svg{color:var(--accent)}
 .spacer{flex:1}
 .userrow{display:flex;align-items:center;gap:.75rem;padding:.875rem .625rem 0;border-top:1px solid var(--line)}
-.avatar{width:1.75rem;height:1.75rem;border-radius:50%;background:#1c1c1c;border:1px solid #2a2a2a;color:#fff;font-size:max(0.72rem, 12px);font-weight:600;display:flex;align-items:center;justify-content:center;flex:none}
+.avatar{width:1.75rem;height:1.75rem;border-radius:50%;background:#1c1c1c;border:1px solid #2a2a2a;color:#fff;font-size:.72rem;font-weight:600;display:flex;align-items:center;justify-content:center;flex:none}
 .userrow .cols{display:flex;flex-direction:column;line-height:1.3;min-width:0}
 .userrow .un{font-size:.875rem;font-weight:500}
 .userrow .up{font-size:.75rem;color:var(--faint)}
 .userrow a{margin-left:auto;font-size:.78rem;color:var(--faint);text-decoration:none;display:inline-flex;align-items:center;min-height:1.5rem}
 .userrow a:hover{color:var(--text)}
-.userrow button{margin-left:auto;font-family:inherit;font-size:.78rem;color:var(--faint);background:none;border:0;padding:0;cursor:pointer;display:inline-flex;align-items:center;min-height:1.5rem}
-.userrow button:hover{color:var(--text)}
-.skiplink{position:absolute;left:-9999px;top:.5rem;z-index:200;background:var(--ground);color:var(--accent);font-size:.85rem;padding:.4rem .75rem;border:1px solid var(--line);border-radius:.5rem;text-decoration:none}
-.skiplink:focus{left:.5rem}
-.main:focus{outline:none}
-.chartdata{margin-top:.5rem;font-size:.8125rem;color:var(--muted)}
-.chartdata summary{cursor:pointer;min-height:1.75rem;color:var(--faint)}
-.cdrows{padding:.375rem 0 .25rem;display:grid;gap:.125rem}
-.cdrows div{overflow-wrap:anywhere}
 .main{overflow:auto;scrollbar-width:none;padding:2rem 2.6rem 3rem;min-width:0}
 .wrap{max-width:74rem}
 .head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
 h1{font-size:2rem;font-weight:500;margin:0 0 .4rem;letter-spacing:-.01em}
 .sub{color:var(--muted);margin:0 0 1.6rem;font-size:1rem}
-.refresh{display:flex;align-items:center;gap:.5rem;flex:none;white-space:nowrap;color:var(--faint);font-size:.85rem;background:none;border:0;font-family:inherit;cursor:pointer;padding:.3rem 0}
+.refresh{display:flex;align-items:center;gap:.5rem;color:var(--faint);font-size:.85rem;background:none;border:0;font-family:inherit;cursor:pointer;padding:.3rem 0}
 .refresh:hover{color:var(--text)}
 h2{font-size:1.05rem;font-weight:500;margin:2.2rem 0 .3rem}
 .note{color:var(--muted);font-size:.9rem;margin:0 0 .9rem}
@@ -308,7 +299,7 @@ h2{font-size:1.05rem;font-weight:500;margin:2.2rem 0 .3rem}
 .banner svg{stroke:var(--warn);margin-top:.15rem}
 .banner.bad{border-color:#4a2222;background:#140a0a;color:#f0b4b4}.banner.bad svg{stroke:#e66}
 table{width:100%;border-collapse:collapse}
-th{text-align:right;font-weight:500;font-size:max(0.72rem, 12px);letter-spacing:.06em;color:var(--faint);padding:.7rem .6rem;border-bottom:1px solid var(--line)}
+th{text-align:right;font-weight:500;font-size:.72rem;letter-spacing:.06em;color:var(--faint);padding:.7rem .6rem;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left;padding-left:0}
 td.model,td.num,.num{white-space:nowrap}
 td{padding:.8rem .6rem;border-bottom:1px solid var(--line);text-align:right;font-size:.95rem}
@@ -317,7 +308,7 @@ td .bar{display:block;height:2px;background:#1a1a1a;margin-top:.45rem;border-rad
 td .bar i{display:block;height:100%;background:var(--text);opacity:.85}
 td.dim,.dim{color:var(--faint)}
 #spendtable td:last-child{white-space:normal;min-width:8rem}
-#mettable td.model{white-space:nowrap;min-width:7rem}
+#mettable td.model{white-space:normal;min-width:7rem}
 #mettable th,#mettable td{padding-left:.4rem;padding-right:.4rem}
 .gaps{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:.7rem}
 .gap{border:1px dashed #2a2a2a;border-radius:.6rem;padding:.7rem .9rem;color:var(--muted);font-size:.88rem}
@@ -327,7 +318,7 @@ td.dim,.dim{color:var(--faint)}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
 .seg button[aria-pressed=true]{background:#161616;color:var(--text)}
 .tools{display:flex;gap:.8rem;align-items:center;flex-wrap:wrap;margin:.2rem 0 .8rem}
-select{background:var(--surface);color:var(--text);border:1px solid #767676;border-radius:.5rem;font:inherit;font-size:.82rem;padding:.38rem .6rem}
+select{background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:.5rem;font:inherit;font-size:.82rem;padding:.38rem .6rem}
 .chart{background:var(--surface);border:1px solid var(--line);border-radius:.7rem;padding:.9rem 1rem 1rem}
 .chart svg{width:100%;height:auto;display:block}
 .chart .ax{fill:var(--faint);font-size:12.5px;font-family:'JetBrains Mono',monospace}
@@ -335,24 +326,14 @@ select{background:var(--surface);color:var(--text);border:1px solid #767676;bord
 .legend span::before{content:'';display:inline-block;width:.7rem;height:.7rem;margin-right:.4rem;vertical-align:-.05rem;border-radius:2px}
 .legend .l1::before{background:#fff}.legend .l2::before{background:#6b6b6b}.legend .l4::before{background:repeating-linear-gradient(45deg,#ddd 0 2px,#666 2px 4px)}.legend .l3::before{background:repeating-linear-gradient(45deg,#333 0 2px,#111 2px 4px)}
 .unk{color:var(--muted);font-style:italic}
-.cls{display:block;color:var(--faint);font-size:max(0.72rem, 12px);max-width:16rem;margin-left:auto;white-space:normal;line-height:1.35}
+.cls{display:block;color:var(--faint);font-size:.72rem;max-width:16rem;margin-left:auto;white-space:normal;line-height:1.35}
 .denied{max-width:34rem;margin:18vh auto;text-align:center;color:var(--muted)}
 .denied h1{font-size:1.5rem}
 .aqua-in{animation:in .4s ease-out both}
 @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .phonebar{display:none}
-.phonebar .pb-nav { margin-left:auto; position:relative; }
-.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
-.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
-.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
-.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
-.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
-.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .thint{display:none;color:var(--faint);font-size:.78rem;margin:.4rem 0 .2rem}
-.tscroll{overflow-x:auto}
-.tscroll:has(>table[hidden]){display:none}
-.thint:has(+.tscroll>table[hidden]){display:none}
 @media (max-width:900px){
  .app{grid-template-columns:1fr;grid-template-rows:auto 1fr}.side{display:none}
  .phonebar{display:flex;align-items:center;gap:.75rem;min-height:3.375rem;padding:0 1.125rem;border-bottom:1px solid var(--line);background:#000}
@@ -363,35 +344,33 @@ select{background:var(--surface);color:var(--text);border:1px solid #767676;bord
  .tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -1rem;padding:0 1rem;background:linear-gradient(90deg,var(--ground),transparent) left/1.4rem 100% no-repeat local,linear-gradient(270deg,rgba(255,255,255,.12),transparent) right/1.4rem 100% no-repeat scroll}
  .tscroll table{min-width:44rem}.tscroll .cls{max-width:none;white-space:nowrap;margin-left:0;text-align:right}.tscroll td{padding-top:.55rem;padding-bottom:.55rem}.thint{display:block}
 }
-@media (max-width:380px){
- .head{flex-direction:column;gap:.2rem}
- .head .refresh{align-self:flex-start;padding-left:0}
- .cards{grid-template-columns:1fr}
- .card .v{white-space:nowrap}
-}
+html{scrollbar-width:thin;scrollbar-color:var(--muted) transparent}
+.tscroll{scrollbar-width:thin;scrollbar-color:var(--muted) transparent}
+.tscroll::-webkit-scrollbar{width:8px;height:8px}
+.tscroll::-webkit-scrollbar-thumb{background:var(--muted);border-radius:4px}
+.tscroll::-webkit-scrollbar-track{background:transparent}
 </style>
 </head>
 <body>
-<a class="skiplink" href="#main">skip to content</a>
 <div class="app" id="app" hidden>
- <div class="phonebar"><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">usage</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a><a href="/usage.html" aria-current="page">usage</a><a href="/routing.html">routing</a><a href="/settings.html">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
+ <div class="phonebar"><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">usage</span></div>
  <aside class="side">
-  <a class="brand" href="/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+  <a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
   <div class="navlabel">gateway</div>
   <nav class="nav">
-   <a href="/console.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
-   <a href="/playground.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
-   <a href="/keys.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
-   <a href="/usage.html" class="on" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
-   <a href="/routing.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
-   <a href="/settings.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+   <a href="/console.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+   <a href="/playground.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+   <a href="/keys.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+   <a href="/usage.html" class="on" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+   <a href="/routing.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+   <a href="/settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
   </nav>
   <div class="spacer"></div>
-  <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">-</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
+  <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">-</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
  </aside>
- <main class="main" id="main" tabindex="-1"><div id="aqua-denied" class="denied" hidden><h1>sign in first</h1><p class="sub" id="deniedmsg">this page needs your account. <a id="aqua-denied-signin" href="/login/github">sign in with github</a> to continue.</p></div><div class="wrap aqua-in">
+ <main class="main"><div id="denied" class="denied" hidden><h1>sign in first</h1><p class="sub" id="deniedmsg">this page needs your account. sign in with github from the landing page.</p></div><div class="wrap aqua-in">
   <div class="head"><div><h1>usage</h1><p class="sub" id="sub">request activity and virtual usage estimates, as the gateway metered them.</p></div>
-   <button class="refresh" id="refresh" type="button"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span id="stamp">loading</span></button></div>
+   <button class="refresh" id="refresh" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg><span id="stamp">loading</span></button></div>
   <p class="stateline" id="state" role="status" aria-live="polite"></p>
   <h2>traffic</h2>
   <p class="note" id="metnote">requests the gateway served, from request metering.</p>
@@ -401,20 +380,19 @@ select{background:var(--surface);color:var(--text);border:1px solid #767676;bord
   <div class="tools" id="mettools" hidden>
    <div class="seg" id="group" role="group" aria-label="group by"><button type="button" data-g="route" aria-pressed="true">route</button><button type="button" data-g="model" aria-pressed="false">model</button><button type="button" data-g="provider" aria-pressed="false">provider</button></div>
   </div>
-  <p class="thint" id="thint1">swipe the table sideways for more columns</p><div class="tscroll" tabindex="0" role="region" aria-label="requests table, scrollable sideways"><table id="mettable" hidden><thead><tr id="methead"></tr></thead><tbody id="metrows"></tbody></table></div>
+  <p class="thint" id="thint1">swipe the table sideways for more columns</p><div class="tscroll"><table id="mettable" hidden><thead><tr id="methead"></tr></thead><tbody id="metrows"></tbody></table></div>
   <div id="chartwrap" hidden>
    <h2>by hour</h2>
    <div class="tools"><div class="seg" id="metric" role="group" aria-label="metric"><button type="button" data-m="requests" aria-pressed="true">requests</button><button type="button" data-m="errors" aria-pressed="false">errors</button><button type="button" data-m="tokens_out" aria-pressed="false">tokens out</button></div><select id="filter" aria-label="route filter"></select></div>
    <div class="chart"><svg id="chart" viewBox="0 0 960 230" role="img" aria-label="hourly chart"></svg>
    <div class="legend"><span class="l1">value</span><span class="l2">provider faults</span><span class="l3">unknown, truncated or before metering</span><span class="l4">partial: some requests had no token count</span></div></div>
-   <details class="chartdata" id="chartdata" hidden><summary>hourly numbers as text</summary><div class="cdrows" id="cdrows"></div></details>
   </div>
   <h2 id="sph">virtual usage estimate</h2>
   <p class="stateline" id="spv" hidden>not a bill. vUSD values estimate token usage at the gateway&#39;s ledger rates. provider charges are not shown here.</p>
   <div id="banners"></div>
   <div class="cards" id="cards"></div>
   <p class="note" id="periodnote" style="margin-top:1rem" hidden></p>
-  <p class="thint">swipe the table sideways for more columns</p><div class="tscroll" tabindex="0" role="region" aria-label="virtual usage table, scrollable sideways"><table id="spendtable" hidden><thead><tr><th>model</th><th>today · vUSD</th><th>this month · vUSD</th><th>reserved · vUSD</th><th>ledger rate</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <p class="thint">swipe the table sideways for more columns</p><div class="tscroll"><table id="spendtable" hidden><thead><tr><th>model</th><th>today · vUSD</th><th>this month · vUSD</th><th>reserved · vUSD</th><th>ledger rate</th></tr></thead><tbody id="rows"></tbody></table></div>
   <p class="stateline" id="empty" style="margin-top:1rem"></p>
   <div id="gapswrap" hidden><h2>not measured yet</h2>
   <p class="note" id="gapsnote"></p>
@@ -425,7 +403,7 @@ select{background:var(--surface);color:var(--text);border:1px solid #767676;bord
 (function(){
 var $=function(id){return document.getElementById(id)};
 function clear(){document.documentElement.removeAttribute('data-session-pending')}
-function deny(msg){document.querySelector('#app .wrap').hidden=true;$('app').hidden=false;$('aqua-denied').hidden=false;if(msg)$('deniedmsg').textContent=msg;$('aqua-user').textContent=msg||'not signed in.';$('aqua-usersub').textContent='';clear()}
+function deny(msg){document.querySelector('#app .wrap').hidden=true;$('app').hidden=false;$('denied').hidden=false;if(msg)$('deniedmsg').textContent=msg;$('aqua-user').textContent=msg||'not signed in.';$('aqua-usersub').textContent='';clear()}
 function isNum(x){return typeof x==='number'&&isFinite(x)}
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
 var UNK='<span class="unk">unknown</span>';
@@ -455,7 +433,7 @@ function pct(n){return isNum(n)?(Math.round(n*10)/10)+'%':UNK}
 var RATE_MIN=20,LAT_MIN=20;
 function faultCell(fl,at){
   if(!isNum(at)||at<=0||!isNum(fl))return UNK;
-  if(at<RATE_MIN)return '<span class="unk" title="too few attempts for a stable rate. the counts are exact">'+kfmt(fl)+' of '+kfmt(at)+'</span>';
+  if(at<RATE_MIN)return '<span class="unk" title="too few attempts for a stable rate - the counts are exact">'+kfmt(fl)+' of '+kfmt(at)+'</span>';
   return pct(100*fl/at);
 }
 function latCell(v,over,at){
@@ -488,7 +466,6 @@ function aquaResolveApiBase() {
 }
 var base = aquaResolveApiBase();
 var serverOrigin = base.replace(/\/v1$/, '');
-document.getElementById('aqua-denied-signin').setAttribute('href', serverOrigin + '/login/github');
 function apiUrl(u){ return u.indexOf('/v1') === 0 ? base + u.slice(3) : serverOrigin + u; }
 function fetchJSON(url,ms){
   var ctl=new AbortController(),t=setTimeout(function(){ctl.abort()},ms||10000);
@@ -498,19 +475,6 @@ function banner(kind,text){
   return '<div class="banner'+(kind==='bad'?' bad':'')+'"><svg class="i" viewBox="0 0 24 24"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4"/><path d="M12 17.5v.01"/></svg><div>'+esc(text)+'</div></div>';
 }
 function stamp(){return new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}).toLowerCase()}
-/* stamp honesty (same rule as console + settings): live relative age, absolute UTC title, clock-skew handling */
-function stampRel(ageMs){var mins=Math.floor(ageMs/60000),hrs=Math.floor(ageMs/3600000),days=Math.floor(ageMs/86400000);return ageMs<120000?'just now':ageMs<3600000?mins+' min ago':ageMs<172800000?hrs+(hrs===1?' hour ago':' hours ago'):days+(days===1?' day ago':' days ago')}
-var usageStampAt=null;
-function paintUsageStamp(){
-  var el=$('stamp');
-  if(usageStampAt===null)return;
-  var ageMs=Date.now()-usageStampAt;
-  if(ageMs<-300000){el.textContent='updated, clock skew / age unknown';el.title='recorded update time is in the future';return}
-  el.textContent='updated '+stampRel(Math.max(0,ageMs));
-  el.title='last updated '+new Date(usageStampAt).toUTCString().replace('GMT','UTC');
-}
-function clearUsageStamp(){usageStampAt=null;$('stamp').title=''}
-setInterval(paintUsageStamp,30000);
 
 /* ---------- spend (/v1/admin/usage) ---------- */
 function priceText(p,per){
@@ -663,8 +627,8 @@ function renderMet(){
   $('thint1').hidden=false;
   var winStart=isNum(sum.generated_at)&&isNum(sum.hours)?sum.generated_at-sum.hours*3600:null;
   var ret=(sum.evicted_cells||sum.incomplete||sum.history_gap)&&isNum(sum.retained_since)&&winStart!==null&&sum.retained_since>winStart+3600?' stored history only goes back to '+new Date(sum.retained_since*1000).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}).toLowerCase()+', so the last '+sum.hours+' hours are not all available.':'';
-  $('metstate').textContent='metering started '+sinceTxt+'. nothing before that was recorded.'+ret;
-  $('metstate').textContent+=' these earlier periods are not shown as zero.';
+  $('metstate').textContent='metering started '+sinceTxt+' - nothing before that was recorded.'+ret;
+  $('metstate').title='earlier periods were never recorded and are not shown as zero';
   var T=sum.totals&&typeof sum.totals==='object'?sum.totals:null;
   if(!T)$('metbanners').innerHTML+=banner('warn','the gateway sent no all-activity totals, so the cards below are not shown.');
   var req=T?T.requests:null,att=T?T.attempts:null,faults=T?faultsOf(T):null,disc=T?(T.client_disconnects||0):null,rej=T?(T.rejected||0):null;
@@ -745,31 +709,25 @@ function renderChart(){
   var out='<defs><pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="6" height="6" fill="#111"/><rect width="2" height="6" fill="#333"/></pattern><pattern id="part" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="2" height="6" fill="#000" opacity=".55"/></pattern></defs>';
   if(!anyv)out+='<text class="ax" x="'+(W/2)+'" y="'+(H/2)+'" text-anchor="middle" style="font-size:13px">'+(m==='tokens_out'?'tokens out is unknown for every hour here. a route in this view does not report tokens. pick one that does.':'nothing drawable in this view.')+'</text>';
   (anyv?[0,.5,1]:[]).forEach(function(fr){var y=T+ih-ih*fr;out+='<line x1="'+L+'" x2="'+(W-8)+'" y1="'+y+'" y2="'+y+'" stroke="#1d1d1d"/><text class="ax" x="'+(L-8)+'" y="'+(y+4)+'" text-anchor="end">'+esc(kfmt(Math.round(max*fr)))+'</text>'});
-  var cd=[];
   vals.forEach(function(x,i){
     var xx=L+i*bw+bw*.14,w=bw*.72,t=hrs[i];
     var label=new Date(t).toLocaleTimeString([], {hour:'numeric'}).toLowerCase();
     if(x.k==='v'){
       var h=ih*x.v/max,y=T+ih-h;
-      var unit=x.v===1?(m==='requests'?'request':m==='errors'?'error':'token out'):m.replace('_',' ');
-      var ttl=label+': '+kfmt(x.v)+' '+unit+(x.partial?(x.cb?' at least, request counts missing':' from '+x.kn+' of '+(x.kn+x.un)+((x.kn+x.un)===1?' request':' requests')+' with token counts, so at least this much'):'');
+      var ttl=label+': '+kfmt(x.v)+' '+m.replace('_',' ')+(x.partial?(x.cb?' at least, request counts missing':' from '+x.kn+' of '+(x.kn+x.un)+' requests with token counts, so at least this much'):'');
       out+='<g><title>'+esc(ttl)+'</title><rect x="'+xx+'" y="'+y+'" width="'+w+'" height="'+Math.max(h,x.v?1:0)+'" fill="#fff" opacity=".88" rx="1.5"/>';
       if(x.partial)out+='<rect x="'+xx+'" y="'+y+'" width="'+w+'" height="'+Math.max(h,x.v?1:0)+'" fill="url(#part)" rx="1.5"/>';
       if(x.e){var eh=ih*x.e/max;out+='<rect x="'+xx+'" y="'+(T+ih-eh)+'" width="'+w+'" height="'+eh+'" fill="#6b6b6b" rx="1.5"/>'}
       out+='</g>';
-      cd.push(ttl);
     }else if(x.k==='gap'){
       out+='<g><title>'+esc(label+': no events recorded, but history may be incomplete (writer, storage or dropped events)')+'</title><rect x="'+xx+'" y="'+(T+ih-6)+'" width="'+w+'" height="6" fill="url(#hatch)" opacity=".7" rx="1.5"/></g>';
-      cd.push(label+': no events recorded, but history may be incomplete (writer, storage or dropped events)');
     }else{
       var why=x.k==='before'?'before metering started, not recorded':(x.k==='trunc'?'the series was truncated, so this hour is not shown':'unknown, a value was missing or a route did not report tokens');
       out+='<g><title>'+esc(label+': '+why)+'</title><rect x="'+xx+'" y="'+T+'" width="'+w+'" height="'+ih+'" fill="url(#hatch)" opacity=".7" rx="1.5"/></g>';
-      cd.push(label+': '+why);
     }
     if(i%(phone?6:4)===0)out+='<text class="ax" x="'+(xx+w/2)+'" y="'+(H-8)+'" text-anchor="middle">'+esc(label)+'</text>';
   });
   $('chart').setAttribute('viewBox','0 0 '+W+' '+H);$('chart').innerHTML=out;
-  $('cdrows').innerHTML=cd.map(function(s){return '<div>'+esc(s)+'</div>'}).join('');$('chartdata').hidden=cd.length===0;
 }
 var seqM=0;
 function loadMet(){
@@ -785,7 +743,7 @@ function loadMet(){
       $('gaps').innerHTML=[['requests','no per-model request count is stored.'],['tokens in / out','token counts are folded into spend.'],['errors','failed requests are not logged to the ledger.'],['latency','no timings are recorded.'],['by provider','spend is keyed by model, not by route.'],['over time','only the current day and month are kept.']].map(function(x){return '<div class="gap"><b>'+x[0]+'</b>'+x[1]+'</div>'}).join('');return}
     if(a.status!==200||b.status!==200){
       var bad=a.status!==200?a.status:b.status;$('gapswrap').hidden=true;
-      clearMet(bad===503?'traffic is not shown while the gateway is down. try again shortly.'+lastOk():(bad===400?'the gateway refused this window (400): hourly buckets only work up to 336 hours. nothing is shown rather than zeros.':'could not read traffic (status '+bad+'). nothing is shown rather than zeros. try again shortly.'+lastOk()));return}
+      clearMet(bad===503?'traffic is not shown while usage storage is down.'+lastOk():(bad===400?'the gateway refused this window (400): hourly buckets only work up to 336 hours. nothing is shown rather than zeros.':'could not read traffic (status '+bad+'). nothing is shown rather than zeros.'+lastOk()));return}
     if(!a.body||typeof a.body!=='object'||!b.body||typeof b.body!=='object'){$('gapswrap').hidden=true;clearMet('the gateway sent traffic data this page cannot read. nothing is shown rather than zeros.'+lastOk());return}
     if(b.body.bucket!==undefined&&b.body.bucket!=='hour'){$('gapswrap').hidden=true;clearMet('the gateway answered with '+b.body.bucket+' buckets, but this page asked for hourly ones. nothing is shown rather than zeros.');return}
     MET.sum=a.body;MET.ser=b.body;MET.ok=stamp();
@@ -794,7 +752,7 @@ function loadMet(){
     if(!routes.has(MET.f))MET.f='all';$('filter').value=MET.f;
     $('chartwrap').hidden=!routes.size;
     renderMet();
-  },function(){if(my!==seqM)return;$('gapswrap').hidden=true;clearMet('could not reach the gateway for traffic. nothing is shown rather than zeros. try again shortly.'+lastOk())});
+  },function(){if(my!==seqM)return;$('gapswrap').hidden=true;clearMet('could not reach the gateway for traffic. nothing is shown rather than zeros.'+lastOk())});
 }
 function bindSeg(id,key,attr){$(id).addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;MET[key]=b.getAttribute(attr);Array.prototype.forEach.call($(id).children,function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});if(MET.sum)renderMet()})}
 bindSeg('group','g','data-g');bindSeg('metric','m','data-m');
@@ -803,22 +761,21 @@ $('filter').addEventListener('change',function(){MET.f=$('filter').value;if(MET.
 var seqS=0;
 function load(){loadMet();
   var my=++seqS;
-  $('state').textContent='';clearUsageStamp();$('stamp').textContent='loading';
+  $('state').textContent='';$('stamp').textContent='loading';
   fetchJSON('/v1/admin/usage').then(function(r){
     if(my!==seqS)return;
     if(r.status===401){deny('your session expired. sign in again.');return}
     if(r.status===403){deny('this page is for the owner login only.');return}
-    if(r.status===503){clearSpend();$('state').textContent='the gateway is unavailable right now. nothing is shown rather than zeros. try again shortly.';clearUsageStamp();$('stamp').textContent='unavailable';return}
-    if(r.status!==200||!r.body||typeof r.body!=='object'){clearSpend();$('state').textContent='could not read usage (status '+r.status+'). nothing is shown. try again shortly.';clearUsageStamp();$('stamp').textContent='failed';return}
-    render(r.body);usageStampAt=Date.now();paintUsageStamp();
-  },function(){if(my!==seqS)return;clearSpend();$('state').textContent='could not reach the gateway. nothing is shown rather than zeros.';clearUsageStamp();$('stamp').textContent='failed'});
+    if(r.status===503){clearSpend();$('state').textContent='usage storage is unavailable right now. nothing is shown rather than zeros. try again in a moment.';$('stamp').textContent='unavailable';return}
+    if(r.status!==200||!r.body||typeof r.body!=='object'){clearSpend();$('state').textContent='could not read usage (status '+r.status+'). nothing is shown.';$('stamp').textContent='failed';return}
+    render(r.body);$('stamp').textContent='updated '+stamp();
+  },function(){if(my!==seqS)return;clearSpend();$('state').textContent='could not reach the gateway. nothing is shown rather than zeros.';$('stamp').textContent='failed'});
 }
 fetchJSON('/auth/me').then(function(r){
   if(r.status!==200){deny(r.status===401?'':'could not confirm your session.');return}
   if(!r.body||typeof r.body.login!=='string'||!r.body.login||r.body.role!=='owner'){deny('this page is for the owner login only.');return}
   var login=r.body.login;
   $('aqua-user').textContent=login;$('aqua-usersub').textContent=r.body.role;$('aqua-avatar').textContent=login.charAt(0).toUpperCase();$('aqua-signout').style.display='';
-  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
   $('app').hidden=false;clear();load();
 },function(){deny('could not reach the gateway to check your session.')});
 $('refresh').addEventListener('click',load);

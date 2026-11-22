@@ -252,8 +252,8 @@ html[data-session-pending] { visibility:hidden; }</style>
 <style>
 /* aqua shell - shared by landing, console, playground, keys, settings.
    black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
-   deliberately larger UI (16px at <=1024, ~23.9px at 1920, ~29.6px at 2560, 40px at 3840). All component sizes in rem. */
-html { font-size: clamp(16px, 0.885vw + 6.93px, 40px); }
+   deliberately larger UI (16px at <=1024, ~22.7px at 1920, ~27.5px at 2560, 36px at 3840+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.75vw + 8.32px, 36px); }
 :root {
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
@@ -308,8 +308,6 @@ svg { display:block; }
 .userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
 .userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; display:inline-flex; align-items:center; min-height:1.5rem; }
 .userrow a:hover { color:var(--text); }
-.userrow button { margin-left:auto; font-family:inherit; font-size:0.78rem; color:var(--faint); background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; min-height:1.5rem; }
-.userrow button:hover { color:var(--text); }
 
 /* ---- canvas ---- */
 .main { min-width:0; min-height:0; overflow-y:auto; }
@@ -329,15 +327,12 @@ h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
 .btn:hover { border-color:var(--text); }
 .btn:disabled { color:var(--muted); cursor:wait; }
 :focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
-.skiplink { position:absolute; left:-9999px; top:0.5rem; z-index:200; background:var(--ground); color:var(--accent); font-size:0.85rem; padding:0.4rem 0.75rem; border:1px solid var(--line); border-radius:var(--radius-control); text-decoration:none; }
-.skiplink:focus { left:0.5rem; }
-.main:focus { outline:none; }
 .btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .btn-solid { background:#fff; color:#000; border-color:#fff; }
 .btn-solid:hover { border-color:#fff; filter:brightness(0.9); }
 
 .stateline { margin-top:1rem; font-size:0.875rem; color:var(--muted); min-height:1.125rem; }
-.stateline.err { color:#e3b341; }
+.stateline.err { color:var(--muted); }
 
 .empty { margin-top:0.875rem; padding:1.75rem 1.125rem; border:1px dashed var(--control); border-radius:var(--radius-card); color:var(--faint); font-size:0.9375rem; text-align:center; }
 .empty[hidden] { display:none; }
@@ -373,20 +368,12 @@ h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
 .c-status { display:flex; justify-content:flex-end; }
 .pill { display:inline-flex; align-items:center; gap:0.375rem; min-height:1.4375rem; padding:0 0.625rem; border-radius:999px; font-size:0.75rem; font-weight:500; white-space:nowrap; }
 .pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
-.pill-live { color:#3fb950; }
-.pill-warn { color:#e3b341; }
-.pill-neutral { color:#a8a8a8; }
-.pill-off { color:#f85149; }
+.pill-live { color:var(--text); }
+.pill-warn { color:var(--muted); }
+.pill-neutral { color:var(--muted); }
+.pill-off { color:var(--muted); }
 
-.dim{color:var(--faint);font-size:.85rem}
 .phonebar { display:none; }
-.phonebar .pb-nav { margin-left:auto; position:relative; }
-.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
-.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
-.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
-.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
-.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
-.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 @media (max-width: 760px) {
   .app { grid-template-columns:1fr; }
@@ -403,9 +390,6 @@ h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
   .mrow { grid-template-columns:minmax(0,1fr) auto; row-gap:3px; padding:0.75rem 0; }
   .mrow:hover { background:transparent; }
   .mrow .c.num { display:none; }
-  .mrow2 summary { flex-wrap:wrap; row-gap:2px; }
-  .mrow2 summary .mid { flex-basis:100%; }
-  .mrow2 summary .ordsrc { margin-left:0; }
   .c-status { grid-column:2; grid-row:1; align-self:center; }
 }
 
@@ -425,9 +409,9 @@ h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
 .btn-solid { background:#fff; color:#000; border-color:#fff; }
 
 .note { font-size:0.8125rem; color:var(--muted); margin-top:0.625rem; max-width:88ch; }
-.note.err { color:#e3b341; }
+.note.err { color:var(--muted); }
 .stateline { font-size:0.8125rem; color:var(--muted); margin-top:0.625rem; min-height:1.125rem; }
-.stateline.err { color:#e3b341; }
+.stateline.err { color:var(--muted); }
 
 /* providers */
 .ptable { margin-top:0.75rem; overflow-x:auto; }
@@ -438,10 +422,10 @@ h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
 .prow .pid { font-family:var(--mono); font-size:0.7813rem; font-weight:600; overflow-wrap:anywhere; }
 .pill { display:inline-flex; align-items:center; gap:0.375rem; height:1.4375rem; padding:0 0.625rem; border-radius:62.4375rem; font-size:0.7188rem; font-weight:500; white-space:nowrap; }
 .pill::before { content:""; width:0.3125rem; height:0.3125rem; border-radius:50%; background:currentColor; }
-.pill-live { color:#3fb950; }
-.pill-warn { color:#e3b341; }
-.pill-neutral { color:#a8a8a8; }
-.pill-off { color:#f85149; }
+.pill-live { color:var(--text); }
+.pill-warn { color:var(--muted); }
+.pill-neutral { color:var(--muted); }
+.pill-off { color:var(--muted); }
 .conf { font-size:0.7813rem; color:var(--muted); }
 .pmodels { display:flex; flex-direction:column; gap:0.25rem; }
 .pm { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:0.5rem; font-family:var(--mono); font-size:0.7188rem; align-items:baseline; }
@@ -521,8 +505,11 @@ h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
 .auto-card { display:flex; align-items:flex-start; gap:1rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); padding:1rem 1.125rem; margin-bottom:1.5rem; }
 .auto-card .cols { flex:1; min-width:0; }
 .auto-card .t { font-weight:600; font-size:0.9375rem; }
+.auto-help { margin-top:0.625rem; }
+.auto-help summary { cursor:pointer; color:var(--muted); font-size:0.8125rem; min-height:2.75rem; display:list-item; align-content:center; }
+.auto-help summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .auto-card .d { color:var(--muted); font-size:0.8125rem; margin-top:0.25rem; max-width:70ch; }
-.switch { position:relative; flex:none; width:2.75rem; height:1.5rem; border-radius:999px; background:#222; border:1px solid #767676; cursor:pointer; transition:background .15s; padding:0; }
+.switch { position:relative; flex:none; width:2.75rem; height:1.5rem; border-radius:999px; background:#222; border:1px solid var(--control); cursor:pointer; transition:background .15s; padding:0; }
 .switch::after { content:""; position:absolute; top:0.1875rem; left:0.1875rem; width:1rem; height:1rem; border-radius:50%; background:#777; transition:left .15s, background .15s; }
 .switch[aria-checked="true"] { background:var(--accent); border-color:var(--accent); }
 .switch[aria-checked="true"]::after { left:1.4375rem; background:var(--accent-ink); }
@@ -536,51 +523,49 @@ h2 { font-size:1.05rem; font-weight:500; letter-spacing:-0.01em; }
 .mrow2 summary .mid { font-family:var(--mono); font-weight:500; font-size:0.9375rem; }
 .mrow2 summary .first { color:var(--muted); font-size:0.8125rem; }
 .mrow2 summary .ordsrc { margin-left:auto; color:var(--faint); font-size:0.8125rem; }
-.mrow2 summary .ordsrc.pinned { color:var(--accent); }
-.cand { display:flex; align-items:center; flex-wrap:wrap; gap:0.375rem 0.75rem; padding:0.4375rem 0 0.4375rem 1.25rem; font-size:0.875rem; }
+.mrow2 summary .ordsrc.pinned { color:var(--text); }
+.cand { display:flex; align-items:center; gap:0.75rem; padding:0.4375rem 0 0.4375rem 1.25rem; font-size:0.875rem; }
 .cand .pos { color:var(--faint); font-family:var(--mono); font-size:0.8125rem; width:1.5rem; text-align:right; }
 .cand .prov { font-family:var(--mono); }
-.cand .meta { color:var(--muted); font-size:0.8125rem; min-width:0; overflow-wrap:anywhere; }
+.cand .meta { color:var(--muted); font-size:0.8125rem; }
 .cand .mv { display:flex; gap:0.25rem; margin-left:auto; }
 .cand .mv button { background:none; border:1px solid var(--control); color:var(--muted); border-radius:0.375rem; width:1.625rem; height:1.625rem; cursor:pointer; display:flex; align-items:center; justify-content:center; padding:0; }
 .cand .mv button:hover:not(:disabled) { color:var(--text); border-color:var(--text); }
 .cand .mv button:disabled { opacity:0.25; cursor:default; }
 .cand .mv svg { width:0.75rem; height:0.75rem; }
 .resetbtn { margin:0.625rem 0 1rem 1.25rem; }
-.resetbtn .btn { white-space:normal; max-width:100%; }
 .pill { display:inline-flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; font-weight:500; color:var(--muted); white-space:nowrap; }
 .pill.off { opacity:0.55; }
 .logrow { padding:0.5rem 0; border-bottom:1px solid var(--rule); font-size:0.8125rem; color:var(--muted); display:flex; gap:0.75rem; }
 .logrow .lt { color:var(--faint); font-family:var(--mono); font-size:0.75rem; flex:none; padding-top:0.0625rem; }
 .logrow .lk { flex:none; }
-.logrow .lk.auto { color:var(--accent); }
+.logrow .lk.auto { color:var(--text); }
 .logrow .lk.you { color:var(--text); }
 .usewrap { overflow-x:auto; }
-.note.err { color:#ff8a8a; }
-.note.warn { color:#e3b341; }
+.note.err { color:var(--muted); }
+.note.warn { color:var(--muted); }
 section { margin-bottom:2.5rem; }
 
 </style>
 </head>
 <body>
-<a class="skiplink" href="#main">skip to content</a>
 <div class="app">
   <aside class="side">
-    <a class="brand" href="https://aqua.goattech.us/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <a class="brand" href="https://aqua.goattech.us/"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
     <nav class="nav">
       <div class="navlabel">gateway</div>
-      <a href="/console.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
-      <a href="/playground.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
-      <a href="/keys.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
-      <a href="/usage.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
-      <a href="/routing.html" class="on" id="aqua-routing-link" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
-      <a href="/settings.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+      <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/usage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+      <a href="/routing.html" class="on" id="aqua-routing-link" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+      <a href="/settings.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
     </nav>
     <div class="spacer"></div>
-    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
   </aside>
-  <main class="main" id="main" tabindex="-1">
-    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">routing</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a><a href="/usage.html">usage</a><a href="/routing.html" aria-current="page">routing</a><a href="/settings.html">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
+  <main class="main">
+    <div class="phonebar"><a href="/settings.html" style="color:var(--muted);font-size:.8125rem;order:2;margin-left:auto;display:inline-flex;align-items:center;min-height:1.5rem">settings</a><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">routing</span></div>
     <div class="canvas">
       <div id="aqua-denied" class="denied" hidden>
     <h1>sign in first</h1>
@@ -590,13 +575,16 @@ section { margin-bottom:2.5rem; }
       <div id="aqua-body" hidden>
     <h1>routing</h1>
     <p class="sub">which provider serves each model, in order.<span id="aqua-sub-live" hidden> health and latency samples are measured. order may be config, manual or proposed; prices and limits are source-based estimates.</span></p>
-    <p class="note warn" id="aqua-mock">proposal: the routing apis are not live yet, so this page is a mock. layout, states and conflict handling are final. the data is a fixture. eligibility shown is illustrative, not an account access check.</p>
+    <p class="note warn" id="aqua-mock">proposal - the routing apis are not live yet, so this page is a mock. layout, states and conflict handling are final. the data is a fixture. eligibility shown is illustrative, not an account access check.</p>
 
     <section aria-labelledby="t-auto">
       <div class="auto-card aqua-in">
         <div class="cols">
           <div class="t">auto-reorder</div>
-          <div class="d" id="aqua-auto-desc">when on, a background job (every 10 min) can swap adjacent routes. a swap needs a contender with at least 30 measurements in the last 24 h. score means measured speed on healthy, complete responses. a contender only counts if it is an eligible free route. it must fit the request size and pass access and privacy checks. close calls go to the route with more quota headroom. it must score 25% better twice in a row. the model must not have moved for an hour. the rules are intended to reduce order changes caused by noise. one adjacent swap per evaluation. a route demoted for poor health still gets an occasional probe request. that is about 2% of traffic, so it can be measured again. probes only use otherwise eligible free routes. a route is skipped while its pool cools down. it is also skipped when access or privacy rules exclude it, or when the request would not fit its limits. models you reorder by hand are pinned and left alone, probes included. every move, yours or automatic, lands in the change log with the numbers behind it. proposed defaults, not yet tuned on real traffic.</div>
+          <div class="d" id="aqua-auto-desc">proposed free-route swaps; pinned models stay unchanged.</div>
+          <details class="auto-help"><summary>how auto-reorder works</summary>
+            <div class="d">when on, a background job (every 10 min) can swap adjacent routes. a swap needs a contender with at least 30 measurements in the last 24 h. score means measured speed on healthy, complete responses. a contender only counts if it is an eligible free route that fits the request size and passes access and privacy checks. close calls go to the route with more quota headroom. it must score 25% better twice in a row. the model must not have moved for an hour. the rules are intended to reduce order changes caused by noise. one adjacent swap per evaluation. a route demoted for poor health still gets an occasional probe request. that is about 2% of traffic, so it can be measured again. probes only use otherwise eligible free routes. a route is skipped while its pool cools down, when access or privacy rules exclude it, or when the request would not fit its limits. models you reorder by hand are pinned and left alone, probes included. every move, yours or automatic, lands in the change log with the numbers behind it. proposed defaults - not yet tuned on real traffic.</div>
+          </details>
         </div>
         <button class="switch" id="aqua-auto" role="switch" aria-label="auto-reorder" disabled></button>
       </div>
@@ -604,15 +592,15 @@ section { margin-bottom:2.5rem; }
 
     <section aria-labelledby="t-routing">
       <div class="sectitle"><h2 id="t-routing">models</h2></div>
-      <p class="note">one row per model. this page orders providers for a model you already picked. choosing the model itself is a separate proposed feature and is not live. the first eligible route is tried, then eligible same-model free backups; if none remains, the request should fail with a clear reason. never a silent paid, trimmed or different-model answer (proposed behavior, not yet live). order source is labeled. config is registry order. auto-adjusted means the auto job moved it, with the numbers in the change log. yours means pinned.</p>
-      <p class="stateline" id="aqua-r-status" role="status" aria-live="polite">loading routing…</p>
+      <p class="note">one row per model. this page orders providers for a model you already picked; choosing the model itself is a separate proposed feature and is not live. the first eligible route is tried, then eligible same-model free backups; if none remains, the request should fail with a clear reason - never a silent paid, trimmed or different-model answer (proposed behavior, not yet live). order source is labeled. config is registry order. auto-adjusted means the auto job moved it, with the numbers in the change log. yours means pinned.</p>
+      <p class="stateline" id="aqua-r-status" role="status" aria-live="polite">loading routing...</p>
       <div id="aqua-r-rows"></div>
     </section>
 
     <section aria-labelledby="t-log">
       <div class="sectitle"><h2 id="t-log">change log</h2></div>
       <p class="note">every reorder, pin, reset and auto-reorder decision, newest first.</p>
-      <p class="stateline" id="aqua-l-status" role="status" aria-live="polite">loading changes…</p>
+      <p class="stateline" id="aqua-l-status" role="status" aria-live="polite">loading changes...</p>
       <div id="aqua-log"></div>
     </section>
       </div>
@@ -669,7 +657,6 @@ section { margin-bottom:2.5rem; }
   document.getElementById('aqua-body').hidden = false;
   var so = document.getElementById('aqua-signout');
   so.style.display = '';
-  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
   so.addEventListener('click', function (ev) {
     ev.preventDefault();
     fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
@@ -696,12 +683,12 @@ section { margin-bottom:2.5rem; }
         if (!r.ok) {
           var detail = body && typeof body.error === 'string' ? body.error : '';
           var msg, code = 'http';
-          if (r.status === 401) { msg = 'session expired. reload to sign in again.'; code = 'auth'; }
+          if (r.status === 401) { msg = 'session expired - reload to sign in again.'; code = 'auth'; }
           else if (r.status === 400) { msg = detail || 'that order was rejected.'; code = 'bad_request'; }
-          else if (r.status === 503) { msg = 'the gateway is unavailable right now. your change was not saved. the old order still stands.'; code = 'storage'; }
-          else if (r.status === 403) { msg = 'the gateway refused that change. reload the page and try again; sign in again if it keeps happening.'; code = 'denied'; }
+          else if (r.status === 503) { msg = 'storage is unavailable right now. your change was not saved - the old order still stands.'; code = 'storage'; }
+          else if (r.status === 403) { msg = 'access denied (http 403) - the api refused this request.'; code = 'denied'; }
           else if (r.status === 409) { msg = detail || 'changed since you loaded'; code = 'stale'; }
-          else { msg = 'the request failed. try again, and reload the page if it keeps failing.' + (detail ? ' ' + detail : ''); }
+          else { msg = 'request failed (http ' + r.status + ').' + (detail ? ' ' + detail : ''); }
           var err = Error(msg);
           err.status = r.status;
           err.code = code;
@@ -712,10 +699,10 @@ section { margin-bottom:2.5rem; }
     }, function (netErr) {
       var e;
       if (netErr && netErr.name === 'AbortError') {
-        e = Error('no answer in 10 s. save status unknown. if the gateway did apply the change it will show on the next refresh.');
+        e = Error('no answer in 10 s - save status unknown. if the server did apply the change it will show on the next refresh.');
         e.code = 'timeout';
       } else {
-        e = Error('network error. could not reach the gateway.');
+        e = Error('network error - could not reach the server.');
         e.code = 'network';
       }
       throw e;
@@ -741,48 +728,48 @@ section { margin-bottom:2.5rem; }
     settings_rev: 1,
     models: [
       { model: 'north-mini-code', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' }]},
+        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier - provider lists $0' }]},
       { model: 'nemotron-3-ultra-550b-a55b', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
-        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.50 in / $2.20 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier - provider lists $0' },
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.50 in / $2.20 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'nemotron-3.5-super-vl', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
-        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'openrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier - provider lists $0' },
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'deepseek-v4.1-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'zro', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
-        { provider: 'orcarouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
-        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.30 in / $1.20 out per 1M tok: openrouter list price, looked up 2026-11-18' },
-        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.30 in / $1.20 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'zro', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier - provider lists $0' },
+        { provider: 'orcarouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier - provider lists $0' },
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.30 in / $1.20 out per 1M tok - openrouter list price, looked up 2026-11-18' },
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.30 in / $1.20 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'glm-4.7-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'zai', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' }]},
+        { provider: 'zai', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier - provider lists $0' }]},
       { model: 'deepseek-v4-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'inferbase', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' },
-        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.09 in / $0.18 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'inferbase', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier - provider lists $0' },
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.09 in / $0.18 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'qwen-3.8-27b', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price: unknown' },
-        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price: unknown' }]},
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price - unknown' },
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price - unknown' }]},
       { model: 'glm-5.3-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok: openrouter list price, looked up 2026-11-18' },
-        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok: openrouter list price, looked up 2026-11-18' },
-        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok - openrouter list price, looked up 2026-11-18' },
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok - openrouter list price, looked up 2026-11-18' },
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.15 in / $0.50 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'glm-5.3', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.0699 in / $1.40 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.0699 in / $1.40 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'kimi-k2.6', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.65 in / $3.41 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.65 in / $3.41 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'kimi-k2.7-code', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.60 in / $3.50 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'logfare', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.60 in / $3.50 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'minimax-m3.1-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.075 in / $0.30 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.075 in / $0.30 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'mistral-large-4-1t-a52b', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price: unknown' }]},
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price - unknown' }]},
       { model: 'nemotron-3.5-lightning-30b-a3b', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price: unknown' }]},
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'no verified list price - unknown' }]},
       { model: 'step-5-preview', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$1 in / $2.70 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'nim', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$1 in / $2.70 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'mimo-v2.6-flash', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.14 in / $0.28 out per 1M tok: openrouter list price, looked up 2026-11-18' }]},
+        { provider: 'radeon', status: 'personal', configured: true, eligible: true, free: false, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: '$0.14 in / $0.28 out per 1M tok - openrouter list price, looked up 2026-11-18' }]},
       { model: 'kimi-k3.1-pro', rev: 0, pinned: false, free_first_violated: false, moved_at: null, order: [
-        { provider: 'nextrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier: provider lists $0' }]}
+        { provider: 'nextrouter', status: 'personal', configured: true, eligible: true, free: true, probes: 0, samples: 0, scored: false, p50_ok_ms: null, err_pct: 0, unhealthy: false, cooldown: null, cost: 'free tier - provider lists $0' }]}
     ]
   };
   var mockState = null;
@@ -797,11 +784,11 @@ section { margin-bottom:2.5rem; }
     var rest = m.order.filter(function (c) { return !c.eligible; });
     m.order = ids.map(function (id) { return m.order.find(function (c) { return c.provider === id; }); }).concat(rest);
     m.pinned = true; m.rev++; mockRecheck(m);
-    mockNote(m.model + ': you set a manual order (' + ids.join(' > ') + '). pinned.');
+    mockNote(m.model + ': you set a manual order (' + ids.join(' > ') + ') - pinned.');
   }
   function mockApplyPin(m, pinned) {
     m.pinned = pinned; m.rev++; mockRecheck(m);
-    mockNote(m.model + (pinned ? ': you pinned the current order.' : ': you unpinned. auto-reorder may adjust it.'));
+    mockNote(m.model + (pinned ? ': you pinned the current order.' : ': you unpinned - auto-reorder may adjust it.'));
   }
   function mockApplyReset(m) {
     var def = MOCK_FIXTURE.models.find(function (x) { return x.model === m.model; });
@@ -811,37 +798,28 @@ section { margin-bottom:2.5rem; }
   }
   function mockApplyAuto(next) {
     mockState.settings.auto = next; mockState.settings_rev++;
-    mockNote('you turned auto-reorder ' + (next ? 'on' : 'off') + ' (fixture: no background job runs until the backend lands).');
+    mockNote('you turned auto-reorder ' + (next ? 'on' : 'off') + ' (fixture - no background job runs until the backend lands).');
   }
 
   function latText(c) {
     var t;
     if (!c.samples) t = 'not measured yet';
-    else if (!c.scored) t = c.samples + ' measurements: not enough to score yet';
+    else if (!c.scored) t = c.samples + ' measurements - not enough to score yet';
     else {
       t = c.p50_ok_ms + ' ms over ' + c.samples + ' measurements';
-      if (c.err_pct) t += ' · ' + c.err_pct + '% errors';
+      if (c.err_pct) t += ' - ' + c.err_pct + '% errors';
     }
-    if (c.probes) t += (t ? ' · ' : '') + c.probes + ' probe' + (c.probes === 1 ? '' : 's');
+    if (c.probes) t += (t ? ' - ' : '') + c.probes + ' probe' + (c.probes === 1 ? '' : 's');
     return t;
   }
   function srcLabel(m) {
-    if (m.pinned) return ['your order: pinned', true];
+    if (m.pinned) return ['your order - pinned', true];
     if (m.moved_at) return ['auto-adjusted', false];
-    return ['default: config order', false];
+    return ['default - config order', false];
   }
 
   function renderRouting() {
     var wrap = document.getElementById('aqua-r-rows');
-    // Remember the focused control so the rebuild can restore it.
-    var prevLabel = null, prevMid = null;
-    var ae = document.activeElement;
-    if (ae && wrap.contains(ae) && ae.tagName === 'BUTTON') {
-      prevLabel = ae.getAttribute('aria-label') || ae.textContent;
-      var pd = ae.closest('details');
-      var pm = pd && pd.querySelector('summary .mid');
-      if (pm) prevMid = pm.textContent;
-    }
     wrap.textContent = '';
     rowButtons = [];
     document.getElementById('aqua-r-status').textContent = routing.models.length + ' models.' + (notice ? ' ' + notice : '');
@@ -863,7 +841,7 @@ section { margin-bottom:2.5rem; }
         row.appendChild(el('span', 'pos num', String(i + 1)));
         row.appendChild(el('span', 'prov', c.provider));
         if (c.cooldown) row.appendChild(el('span', 'pill' + (c.cooldown.hard ? ' off' : ''), c.cooldown.hard ? 'cooling down' : 'recently failed'));
-        if (c.unhealthy) row.appendChild(el('span', 'pill off', 'unhealthy: demoted'));
+        if (c.unhealthy) row.appendChild(el('span', 'pill off', 'unhealthy - demoted'));
         if (!c.eligible) row.appendChild(el('span', 'pill off', 'not eligible'));
         if (c.status === 'off') row.appendChild(el('span', 'pill off', 'off'));
         row.appendChild(el('span', 'meta num', latText(c)));
@@ -885,10 +863,10 @@ section { margin-bottom:2.5rem; }
         row.appendChild(mv);
         det.appendChild(row);
       });
-      if (m.free_first_violated) det.appendChild(el('p', 'note err', 'your pinned order puts a non-free route ahead of a free one. your choice stands. auto-reorder would never do this.'));
+      if (m.free_first_violated) det.appendChild(el('p', 'note err', 'your pinned order puts a non-free route ahead of a free one. your choice stands - auto-reorder would never do this.'));
       var bar = el('div', 'resetbtn');
       if (m.pinned) {
-        var ub = el('button', 'btn', 'unpin. auto manages order (free routes may move ahead of non-free)');
+        var ub = el('button', 'btn', 'unpin - auto manages order (free routes may move ahead of non-free)');
         ub.type = 'button';
         ub.addEventListener('click', function () { setPin(m, false); });
         rowButtons.push({ el: ub, base: false });
@@ -907,37 +885,6 @@ section { margin-bottom:2.5rem; }
       wrap.appendChild(det);
     });
     setBusyState();
-    // Restore focus to the same control if it survived, its counterpart, or the model's summary.
-    // Deferred so it runs after the mutation's busy window re-enables the rebuilt buttons.
-    if (prevLabel || prevMid) {
-      setTimeout(function () {
-        // Scope the search to the model that had focus: provider labels repeat across models.
-        var target = null, det = null;
-        if (prevMid) {
-          var mids = wrap.querySelectorAll('details > summary .mid');
-          for (var si = 0; si < mids.length; si++) {
-            if (mids[si].textContent === prevMid) { det = mids[si].closest('details'); break; }
-          }
-        }
-        var usable = function (b) { var d = b.closest('details'); return !b.disabled && (!d || d.open); };
-        if (prevLabel && det) {
-          var lbl = prevLabel;
-          var btns = det.querySelectorAll('button');
-          for (var bi = 0; bi < btns.length && !target; bi++) {
-            var bl = btns[bi].getAttribute('aria-label') || btns[bi].textContent;
-            if (bl === lbl && usable(btns[bi])) target = btns[bi];
-          }
-          if (!target && / (up|down)$/.test(lbl)) {
-            var alt = lbl.replace(/ (up|down)$/, function (m, d) { return d === 'up' ? ' down' : ' up'; });
-            for (var bj = 0; bj < btns.length && !target; bj++) {
-              if (btns[bj].getAttribute('aria-label') === alt && usable(btns[bj])) target = btns[bj];
-            }
-          }
-        }
-        if (!target && det) target = det.querySelector('summary');
-        if (target) target.focus();
-      }, 0);
-    }
   }
 
   function setStatus(t) { document.getElementById('aqua-r-status').textContent = t; }
@@ -949,7 +896,7 @@ section { margin-bottom:2.5rem; }
 
   function conflict(m) {
     // 409: the row changed since we loaded (auto job or another tab). Refresh, keep the explanation visible, never blind-retry.
-    notice = (m ? m.model + ': ' : '') + 'this changed since you loaded the page. refreshed to the current state. retry if it still looks wrong.';
+    notice = (m ? m.model + ': ' : '') + 'this changed since you loaded the page - refreshed to the current state. retry if it still looks wrong.';
     return loadRouting().catch(function (e) {
       notice = '';
       setStatus('the change conflicted with newer state, and the refresh after it failed: ' + e.message);
@@ -977,17 +924,17 @@ section { margin-bottom:2.5rem; }
     var j = i + dir;
     if (j < 0 || j >= ids.length) return;
     ids.splice(i, 1); ids.splice(j, 0, provider);
-    runMutation(m, 'saving order for ' + m.model + '…', function () {
+    runMutation(m, 'saving order for ' + m.model + '...', function () {
       return LIVE ? request('/v1/admin/routing/' + encodeURIComponent(m.model) + '/order', { method: 'PUT', body: JSON.stringify({ order: ids, pinned: true, rev: m.rev }) }) : Promise.resolve(mockApplyOrder(m, ids));
     });
   }
   function setPin(m, pinned) {
-    runMutation(m, (pinned ? 'pinning ' : 'unpinning ') + m.model + '…', function () {
+    runMutation(m, (pinned ? 'pinning ' : 'unpinning ') + m.model + '...', function () {
       return LIVE ? request('/v1/admin/routing/' + encodeURIComponent(m.model) + '/order', { method: 'PUT', body: JSON.stringify({ pinned: pinned, rev: m.rev }) }) : Promise.resolve(mockApplyPin(m, pinned));
     });
   }
   function resetModel(m) {
-    runMutation(m, 'resetting ' + m.model + '…', function () {
+    runMutation(m, 'resetting ' + m.model + '...', function () {
       return LIVE ? request('/v1/admin/routing/' + encodeURIComponent(m.model) + '/reset', { method: 'POST', body: JSON.stringify({ rev: m.rev }) }) : Promise.resolve(mockApplyReset(m));
     });
   }
@@ -1000,7 +947,7 @@ section { margin-bottom:2.5rem; }
   autoBtn.addEventListener('click', function () {
     if (!routing || busy) return;
     var next = autoBtn.getAttribute('aria-checked') !== 'true';
-    runMutation(null, next ? 'turning auto-reorder on…' : 'turning auto-reorder off…', function () {
+    runMutation(null, next ? 'turning auto-reorder on...' : 'turning auto-reorder off...', function () {
       return LIVE ? request('/v1/admin/routing/auto', { method: 'PUT', body: JSON.stringify({ settings_rev: routing.settings_rev, auto: next }) }) : Promise.resolve(mockApplyAuto(next));
     });
   });
@@ -1013,7 +960,7 @@ section { margin-bottom:2.5rem; }
   function loadRouting() {
     return (LIVE ? request('/v1/admin/routing') : Promise.resolve(mockSnap())).then(function (data) {
       if (!validRouting(data)) {
-        var bad = Error('the gateway answered with data this page does not understand. nothing was rendered.');
+        var bad = Error('the server answered with data this page does not understand - nothing was rendered.');
         bad.code = 'shape';
         throw bad;
       }
@@ -1023,17 +970,10 @@ section { margin-bottom:2.5rem; }
       renderAuto();
     }).catch(function (e) {
       // Do not keep stale rows or a stale cache: invalidate, clear, disable, say when we last had good data.
-      // Read path: mutation-framed errors (storage/denied/timeout) get read framing here.
-      if (e && (e.code === 'storage' || e.code === 'denied' || e.code === 'timeout')) {
-        var msg = e.code === 'storage' ? 'the gateway is unavailable right now. reload the page to try again.'
-          : e.code === 'denied' ? 'the gateway refused the request. reload the page to try again.'
-          : 'no answer in 10 s. reload the page to try again.';
-        var e2 = Error(msg); e2.code = e.code; e = e2;
-      }
       routing = null;
       document.getElementById('aqua-r-rows').textContent = '';
       rowButtons = [];
-      setStatus(e.message + (lastLoadOk ? ' last loaded ' + lastLoadOk.toLocaleTimeString() + '. cleared rather than show stale data.' : ''));
+      setStatus(e.message + (lastLoadOk ? ' last loaded ' + lastLoadOk.toLocaleTimeString() + ' - cleared rather than show stale data.' : ''));
       document.getElementById('aqua-l-status').textContent = '';
       setBusyState();
       throw e;
@@ -1044,12 +984,6 @@ section { margin-bottom:2.5rem; }
     return (LIVE ? request('/v1/admin/routing/log') : Promise.resolve({ log: mockLog.slice() })).then(function (data) {
       renderLog(data.log || []);
     }).catch(function (e) {
-      if (e && (e.code === 'storage' || e.code === 'denied' || e.code === 'timeout')) {
-        var msg = e.code === 'storage' ? 'the gateway is unavailable right now. reload the page to try again.'
-          : e.code === 'denied' ? 'the gateway refused the request. reload the page to try again.'
-          : 'no answer in 10 s. reload the page to try again.';
-        var e2 = Error(msg); e2.code = e.code; e = e2;
-      }
       document.getElementById('aqua-log').textContent = '';
       document.getElementById('aqua-l-status').textContent = e.message;
       throw e;
@@ -1067,7 +1001,7 @@ section { margin-bottom:2.5rem; }
       row.appendChild(el('span', 'lt', it.t));
       row.appendChild(el('span', 'lk ' + (it.kind === 'auto' ? 'auto' : 'you'), it.kind === 'auto' ? 'auto' : 'you'));
       var text = it.text;
-      if (it.basis && it.basis.n != null) text += ' · measured p50 ' + it.basis.p50_ms + ' ms, ' + it.basis.err_pct + '% errors, ' + it.basis.n + ' samples';
+      if (it.basis && it.basis.n != null) text += ' - measured p50 ' + it.basis.p50_ms + ' ms, ' + it.basis.err_pct + '% errors, ' + it.basis.n + ' samples';
       row.appendChild(el('span', '', text));
       wrap.appendChild(row);
     });

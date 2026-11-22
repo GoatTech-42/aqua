@@ -245,10 +245,7 @@
   src: url(/fonts/f04.woff2) format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-html[data-session-pending] { visibility:hidden; }
-.denied { margin-top:6rem; text-align:center; }
-.denied h1 { margin-top:1.125rem; }
-.denied .sub { margin-left:auto; margin-right:auto; }</style>
+html[data-session-pending] { visibility:hidden; }</style>
 <noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -256,13 +253,13 @@ html[data-session-pending] { visibility:hidden; }
 <style>
 /* aqua shell - shared by landing, console, playground, keys, settings.
    black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
-   deliberately larger UI (16px at <=1024, ~23.9px at 1920, ~29.6px at 2560, 40px at 3840). All component sizes in rem. */
-html { font-size: clamp(16px, 0.885vw + 6.93px, 40px); }
+   deliberately larger UI (16px at <=1024, ~22.7px at 1920, ~27.5px at 2560, 36px at 3840+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.75vw + 8.32px, 36px); }
 :root {
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
   --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
-  --warn:#e3b341;
+  --warn:var(--muted);
   --accent:#2fd4bf; --accent-ink:#03251f;
   --radius-card:0.7rem; --radius-control:0.5rem;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
@@ -296,7 +293,7 @@ svg { display:block; }
 .brand { display:flex; align-items:center; gap:0.625rem; padding:0.25rem 0.625rem 1.125rem; text-decoration:none; color:var(--text); }
 .brand svg { width:1.375rem; height:1.375rem; stroke:var(--accent); }
 .brand .wm { font-weight:500; font-size:1.125rem; letter-spacing:-0.01em; }
-.navlabel { font-size:max(0.72rem, 12px); font-weight:600; letter-spacing:0.09em; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
+.navlabel { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
 .nav a { display:flex; align-items:center; gap:0.625rem; min-height:2.375rem; padding:0 0.75rem; border-radius:0.5rem; color:var(--muted); text-decoration:none; font-size:0.9375rem; font-weight:450; }
 .nav a svg { color:#7a7a7a; width:1.0625rem; height:1.0625rem; flex:none; }
 .nav a:hover { color:var(--text); }
@@ -304,14 +301,12 @@ svg { display:block; }
 .nav a.on svg { color:var(--accent); }
 .spacer { flex:1; }
 .userrow { display:flex; align-items:center; gap:0.625rem; padding:0.75rem 0.625rem 0.25rem; border-top:1px solid var(--rule); }
-.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:max(0.72rem, 12px); font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
+.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:0.72rem; font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
 .userrow .un { font-size:0.875rem; font-weight:500; }
 .userrow .up { font-size:0.75rem; color:var(--faint); }
 .userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
 .userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; display:inline-flex; align-items:center; min-height:1.5rem; }
 .userrow a:hover { color:var(--text); }
-.userrow button { margin-left:auto; font-family:inherit; font-size:0.78rem; color:var(--faint); background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; min-height:1.5rem; }
-.userrow button:hover { color:var(--text); }
 
 /* ---- canvas ---- */
 .main { min-width:0; min-height:0; overflow-y:auto; }
@@ -332,10 +327,6 @@ h2 { font-size:1.05rem; font-weight:500; }
 .btn:disabled { color:var(--muted); cursor:wait; }
 .btn:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
 a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
-.userrow button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
-.skiplink { position:absolute; left:-9999px; top:0.5rem; z-index:200; background:var(--ground); color:var(--accent); font-size:0.85rem; padding:0.4rem 0.75rem; border:1px solid var(--line); border-radius:var(--radius-control); text-decoration:none; }
-.skiplink:focus { left:0.5rem; }
-.main:focus { outline:none; }
 summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .btn-solid { background:#fff; color:#000; border-color:#fff; }
 .btn-solid:hover { border-color:#fff; filter:brightness(0.9); }
@@ -367,7 +358,7 @@ summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; bor
 /* ---- model table ---- */
 .table { margin-top:0.875rem; overflow-x:auto; }
 .thead, .mrow { display:grid; grid-template-columns:minmax(14rem,1.6fr) 7rem 8.125rem 8.125rem 8.125rem 7rem; align-items:center; gap:0.875rem; }
-.thead { min-height:2.5rem; font-size:max(0.72rem, 12px); font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.thead { min-height:2.5rem; font-size:0.72rem; font-weight:600; letter-spacing:0.07em; color:var(--faint); }
 .thead .h.r { text-align:right; }
 .mrow { min-height:3.5rem; border-top:1px solid var(--rule); padding:0.5rem 0; }
 .mrow:hover { background:#070707; }
@@ -376,22 +367,15 @@ summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; bor
 .mname { font-family:var(--mono); font-size:0.875rem; font-weight:500; overflow-wrap:anywhere; }
 .msub { font-size:0.8125rem; color:var(--faint); margin-top:3px; }
 .c-status { display:flex; justify-content:flex-end; }
-/* status pills: small dot + word, never fills. ok green / warn amber / bad red */
+/* Status words carry meaning; neutral brightness distinguishes healthy from unknown/off. */
 .pill { display:inline-flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; font-weight:500; white-space:nowrap; }
 .pill::before { content:""; width:0.375rem; height:0.375rem; border-radius:50%; background:currentColor; flex:none; }
-.pill-live { color:#3fb950; }
-.pill-warn { color:#e3b341; }
-.pill-neutral { color:#a8a8a8; }
-.pill-off { color:#f85149; }
+.pill-live { color:var(--text); }
+.pill-warn { color:var(--muted); }
+.pill-neutral { color:var(--muted); }
+.pill-off { color:var(--muted); }
 
 .phonebar { display:none; }
-.phonebar .pb-nav { margin-left:auto; position:relative; }
-.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
-.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
-.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
-.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
-.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
-.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 @media (max-width: 760px) {
   .app { grid-template-columns:1fr; }
@@ -404,13 +388,14 @@ summary:focus-visible { outline:2px solid var(--accent); outline-offset:2px; bor
   h1 { font-size:1.375rem; }
   .endpoint { flex-direction:column; align-items:flex-start; gap:0.75rem; }
   .urlbar { margin-left:0; width:100%; }
-  .urlbar .u { flex:1; display:block; align-content:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .urlbar .u { flex:1; }
   .thead { display:none; }
   .mrow { grid-template-columns:minmax(0,1fr) auto; row-gap:3px; padding:0.75rem 0; }
   .mrow:hover { background:transparent; }
   .mrow .c.num { display:none; }
   .c-status { grid-column:2; grid-row:1; align-self:center; }
 }
+
 
 
 
@@ -425,13 +410,13 @@ section:first-of-type { margin-top:1.75rem; }
 /* providers */
 .ptable { margin-top:0.75rem; overflow-x:auto; }
 .phead, .prow { display:grid; grid-template-columns:minmax(8.75rem,1.2fr) 6.875rem 6.875rem minmax(0,2fr); align-items:start; gap:0.875rem; }
-.phead { height:2.375rem; align-items:center; font-size:max(0.6875rem, 12px); font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.phead { height:2.375rem; align-items:center; font-size:0.6875rem; font-weight:600; letter-spacing:0.07em; color:var(--faint); }
 .prow { border-top:1px solid var(--rule); padding:0.75rem 0; }
 .prow:hover { background:#070707; }
 .prow .pid { font-family:var(--mono); font-size:0.7813rem; font-weight:600; overflow-wrap:anywhere; }
 .conf { font-size:0.7813rem; color:var(--muted); }
 .pmodels { display:flex; flex-direction:column; gap:0.25rem; }
-.pm { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:0.5rem; font-family:var(--mono); font-size:max(0.7188rem, 12px); align-items:baseline; }
+.pm { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:0.5rem; font-family:var(--mono); font-size:0.7188rem; align-items:baseline; }
 .pm .pub { color:var(--text); overflow-wrap:anywhere; }
 .pm .arr { color:var(--faint); }
 .pm .ups { color:var(--faint); overflow-wrap:anywhere; }
@@ -448,10 +433,9 @@ section:first-of-type { margin-top:1.75rem; }
 .umrow span:last-child { text-align:right; }
 
 /* models (model-first): one row per canonical model, routes collapsed underneath */
-.resolvebar { display:flex; gap:0.625rem; margin-top:0.875rem; max-width:64rem; }
+.resolvebar { display:flex; gap:0.625rem; margin-top:0.875rem; max-width:44rem; }
 .resolvebar input { flex:1; min-width:0; background:var(--ground); color:var(--text); padding:0.5rem 0.625rem; height:2.375rem;
-  border:1px solid #767676; border-radius:var(--radius-control); font:inherit; font-size:0.8125rem; }
-.resolvebar input::placeholder { color:#8a8a8a; }
+  border:1px solid var(--control); border-radius:var(--radius-control); font:inherit; font-size:0.8125rem; }
 .resolvebar input:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
 .resolveout { margin-top:0.375rem; }
 .resolveout .rmap { font-size:0.8438rem; color:var(--muted); margin-bottom:0.375rem; }
@@ -465,15 +449,14 @@ section:first-of-type { margin-top:1.75rem; }
 .mdl .mid { font-family:var(--mono); font-weight:600; font-size:0.9rem; overflow-wrap:anywhere; }
 .mdl .menabled { color:var(--text); }
 .mdl .menabled.off { color:var(--faint); }
-.mdl .mmeta { margin-left:auto; display:flex; align-items:center; gap:0.75rem; color:var(--muted); font-size:0.8125rem; white-space:nowrap; }
+.mdl .mmeta { margin-left:auto; display:block; color:var(--muted); font-size:0.8125rem; word-spacing:0.08rem; white-space:nowrap; }
 .mdl .routes { margin:0.375rem 0 0.25rem 1.125rem; }
 .rhead, .rrow { display:grid; grid-template-columns:minmax(6.5rem,0.7fr) minmax(0,1.6fr) 5.5rem 5rem 6.5rem; gap:0.75rem; align-items:baseline; }
-.rhead { padding:0.375rem 0; font-size:max(0.6875rem, 12px); font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.rhead { padding:0.375rem 0; font-size:0.6875rem; font-weight:600; letter-spacing:0.07em; color:var(--faint); }
 .rrow { border-top:1px solid var(--rule); padding:0.5rem 0; font-size:0.8125rem; }
 .rrow .rp { font-family:var(--mono); font-size:0.75rem; overflow-wrap:anywhere; }
 .rrow .ru { font-family:var(--mono); font-size:0.75rem; color:var(--muted); overflow-wrap:anywhere; }
 .rrow .rc { color:var(--muted); }
-.rrow .rc.ret-src { display:inline-flex; align-items:center; min-height:24px; }
 .rrow .rc.ret-src { cursor:pointer; }
 .rrow .rc.ret-src:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .rdetail { display:none; grid-column:1 / -1; min-width:0; max-width:100%; overflow-wrap:anywhere; color:var(--faint); font-size:0.75rem; line-height:1.5; padding-top:0.125rem; }
@@ -484,7 +467,9 @@ section:first-of-type { margin-top:1.75rem; }
   .rhead { display:none; }
   .rrow { grid-template-columns:minmax(0,1fr) auto; row-gap:0.25rem; }
   .rrow .ru { grid-column:1 / -1; }
-  .mdl .mmeta { flex-direction:column; align-items:flex-end; gap:0.125rem; white-space:normal; text-align:right; }
+  .mdl summary { flex-wrap:wrap; row-gap:0.25rem; }
+  .mdl .mid { flex:1; }
+  .mdl .mmeta { flex-basis:100%; margin-left:1.125rem; white-space:normal; text-align:left; }
 }
 @media(max-width:760px) {
   .phead { display:none; }
@@ -494,53 +479,47 @@ section:first-of-type { margin-top:1.75rem; }
 }
 
 /* ---- settings page ---- */
-.field { margin-top:0.875rem; padding:1.125rem 1.25rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); max-width:var(--canvas-max); }
+.field { margin-top:0.875rem; padding:1.125rem 1.25rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius-card); max-width:64rem; }
 .field .lab { font-size:0.9375rem; font-weight:500; }
 .field .labsub { font-size:0.8125rem; color:var(--faint); margin-top:2px; }
 .field .row { display:flex; gap:0.625rem; margin-top:0.75rem; flex-wrap:wrap; }
-.field input { flex:1; min-width:16rem; min-height:2.375rem; padding:0 0.75rem; background:#000; border:1px solid #767676; border-radius:var(--radius-control); color:var(--text); font-family:var(--mono); font-size:0.8125rem; }
+.field input { flex:1; min-width:16rem; min-height:2.375rem; padding:0 0.75rem; background:#000; border:1px solid var(--control); border-radius:var(--radius-control); color:var(--text); font-family:var(--mono); font-size:0.8125rem; }
 .field input:focus-visible { outline:2px solid var(--text); outline-offset:1px; }
 .kvline { display:flex; justify-content:space-between; gap:1rem; padding:0.5rem 0; border-top:1px solid var(--rule); font-size:0.9375rem; }
 .kvline:first-of-type { border-top:none; }
 .kvline .k { color:var(--faint); font-size:0.8125rem; }
 .kvline .v { font-family:var(--mono); font-size:0.8125rem; overflow-wrap:anywhere; text-align:right; }
-@media (max-width: 380px) {
-  .kvline { flex-direction:column; gap:0.125rem; }
-  .kvline .v { text-align:left; }
-}
-
 h2 { margin-top:2rem; }
 </style>
 </head>
 <body>
-<a class="skiplink" href="#main">skip to content</a>
 <div class="app">
 <aside class="side">
-    <a class="brand" href="https://aqua.goattech.us/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <a class="brand" href="https://aqua.goattech.us/"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
     <nav class="nav">
       <div class="navlabel">gateway</div>
-      <a href="/console.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
-      <a href="/playground.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
-      <a href="/keys.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
-      <a href="/usage.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
-      <a href="/routing.html"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
-      <a href="/settings.html" class="on" aria-current="page"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+      <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/usage.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+      <a href="/routing.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+      <a href="/settings.html" class="on" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
     </nav>
     <div class="spacer"></div>
-    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
   </aside>
-  <main class="main" id="main" tabindex="-1">
-    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">settings</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html">models</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a><a href="/usage.html">usage</a><a href="/routing.html">routing</a><a href="/settings.html" aria-current="page">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
+  <div class="main">
+    <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">settings</span></div>
     <div class="canvas">
-      <div id="aqua-denied" class="denied" hidden>
-    <h1>sign in first</h1>
-    <p class="sub">this page needs your account. <a id="aqua-denied-signin" href="/login/github">sign in with github</a> to continue.</p>
-  </div>
+      <div id="aqua-denied" hidden>
+        <h1>owner only</h1>
+        <p class="sub" id="aqua-userwhy">settings are for the owner account.</p>
+      </div>
       <div id="aqua-body" hidden>
       <div class="titlerow aqua-in">
         <h1>settings</h1>
       </div>
-      <p class="sub aqua-in aqua-in-1">connection and session preferences. everything on this page is real. it changes this browser, nothing else.</p>
+      <p class="sub aqua-in aqua-in-1">connection and session preferences. everything on this page is real - it changes this browser, nothing else.</p>
 
       <section aria-labelledby="t-conn">
         <h2 id="t-conn" class="aqua-in aqua-in-2">connection</h2>
@@ -571,7 +550,7 @@ h2 { margin-top:2rem; }
     <section aria-labelledby="t-models">
       <div class="sectitle"><h2 id="t-models">models</h2></div>
       <p class="note">one row per model. duplicate provider routes are merged underneath; upstream ids never leave this page.</p>
-      <p class="stateline" id="aqua-m-status" role="status" aria-live="polite">loading models…</p>
+      <p class="stateline" id="aqua-m-status" role="status" aria-live="polite">loading models...</p>
       <form id="aqua-resolve" class="resolvebar">
         <input id="aqua-resolve-name" placeholder="test a request name (e.g. an old alias)" autocomplete="off" maxlength="128" aria-label="request name to test">
         <button type="submit" class="btn" id="aqua-resolve-btn">check route</button>
@@ -584,7 +563,7 @@ h2 { margin-top:2rem; }
 
     <section aria-labelledby="t-providers">
       <div class="sectitle"><h2 id="t-providers">providers</h2><button type="button" class="btn" id="aqua-p-refresh">refresh</button></div>
-      <p class="stateline" id="aqua-p-status" role="status" aria-live="polite">loading providers…</p>
+      <p class="stateline" id="aqua-p-status" role="status" aria-live="polite">loading providers...</p>
       <div class="ptable" id="aqua-p-table" hidden>
         <div class="phead"><span>provider</span><span>status</span><span>configured</span><span>models (public → upstream)</span></div>
         <div id="aqua-p-rows"></div>
@@ -595,12 +574,12 @@ h2 { margin-top:2rem; }
     <section aria-labelledby="t-usage">
       <div class="sectitle"><h2 id="t-usage">usage</h2><button type="button" class="btn" id="aqua-u-refresh">refresh</button></div>
       <p class="note">virtual usd at model list prices, not a bill. the owner account has no aqua virtual cap; provider limits still apply. daily and monthly windows use utc.</p>
-      <p class="stateline" id="aqua-u-status" role="status" aria-live="polite">loading usage…</p>
+      <p class="stateline" id="aqua-u-status" role="status" aria-live="polite">loading usage...</p>
       <div id="aqua-u-accounts"></div>
     </section>
       </div>
     </div>
-  </main>
+  </div>
 </div>
 
 <script>
@@ -632,7 +611,6 @@ h2 { margin-top:2rem; }
   if (storedNow !== null) localStorage.setItem('aqua_api_base', storedNow);
   var base = aquaResolveApiBase();
   var serverOrigin = base.replace(/\/v1$/, '');
-  document.getElementById('aqua-denied-signin').setAttribute('href', serverOrigin + '/login/github');
 
   var me;
   var sessionAbort = new AbortController();
@@ -643,10 +621,7 @@ h2 { margin-top:2rem; }
     me = await sessionResponse.json();
     if (!me || typeof me.login !== 'string' || !me.login || me.role !== 'owner') throw Error('invalid session');
   } catch (_) {
-    document.documentElement.removeAttribute('data-session-pending');
-    document.getElementById('aqua-denied').hidden = false;
-    document.getElementById('aqua-user').textContent = '';
-    document.getElementById('aqua-usersub').textContent = '';
+    location.replace('/?need=signin');
     return;
   } finally {
     clearTimeout(sessionTimeout);
@@ -660,12 +635,15 @@ h2 { margin-top:2rem; }
   document.getElementById('aqua-avatar').textContent = me.login.charAt(0).toUpperCase();
   var so = document.getElementById('aqua-signout');
   so.style.display = '';
-  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
   so.addEventListener('click', function (ev) {
     ev.preventDefault();
     fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
   });
 
+  if (me.role !== 'owner') {
+    document.getElementById('aqua-denied').hidden = false;
+    return;
+  }
   document.getElementById('aqua-body').hidden = false;
 
   document.getElementById('aqua-who').textContent = me.login + ' \u00b7 ' + me.role;
@@ -684,7 +662,7 @@ h2 { margin-top:2rem; }
   paint();
   document.getElementById('aqua-base-save').addEventListener('click', function () {
     var v = input.value.trim().replace(/\/+$/, '');
-    if (!/^https?:\/\/.+\/v1$/.test(v)) { status.textContent = 'that does not look like an api base url. it should start with http(s):// and end in /v1.'; status.className = 'stateline err'; return; }
+    if (!/^https?:\/\/.+\/v1$/.test(v)) { status.textContent = 'that does not look like an api base url - it should start with http(s):// and end in /v1.'; status.className = 'stateline err'; return; }
     var allowed = (v === 'https://aqua-api.goattech.us/v1') || (v === location.origin + '/v1');
     if (!allowed) { status.textContent = 'only the production api or this site can be used'; status.className = 'stateline err'; return; }
     if (v === defaultBase) { localStorage.removeItem('aqua_api_base'); } else { localStorage.setItem('aqua_api_base', v); }
@@ -712,10 +690,10 @@ h2 { margin-top:2rem; }
         if (!r.ok) {
           var detail = body && typeof body.error === 'string' ? body.error
                      : body && typeof body.message === 'string' ? body.message : '';
-          if (r.status === 401) throw Error('session expired. reload to sign in again.');
+          if (r.status === 401) throw Error('session expired - reload to sign in again.');
           if (r.status === 403) throw Error('not allowed.' + (detail ? ' ' + detail : ''));
-          if (r.status === 503) throw Error('the gateway is unavailable right now. try again shortly.');
-          throw Error('the request failed. try again, and reload the page if it keeps failing.' + (detail ? ' ' + detail : ''));
+          if (r.status === 503) throw Error('storage is unavailable right now. try again shortly.');
+          throw Error('request failed (http ' + r.status + ').' + (detail ? ' ' + detail : ''));
         }
         return body;
       });
@@ -741,22 +719,6 @@ h2 { margin-top:2rem; }
   var pRefresh = document.getElementById('aqua-p-refresh');
   /* ---- models (model-first) ---- */
   var mStatus = document.getElementById('aqua-m-status');
-  /* stamp honesty: live relative age + absolute UTC title + clock-skew rule (same rule as the console sync stamp) */
-  function stampRel(ageMs) {
-    var mins = Math.floor(ageMs / 60000), hrs = Math.floor(ageMs / 3600000), days = Math.floor(ageMs / 86400000);
-    return ageMs < 120000 ? 'just now' : ageMs < 3600000 ? mins + ' min ago' : ageMs < 172800000 ? hrs + (hrs === 1 ? ' hour ago' : ' hours ago') : days + (days === 1 ? ' day ago' : ' days ago');
-  }
-  function paintStamp(el) {
-    if (el._syncAt == null) return;
-    var ageMs = Date.now() - el._syncAt;
-    if (ageMs < -300000) { el.textContent = el._stampBase + ' updated, clock skew / age unknown'; el.title = 'recorded update time is in the future'; return; }
-    el.textContent = el._stampBase + ' updated ' + stampRel(Math.max(0, ageMs));
-    el.title = 'last updated ' + new Date(el._syncAt).toUTCString().replace('GMT', 'UTC');
-  }
-  var stampEls = [];
-  function markStamp(el, base) { el._syncAt = Date.now(); el._stampBase = base; if (stampEls.indexOf(el) < 0) stampEls.push(el); paintStamp(el); }
-  function clearStamp(el) { var i = stampEls.indexOf(el); if (i >= 0) stampEls.splice(i, 1); el._syncAt = null; el._stampBase = null; el.title = ''; }
-  setInterval(function () { stampEls.forEach(paintStamp); }, 30000);
   var mRows = document.getElementById('aqua-m-rows');
   var mEmpty = document.getElementById('aqua-m-empty');
   // Retention provenance (route-retention audit, checked 2026-11-18): one plain caveat line
@@ -799,14 +761,13 @@ h2 { margin-top:2rem; }
   function renderModels(models) {
     mRows.textContent = '';
     if (!Array.isArray(models)) {
-      clearStamp(mStatus);
       mStatus.textContent = 'this backend does not report the merged model view yet.';
       mStatus.className = 'stateline';
       mEmpty.hidden = true;
       return;
     }
     if (!models.length) {
-      markStamp(mStatus, 'no models reported.');
+      mStatus.textContent = 'no models reported. updated ' + new Date().toLocaleTimeString().toLowerCase() + '.';
       mStatus.className = 'stateline';
       mEmpty.hidden = false;
       return;
@@ -823,12 +784,13 @@ h2 { margin-top:2rem; }
       var summary = el('span', 'menabled', enabled === 0 ? 'off' : enabled + ' enabled of ' + routes.length);
       if (enabled === 0) summary.classList.add('off');
       meta.appendChild(summary);
+      meta.appendChild(document.createTextNode(' · '));
       meta.appendChild(el('span', null, bc + ' binding' + (bc === 1 ? '' : 's')));
       sum.appendChild(meta);
       det.appendChild(sum);
       var wrap = el('div', 'routes');
       if (!routes.length) {
-        wrap.appendChild(el('div', 'rnone', 'no routes. this model cannot serve traffic.'));
+        wrap.appendChild(el('div', 'rnone', 'no routes - this model cannot serve traffic.'));
       } else {
         var tbl = el('div', 'rtable');
         var head = el('div', 'rhead');
@@ -879,7 +841,7 @@ h2 { margin-top:2rem; }
       det.appendChild(wrap);
       mRows.appendChild(det);
     });
-    markStamp(mStatus, models.length + ' model' + (models.length === 1 ? '' : 's') + '. duplicate routes merged.');
+    mStatus.textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + '. duplicate routes merged.';
     mStatus.className = 'stateline';
   }
   /* ---- request-name resolve (read-only; never dispatches) ---- */
@@ -893,7 +855,7 @@ h2 { margin-top:2rem; }
     rOut.textContent = '';
     if (!name) { rStatus.textContent = 'type a request name first.'; rStatus.className = 'stateline err'; return; }
     document.getElementById('aqua-resolve-btn').disabled = true;
-    rStatus.textContent = 'checking…';
+    rStatus.textContent = 'checking...';
     rStatus.className = 'stateline';
     var ctrl = new AbortController();
     var timedOut = false;
@@ -944,7 +906,7 @@ h2 { margin-top:2rem; }
         rOut.appendChild(wrap);
       })
       .catch(function (e) {
-        rStatus.textContent = timedOut ? 'resolve timed out. try again shortly.' : 'could not reach the gateway (' + e.message + ').';
+        rStatus.textContent = timedOut ? 'resolve timed out - try again shortly.' : 'could not reach the api (' + e.message + ').';
         rStatus.className = 'stateline err';
       })
       .finally(function () { clearTimeout(timer); document.getElementById('aqua-resolve-btn').disabled = false; });
@@ -961,7 +923,7 @@ h2 { margin-top:2rem; }
         providers.forEach(function (p) {
           var row = el('div', 'prow');
           row.appendChild(el('div', 'pid', p.id));
-          var st = el('div'); var ok = String(p.status).toLowerCase() === 'ok' || String(p.status).toLowerCase() === 'live' || String(p.status).toLowerCase() === 'ready';
+          var st = el('div'); var ok = String(p.status).toLowerCase() === 'ok' || String(p.status).toLowerCase() === 'live' || String(p.status).toLowerCase() === 'ready' || String(p.status).toLowerCase() === 'enabled';
           st.appendChild(el('span', 'pill ' + (ok ? 'pill-live' : 'pill-warn'), String(p.status))); row.appendChild(st);
           row.appendChild(el('div', 'conf', p.configured ? 'yes' : 'no'));
           var models = el('div', 'pmodels');
@@ -978,13 +940,11 @@ h2 { margin-top:2rem; }
         });
       }
       renderModels(body && body.models);
-      markStamp(pStatus, providers.length + ' provider' + (providers.length === 1 ? '' : 's') + '.');
+      pStatus.textContent = providers.length + ' provider' + (providers.length === 1 ? '' : 's') + '. updated ' + new Date().toLocaleTimeString().toLowerCase() + '.';
       pStatus.className = 'stateline';
     }).catch(function (e) {
-      clearStamp(pStatus);
       pStatus.textContent = 'could not load providers. ' + e.message;
       pStatus.className = 'stateline err';
-      clearStamp(mStatus);
       mStatus.textContent = 'could not load models. ' + e.message;
       mStatus.className = 'stateline err';
     }).finally(function () { pRefresh.disabled = false; });
@@ -1002,7 +962,7 @@ h2 { margin-top:2rem; }
   function loadUsage() {
     uRefresh.disabled = true;
     return request('/v1/admin/usage').then(function (data) {
-      if (!data || data.currency !== 'virtual USD' || data.units_per_usd !== 1000000000) throw Error('the gateway sent usage figures in units this page does not recognize, so those new figures are not shown. check the gateway before trusting any figure.');
+      if (!data || data.currency !== 'virtual USD' || data.units_per_usd !== 1000000000) throw Error('unrecognized virtual accounting units.');
       current = data;
       uAccounts.textContent = '';
       var names = Object.keys(data.users || {});
@@ -1013,7 +973,7 @@ h2 { margin-top:2rem; }
         var user = data.users[account], owner = user.cap === null;
         var row = el('div', 'uaccount');
         var head = el('div', 'uhead');
-        head.appendChild(el('span', 'uname', account + (owner ? ' · no virtual cap' : '')));
+        head.appendChild(el('span', 'uname', account + (owner ? ' - no virtual cap' : '')));
         head.appendChild(el('span', 'utotals', 'today ' + money(total(user.day, 'confirmed')) + ' / month ' + money(total(user.month, 'confirmed'))));
         row.appendChild(head);
         if (!owner) row.appendChild(el('p', 'note', 'virtual limits: ' + money(user.cap.daily) + ' daily / ' + money(user.cap.monthly) + ' monthly'));

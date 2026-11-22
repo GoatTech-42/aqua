@@ -1,0 +1,17 @@
+/console*
+  Cache-Control: no-store
+/playground*
+  Cache-Control: no-store
+/keys*
+  Cache-Control: no-store
+/*
+  X-Frame-Options: DENY
+  Content-Security-Policy: frame-ancestors 'none'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+/settings*
+  Cache-Control: no-store
+/usage*
+  Cache-Control: no-store
+/routing*
+  Cache-Control: no-store

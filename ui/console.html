@@ -245,10 +245,7 @@
   src: url(/fonts/f04.woff2) format('woff2');
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
-html[data-session-pending] { visibility:hidden; }
-.denied { margin-top:6rem; text-align:center; }
-.denied h1 { margin-top:1.125rem; }
-.denied .sub { margin-left:auto; margin-right:auto; }</style>
+html[data-session-pending] { visibility:hidden; }</style>
 <noscript><meta http-equiv="refresh" content="0;url=/"></noscript>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -256,13 +253,13 @@ html[data-session-pending] { visibility:hidden; }
 <style>
 /* aqua shell - shared by landing, console, playground, keys, settings.
    black/white dark, small aqua accent. Root font scales with viewport so a 27" monitor gets a
-   deliberately larger UI (16px at <=1024, ~23.9px at 1920, ~29.6px at 2560, 40px at 3840). All component sizes in rem. */
-html { font-size: clamp(16px, 0.885vw + 6.93px, 40px); }
+   deliberately larger UI (16px at <=1024, ~22.7px at 1920, ~27.5px at 2560, 36px at 3840+). All component sizes in rem. */
+html { font-size: clamp(16px, 0.75vw + 8.32px, 36px); }
 :root {
   color-scheme: dark;
   --ground:#000; --surface:#0b0b0b; --line:#1d1d1d; --rule:#141414; --control:#333;
   --text:#fff; --muted:#a8a8a8; --faint:#7c7c7c;
-  --warn:#e3b341;
+  --warn:var(--muted);
   --accent:#2fd4bf; --accent-ink:#03251f;
   --radius-card:0.7rem; --radius-control:0.5rem;
   --font:"Instrument Sans","Helvetica Neue",Arial,sans-serif;
@@ -310,9 +307,6 @@ svg { display:block; }
 .userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
 .userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; display:inline-flex; align-items:center; min-height:1.5rem; }
 .userrow a:hover { color:var(--text); }
-.userrow button { margin-left:auto; font-family:inherit; font-size:0.78rem; color:var(--faint); background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; min-height:1.5rem; }
-.userrow button:hover { color:var(--text); }
-.userrow button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 /* ---- canvas ---- */
 .main { min-width:0; min-height:0; overflow-y:auto; }
@@ -333,9 +327,6 @@ h2 { font-size:1.05rem; font-weight:500; }
 .btn:disabled { color:var(--muted); cursor:wait; }
 .btn:focus-visible { outline:2px solid var(--text); outline-offset:2px; }
 a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
-.skiplink { position:absolute; left:-9999px; top:0.5rem; z-index:200; background:var(--ground); color:var(--accent); font-size:0.85rem; padding:0.4rem 0.75rem; border:1px solid var(--line); border-radius:var(--radius-control); }
-.skiplink:focus { left:0.5rem; outline:2px solid var(--accent); outline-offset:3px; border-radius:2px; }
-.main:focus { outline:none; }
 .urlbar .cp:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .mrow .c[role="button"]:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 .btn-solid { background:#fff; color:#000; border-color:#fff; }
@@ -379,27 +370,15 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 .c-status { display:flex; justify-content:flex-end; }
 .cl, .csrc { display:none; }
 .cdetail { display:none; min-width:0; max-width:100%; overflow-wrap:anywhere; }
-.mrow .c.show-src .cdetail { display:block; flex-basis:100%; min-width:0; max-width:100%; overflow-wrap:anywhere; color:var(--faint); font-size:0.8125rem; line-height:1.5; padding-top:0.125rem; text-align:left; }
-/* an expanded cell spans the full grid row so the inline detail is readable
-   at desktop width; inert in the mobile stacked layout where .mrow is display:block */
-.mrow .c.show-src { grid-column: 1 / -1; }
-.mrow .c-status.show-src { flex-wrap: wrap; justify-content: flex-start; }
-/* status pills: small dot + word, never fills. ok green / warn amber / bad red */
+/* Status words carry meaning; neutral brightness distinguishes healthy from unknown/off. */
 .pill { display:inline-flex; align-items:center; gap:0.4375rem; font-size:0.8125rem; font-weight:500; white-space:nowrap; }
 .pill::before { content:""; width:0.375rem; height:0.375rem; border-radius:50%; background:currentColor; flex:none; }
-.pill-live { color:#3fb950; }
-.pill-warn { color:#e3b341; }
-.pill-neutral { color:#a8a8a8; }
-.pill-off { color:#f85149; }
+.pill-live { color:var(--text); }
+.pill-warn { color:var(--muted); }
+.pill-neutral { color:var(--muted); }
+.pill-off { color:var(--muted); }
 
 .phonebar { display:none; }
-.phonebar .pb-nav { margin-left:auto; position:relative; }
-.phonebar .pb-nav summary { list-style:none; cursor:pointer; color:var(--muted); font-size:.8125rem; min-height:1.5rem; display:inline-flex; align-items:center; }
-.phonebar .pb-nav summary::-webkit-details-marker { display:none; }
-.phonebar .pb-nav nav { position:absolute; right:0; top:calc(100% + .375rem); display:flex; flex-direction:column; background:#000; border:1px solid var(--line); border-radius:.5rem; padding:.25rem; min-width:9rem; z-index:10; }
-.phonebar .pb-nav nav a, .phonebar .pb-nav nav .pb-so { font:inherit; font-size:.875rem; color:var(--text); text-decoration:none; background:none; border:0; text-align:left; padding:.5rem .625rem; cursor:pointer; }
-.phonebar .pb-nav nav a[aria-current="page"] { color:var(--faint); }
-.phonebar a:focus-visible, .phonebar summary:focus-visible, .phonebar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 @media (max-width: 900px) {
   .app { grid-template-columns:1fr; }
@@ -412,7 +391,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   h1 { font-size:1.375rem; }
   .endpoint { flex-direction:column; align-items:flex-start; gap:0.75rem; }
   .urlbar { margin-left:0; width:100%; }
-  .urlbar .u { flex:1; display:block; align-content:center; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .urlbar .u { flex:1; }
   .thead { display:none; }
   .mrow { display:block; padding:0.625rem 0; }
   .mrow:hover { background:transparent; }
@@ -420,38 +399,32 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   .mrow .c-id { display:block; }
   .mrow .c.num { font-size:0.875rem; }
   .mrow .cl { display:inline; color:var(--faint); font-size:0.8125rem; flex-shrink:0; }
-  .mrow .csrc { display:inline; color:var(--faint); font-size:0.8125rem; text-decoration:underline dotted; text-underline-offset:2px; }
+  .mrow .csrc { display:inline; margin-left:0.375rem; color:var(--faint); font-size:0.8125rem; text-decoration:underline dotted; text-underline-offset:2px; }
+  .mrow .c.show-src .cdetail { display:block; flex-basis:100%; min-width:0; max-width:100%; overflow-wrap:anywhere; color:var(--faint); font-size:0.8125rem; line-height:1.5; padding-top:0.125rem; }
   .c-status { justify-content:space-between; }
 }
 
 </style>
 </head>
 <body>
-<a class="skiplink" href="#main">skip to content</a>
 <div class="app">
   <aside class="side">
-    <a class="brand" href="/"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <a class="brand" href="/"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
     <nav class="nav">
       <div class="navlabel">gateway</div>
-      <a href="/console.html" class="on" aria-current="page"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
-      <a href="/playground.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
-      <a href="/keys.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
-      <a href="/usage.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
-      <a href="/routing.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
-      <a href="/settings.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+      <a href="/console.html" class="on" aria-current="page"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/usage.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+      <a href="/routing.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+      <a href="/settings.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
     </nav>
     <div class="spacer"></div>
-    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
   </aside>
-  <main class="main" id="main" tabindex="-1">
-    <div class="phonebar"><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">models</span><details class="pb-nav"><summary>menu</summary><nav><a href="/console.html" aria-current="page">models</a><a href="/playground.html">playground</a><a href="/keys.html">api keys</a><a href="/usage.html">usage</a><a href="/routing.html">routing</a><a href="/settings.html">settings</a><button type="button" class="pb-so">sign out</button></nav></details></div>
+  <div class="main">
+    <div class="phonebar"><span class="pb-wm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span>aqua</span></span><span class="dim">models</span></div>
     <div class="canvas">
-      <div id="aqua-denied" class="denied" hidden>
-    <h1>sign in first</h1>
-    <p class="sub">this page needs your account. <a id="aqua-denied-signin" href="/login/github">sign in with github</a> to continue.</p>
-  </div>
-
-      <div id="aqua-body" hidden>
       <div class="titlerow aqua-in">
         <h1>models</h1>
         <div class="stamp"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span class="st" id="aqua-sync">connecting</span></div>
@@ -459,7 +432,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
       <p class="sub aqua-in aqua-in-1" id="aqua-finding">every model your account can use, behind one endpoint. facts the backend does not report stay unknown.</p>
       <p class="stateline err" id="aqua-keynotice" hidden></p>
       <div class="endpoint aqua-in aqua-in-2">
-        <div class="lab">one endpoint<div class="labsub">openai-compatible chat completions. check supported fields before switching.</div></div>
+        <div class="lab">one endpoint<div class="labsub">openai-compatible. swap the base url, keep your code.</div></div>
         <div class="urlbar"><span class="u" id="aqua-base"></span><button type="button" class="cp" id="aqua-copy"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg><span>copy</span></button></div>
       </div>
       <div class="table aqua-in aqua-in-3">
@@ -469,10 +442,9 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
         <div id="aqua-rows"></div>
       </div>
       <p class="stateline" id="aqua-status" role="status" aria-live="polite"></p>
-      <div class="foot"><span id="aqua-foot">prices come from the maker when the backend verifies them. otherwise they are the public openrouter list price. context is the listed context window in tokens. all prices are reference list rates, not your charges. hover or click a cell for its source. free req/day is an estimate from published provider quotas, else unknown.</span><span><a href="/keys.html">api keys</a> · <a href="/playground.html">playground</a></span></div>
-      </div>
+      <div class="foot"><span id="aqua-foot">prices come from the maker when the backend verifies them. otherwise they are the public openrouter list price. context is the listed context window in tokens. all prices are reference list rates, not your charges. hover a cell for its source. free req/day is an estimate from published provider quotas, else unknown.</span><span><a href="/keys.html">api keys</a> · <a href="/playground.html">playground</a></span></div>
     </div>
-  </main>
+  </div>
 </div>
 
 <script>
@@ -499,7 +471,6 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   }
   var base = aquaResolveApiBase();
   var serverOrigin = base.replace(/\/v1$/, '');
-  document.getElementById('aqua-denied-signin').setAttribute('href', serverOrigin + '/login/github');
 
   // Fail-closed session gate: static HTML, navigation gate, not source confidentiality.
   var me;
@@ -514,16 +485,12 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     if (!me || typeof me.login !== 'string' || !me.login ||
         me.role !== 'owner') throw Error('invalid session');
   } catch (_) {
-    document.documentElement.removeAttribute('data-session-pending');
-    document.getElementById('aqua-denied').hidden = false;
-    document.getElementById('aqua-user').textContent = '';
-    document.getElementById('aqua-usersub').textContent = '';
+    location.replace('/?need=signin');
     return;
   } finally {
     clearTimeout(sessionTimeout);
   }
   document.documentElement.removeAttribute('data-session-pending');
-  document.getElementById('aqua-body').hidden = false;
   addEventListener('pagehide', function () { document.documentElement.setAttribute('data-session-pending', ''); });
   addEventListener('pageshow', function (event) { if (event.persisted) location.reload(); });
 
@@ -535,7 +502,6 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   }
   var so = document.getElementById('aqua-signout');
   so.style.display = '';
-  var pbso = document.querySelector('.phonebar .pb-so'); if (pbso) pbso.addEventListener('click', function () { document.getElementById('aqua-signout').click(); });
   so.addEventListener('click', function (ev) {
     ev.preventDefault();
     fetch(serverOrigin + '/auth/logout', { method: 'POST', credentials: 'include' }).finally(function () { location.replace('/'); });
@@ -553,7 +519,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   if (localStorage.getItem('aqua_key') !== null) {
     localStorage.removeItem('aqua_key');
     var notice = document.getElementById('aqua-keynotice');
-    notice.textContent = 'sign-in replaces saved keys. make a key on the api keys page for apps.';
+    notice.textContent = 'sign-in replaces saved keys - make a key on the api keys page for apps.';
     notice.hidden = false;
   }
 
@@ -621,22 +587,34 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   // where hover tooltips are not usable.
   function lab(txt) { var s = document.createElement('span'); s.className = 'cl'; s.textContent = txt; return s; }
   function srcTag(txt) { var s = document.createElement('span'); s.className = 'csrc'; s.textContent = txt; return s; }
-  // Tap-to-reveal: full source text (type, date, url) as an inline detail line,
-  // toggled by clicking, tapping or pressing Enter/Space on the cell at any width.
+  // Tap-to-reveal: full source text (type, date, url) as an inline detail line.
+  // Hidden on desktop where the hover tooltip covers it; toggled by tapping the cell on touch.
   function cdetail(txt) { var d = document.createElement('span'); d.className = 'cdetail'; d.textContent = txt; return d; }
-  // A cell with a detail is a disclosure control at every width: the hover tooltip
-  // still works on desktop, and role/tabindex/aria-expanded make it keyboard reachable.
+  // A cell with a detail is a disclosure control on touch layouts only. The button
+  // semantics (role/tabindex/aria-expanded) exist solely while the mobile media query
+  // matches; on desktop the hover tooltip carries the source and the cell stays plain.
+  var detailMq = window.matchMedia('(max-width: 900px)');
   function addDetail(cell, txt) {
     cell.appendChild(cdetail(txt));
   }
   function syncDetailA11y() {
+    var on = detailMq.matches;
     document.querySelectorAll('#aqua-rows .c').forEach(function (cell) {
       if (!cell.querySelector('.cdetail')) return;
-      cell.setAttribute('role', 'button');
-      cell.setAttribute('tabindex', '0');
-      cell.setAttribute('aria-expanded', cell.classList.contains('show-src') ? 'true' : 'false');
+      if (on) {
+        cell.setAttribute('role', 'button');
+        cell.setAttribute('tabindex', '0');
+        cell.setAttribute('aria-expanded', cell.classList.contains('show-src') ? 'true' : 'false');
+      } else {
+        cell.removeAttribute('role');
+        cell.removeAttribute('tabindex');
+        cell.removeAttribute('aria-expanded');
+        cell.classList.remove('show-src');
+      }
     });
   }
+  if (detailMq.addEventListener) detailMq.addEventListener('change', syncDetailA11y);
+  else if (detailMq.addListener) detailMq.addListener(syncDetailA11y);
   function valWrap(txt, src) {
     var w = document.createElement('span');
     w.appendChild(document.createTextNode(txt));
@@ -707,13 +685,13 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   // published daily request cap (providers lane, checked 2026-11-18; static fallback data).
   // RPM-only or unpublished quotas contribute nothing and the cell stays unknown.
   var QUOTA = {
-    'deepseek-v4.1-flash': { n: 5050, tag: 'partial composite', tip: 'partial composite estimate, not a verified account ceiling. sources: orcarouter 50 req/day (free route) + logfare shared pool. logfare access for this model needs premium (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not per model. zro and radeon quotas unpublished. static published data, checked 2026-11-18' },
-    'deepseek-v4-flash': { n: 100, tip: 'estimated daily ceiling: inferbase 100 req/day. also a $0.50/day provider free-usage allowance. this is not a charge or aqua balance. free managed requests cap 8,192 input / 1,024 output tokens per request. static published data, checked 2026-11-18' },
-    'qwen-3.8-27b': { n: 5000, tip: 'estimated daily ceiling: logfare regular tier shared pool 5,000/day. new accounts 500/day for the first 24h. premium 10,000/day. one pool shared across unlocked models, not per model. static published data, checked 2026-11-18' },
-    'glm-5.3-flash': { n: 5000, tip: 'conditional provider pool estimate: logfare shared pool, but this model needs premium access (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' },
-    'glm-5.3': { n: 5000, tip: 'conditional provider pool estimate: logfare shared pool, but this model needs premium access (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' },
-    'kimi-k2.6': { n: 5000, tip: 'conditional provider pool estimate: logfare shared pool, but this model needs premium access (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' },
-    'kimi-k2.7-code': { n: 5000, tip: 'conditional provider pool estimate: logfare shared pool, but this model needs premium access (training consent). pool sizes: regular 5,000/day. premium 10,000/day. new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' }
+    'deepseek-v4.1-flash': { n: 5050, tag: 'partial composite', tip: 'partial composite estimate, not a verified account ceiling: OrcaRouter 50 req/day (free route) + Logfare shared pool, but this model needs premium access (training consent). pool sizes: Regular 5,000/day, Premium 10,000/day, new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance and not remaining balance; Zro and Radeon quotas unpublished. static published data, checked 2026-11-18' },
+    'deepseek-v4-flash': { n: 100, tip: 'estimated daily ceiling: InferBase 100 req/day (also a $0.50/day provider free-usage allowance, not a charge or aqua balance). free managed requests cap 8,192 input / 1,024 output tokens per request. static published data, checked 2026-11-18' },
+    'qwen-3.8-27b': { n: 5000, tip: 'estimated daily ceiling: Logfare Regular tier shared pool 5,000/day (new accounts 500/day for the first 24h; Premium 10,000/day). one pool shared across unlocked models, not per model. static published data, checked 2026-11-18' },
+    'glm-5.3-flash': { n: 5000, tip: 'conditional provider pool estimate: Logfare shared pool, but this model needs premium access (training consent). pool sizes: Regular 5,000/day, Premium 10,000/day, new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' },
+    'glm-5.3': { n: 5000, tip: 'conditional provider pool estimate: Logfare shared pool, but this model needs premium access (training consent). pool sizes: Regular 5,000/day, Premium 10,000/day, new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' },
+    'kimi-k2.6': { n: 5000, tip: 'conditional provider pool estimate: Logfare shared pool, but this model needs premium access (training consent). pool sizes: Regular 5,000/day, Premium 10,000/day, new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' },
+    'kimi-k2.7-code': { n: 5000, tip: 'conditional provider pool estimate: Logfare shared pool, but this model needs premium access (training consent). pool sizes: Regular 5,000/day, Premium 10,000/day, new accounts 500/day for the first 24h. one pool shared across unlocked models, not a per-model free allowance. static published data, checked 2026-11-18' }
   };
   function quotaCell(m) {
     var q = QUOTA[m.id];
@@ -721,7 +699,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
       var c = unkCell('free req/day');
       var orShared = { 'north-mini-code': 1, 'nemotron-3-ultra-550b-a55b': 1, 'nemotron-3.5-super-vl': 1 };
       c.title = orShared[m.id]
-        ? 'no verified per-model daily allowance in this view. openrouter free routes share one 50 req/day account pool. the pool is shared across models (published, checked 2026-11-18).'
+        ? 'no verified per-model daily allowance in this view. OpenRouter free routes share one 50 req/day account pool across models (published, checked 2026-11-18).'
         : 'no verified per-model daily allowance is published for this model in this view.';
       addDetail(c, c.title); return c;
     }
@@ -739,38 +717,19 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     var h = (m && m.health && typeof m.health === 'object') ? m.health : null;
     var v = (h && typeof h.status === 'string' && h.status) ? h.status.toLowerCase() : '';
     var counts = ['eligible_routes', 'healthy_routes', 'failed_routes', 'unknown_routes'].map(function (k) { return h && h[k]; });
-    if (!v) { var c = unkCell('status'); c.title = 'the backend does not report provider health for this model yet'; addDetail(c, c.title); return c; }
     var validCounts = counts.every(function (n) { return Number.isSafeInteger(n) && n >= 0; }) && counts[0] === counts[1] + counts[2] + counts[3];
     var derivedStatus = counts[1] > 0 ? (counts[2] > 0 ? 'degraded' : 'healthy') : (counts[2] > 0 && counts[2] === counts[0] ? 'down' : 'unknown');
     if (!validCounts || v !== derivedStatus) return unkCell('status', 'the backend sent an inconsistent health record; status is unknown.');
+    if (!v) { var c = unkCell('status'); c.title = 'the backend does not report provider health for this model yet'; addDetail(c, c.title); return c; }
     var st = document.createElement('div'); st.className = 'c c-status';
     st.appendChild(lab('status'));
     var pill = document.createElement('span');
     pill.className = 'pill ' + (v === 'healthy' || v === 'ok' || v === 'up' ? 'pill-live' : (v === 'degraded' || v === 'partial' ? 'pill-warn' : (v === 'down' || v === 'off' || v === 'unavailable' ? 'pill-off' : 'pill-neutral')));
     pill.textContent = v;
     var tp = [];
-    if (typeof h.healthy_routes === 'number' && typeof h.eligible_routes === 'number') {
-      var allUnknown = h.healthy_routes === 0 && h.failed_routes === 0 && h.unknown_routes === h.eligible_routes && h.eligible_routes > 0;
-      tp.push(allUnknown ? 'no recent observations on ' + h.eligible_routes + ' route' + (h.eligible_routes === 1 ? '' : 's') : h.healthy_routes + ' of ' + h.eligible_routes + ' routes answered 200');
-    }
-    if (typeof h.observed_at === 'number' && Number.isSafeInteger(h.observed_at) && h.observed_at > 0) {
-      var od = new Date(h.observed_at * 1000);
-      if (Number.isFinite(od.getTime())) {
-        var ageMs = Date.now() - od.getTime();
-        if (ageMs < -300000) {
-          // future timestamp beyond a 5 min tolerance: the gateway clock and this
-          // device disagree, so any relative age would be invented; show the
-          // absolute reading and say the age is unknown instead of "just now".
-          tp.push('last observed ' + od.toUTCString().replace('GMT', 'UTC') + ' (clock skew / age unknown)');
-        } else {
-          var mins = Math.floor(ageMs / 60000), hrs = Math.floor(ageMs / 3600000), days = Math.floor(ageMs / 86400000);
-          var rel = ageMs < 120000 ? 'just now' : ageMs < 3600000 ? mins + ' min ago' : ageMs < 172800000 ? hrs + (hrs === 1 ? ' hour ago' : ' hours ago') : days + (days === 1 ? ' day ago' : ' days ago');
-          tp.push('last observed ' + rel + ' (' + od.toUTCString().replace('GMT', 'UTC') + ')');
-          if (ageMs > 86400000) tp.push('stale: the gateway records health passively from real traffic, so this reading may be out of date');
-        }
-      }
-    }
-    else if (typeof h.observed_at === 'string' && h.observed_at) tp.push('last observed ' + h.observed_at);
+    if (typeof h.healthy_routes === 'number' && typeof h.eligible_routes === 'number') tp.push(h.healthy_routes + ' of ' + h.eligible_routes + ' routes answered 200');
+    if (typeof h.observed_at === 'number' && Number.isSafeInteger(h.observed_at) && h.observed_at > 0) { var od = new Date(h.observed_at * 1000); if (Number.isFinite(od.getTime())) tp.push('observed ' + od.toUTCString().replace('GMT', 'UTC')); }
+    else if (typeof h.observed_at === 'string' && h.observed_at) tp.push('observed ' + h.observed_at);
     if (tp.length) { pill.title = tp.join(', '); addDetail(st, pill.title); }
     st.appendChild(pill); return st;
   }
@@ -790,9 +749,9 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     return row;
   }
 
-  // Click, tap or Enter/Space toggles a cell's inline source detail.
+  // Tap-to-reveal on touch: tapping a cell toggles its inline source detail.
   function toggleSrc(cell) {
-    if (!cell || !cell.querySelector('.cdetail')) return;
+    if (!detailMq.matches || !cell || !cell.querySelector('.cdetail')) return;
     cell.classList.toggle('show-src');
     cell.setAttribute('aria-expanded', cell.classList.contains('show-src') ? 'true' : 'false');
   }
@@ -807,42 +766,19 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
   });
   // Session cookie only; saved browser keys are legacy and were cleared above.
   function listModels() {
-    return fetch(base + '/models', { credentials: 'include', cache: 'no-store', headers: { 'content-type': 'application/json' } })
-      .catch(function () { throw { kind: 'network' }; });
+    return fetch(base + '/models', { credentials: 'include', cache: 'no-store', headers: { 'content-type': 'application/json' } });
   }
-
-  // Sync stamp: honest relative age refreshed every 30s, absolute UTC in the
-  // tooltip. A sync time in the future (device clock ahead) is shown as clock
-  // skew, never as "just now".
-  var syncAt = 0;
-  function renderSync() {
-    var el = document.getElementById('aqua-sync');
-    if (!el || !syncAt) return;
-    var ageMs = Date.now() - syncAt;
-    if (ageMs < -300000) {
-      el.textContent = 'connected, clock skew / age unknown';
-      el.title = 'last synced ' + new Date(syncAt).toUTCString().replace('GMT', 'UTC');
-      return;
-    }
-    var mins = Math.floor(ageMs / 60000), hrs = Math.floor(ageMs / 3600000), days = Math.floor(ageMs / 86400000);
-    var rel = ageMs < 120000 ? 'just now' : ageMs < 3600000 ? mins + ' min ago' : ageMs < 172800000 ? hrs + (hrs === 1 ? ' hour ago' : ' hours ago') : days + (days === 1 ? ' day ago' : ' days ago');
-    el.textContent = 'connected ' + rel;
-    el.title = 'last synced ' + new Date(syncAt).toUTCString().replace('GMT', 'UTC');
-  }
-  window.renderSync = renderSync;
 
   listModels().then(function (r) {
-    if (!r.ok) { throw { kind: 'http', status: r.status }; }
-    return r.json().catch(function () { throw { kind: 'response' }; });
+    if (!r.ok) { throw new Error('http ' + r.status); }
+    return r.json();
   }).then(function (j) {
-    if (!j || !Array.isArray(j.data)) throw { kind: 'response' };
-    var models = j.data;
-    syncAt = Date.now(); renderSync();
-    setInterval(renderSync, 30000);
+    var models = (j.data || []);
+    document.getElementById('aqua-sync').textContent = 'connected just now';
     document.getElementById('aqua-finding').textContent = models.length + ' model' + (models.length === 1 ? '' : 's') + ' listed for your account, behind one endpoint. listed does not confirm access, remaining quota or consent.';
     rows.textContent = '';
     if (!models.length) {
-      rows.appendChild(makeRow('no models available.', 'no models were returned for your account.', 'empty', false));
+      rows.appendChild(makeRow('pool is empty', 'the backend returned no models', 'empty', false));
       status.textContent = '';
       return;
     }
@@ -850,24 +786,11 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
     syncDetailA11y();
     status.textContent = 'model names are real; which provider serves a model is never shown here. auto model picking is proposed, not live: it would choose an eligible coding model for you. nextrouter models stay direct-pick only under the current plan.';
   }).catch(function (e) {
-    var title = 'could not read the model list.', next = 'reload the page to try again.', pill = 'unreadable';
-    if (e.kind === 'network') {
-      title = 'could not reach the gateway.'; next = 'check your connection and try again.'; pill = 'offline';
-    } else if (e.kind === 'http') {
-      title = 'could not load models.'; next = 'try again later.'; pill = 'error';
-      if (e.status === 429) { title = 'too many requests.'; next = 'try again in a bit.'; pill = 'rate limited'; }
-      else if (e.status === 503) { title = 'models are unavailable right now.'; pill = 'unavailable'; }
-      else if (e.status === 401) { title = 'sign in again to load models.'; next = 'reload the page to sign in.'; pill = 'sign-in required'; }
-      else if (e.status === 403) { title = 'not allowed to load models.'; next = 'check your access before trying again.'; pill = 'not allowed'; }
-    }
-    syncAt = 0;
-    var sync = document.getElementById('aqua-sync');
-    sync.textContent = e.kind === 'network' ? 'not connected' : 'not updated';
-    sync.title = '';
-    document.getElementById('aqua-finding').textContent = title + ' ' + next;
+    document.getElementById('aqua-sync').textContent = 'not connected';
+    document.getElementById('aqua-finding').textContent = 'could not reach the api at ' + base + ' (' + e.message + ').';
     rows.textContent = '';
-    rows.appendChild(makeRow(title, next, pill, false));
-    status.textContent = title + ' ' + next;
+    rows.appendChild(makeRow('backend not reachable', base, 'offline', false));
+    status.textContent = 'check that the deployment is up, then reload.';
   });
 })();
 </script>

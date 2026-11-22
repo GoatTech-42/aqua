@@ -1,0 +1,29 @@
+font provenance: byte-to-family/source map (verified 2026-11-18 by re-downloading each source URL and matching sha256)
+families: Instrument Sans v4 (variable, weights 400-700) and JetBrains Mono v24 (weights 400,500,600), via the Google Fonts css2 API; licensed under the SIL Open Font License 1.1 (OFL-InstrumentSans.txt, OFL-JetBrainsMono.txt in this directory)
+Instrument Sans copyright 2022 The Instrument Sans Project Authors (https://github.com/Instrument/instrument-sans)
+JetBrains Mono copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
+
+f00.woff2  sha256=2ee17598a98d8a59e4df8152d015bec9ab8e4d5672cc0ab42bef806b568e3971  bytes=30092
+  family=Instrument Sans  weights=400 500 600 700  style=normal  subset=latin
+  source=https://fonts.gstatic.com/s/instrumentsans/v4/pxiTypc9vsFDm051Uf6KVwgkfoSxQ0GsQv8ToedPibnr0SZe1Q.woff2
+f01.woff2  sha256=c4fcfea41f2c1cfeea9211fa43679845454a1d0e0d7e95e069c7e73c4ae302d2  bytes=11144
+  family=Instrument Sans  weights=400 500 600 700  style=normal  subset=latin-ext
+  source=https://fonts.gstatic.com/s/instrumentsans/v4/pxiTypc9vsFDm051Uf6KVwgkfoSxQ0GsQv8ToedPibnr0She1YmV.woff2
+f02.woff2  sha256=62213be8a78b42f1e29d1452d91e2f8b3e745572a9dd98d3941e39fa00b37d76  bytes=1640
+  family=JetBrains Mono  weights=400 500 600  style=normal  subset=cyrillic-ext
+  source=https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx3cwhsk.woff2
+f03.woff2  sha256=db5ff4db83e580426280e9337a58dc57d3a83784a1b03ad80914651594441d52  bytes=11624
+  family=JetBrains Mono  weights=400 500 600  style=normal  subset=latin-ext
+  source=https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx7cwhsk.woff2
+f04.woff2  sha256=83c005d49d8a6a50474c73a5a36ac0468076e9c4a29da7bdb14995d80560a5be  bytes=31432
+  family=JetBrains Mono  weights=400 500 600  style=normal  subset=latin
+  source=https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxDcwg.woff2
+f05.woff2  sha256=0a557721b1f8b36d3f3f84442689a71ca4a744300abcb46a1953f51bfc663b66  bytes=6836
+  family=JetBrains Mono  weights=400 500 600  style=normal  subset=greek
+  source=https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxPcwhsk.woff2
+f06.woff2  sha256=e17cfd15fb96909d64095015f958207063a0c07191da3512df7d560a781aebdf  bytes=8872
+  family=JetBrains Mono  weights=400 500 600  style=normal  subset=cyrillic
+  source=https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPxTcwhsk.woff2
+f07.woff2  sha256=c89b9cc0bc6262bd4f8d8494b6961601f3aefa829d08c2e3635f4d501d3a47c2  bytes=5888
+  family=JetBrains Mono  weights=400 500 600  style=normal  subset=vietnamese
+  source=https://fonts.gstatic.com/s/jetbrainsmono/v24/tDbv2o-flEEny0FZhsfKu5WU4zr3E_BX0PnT8RD8yKwBNntkaToggR7BYRbKPx_cwhsk.woff2
