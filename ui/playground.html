@@ -293,7 +293,7 @@ svg { display:block; }
 .brand { display:flex; align-items:center; gap:0.625rem; padding:0.25rem 0.625rem 1.125rem; text-decoration:none; color:var(--text); }
 .brand svg { width:1.375rem; height:1.375rem; stroke:var(--accent); }
 .brand .wm { font-weight:600; font-size:1.125rem; letter-spacing:-0.01em; }
-.navlabel { font-size:0.72rem; font-weight:600; letter-spacing:0.09em; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
+.navlabel { font-size:max(0.72rem, 12px); font-weight:600; letter-spacing:0.09em; color:var(--faint); padding:1.125rem 0.75rem 0.4375rem; }
 .nav a { display:flex; align-items:center; gap:0.625rem; min-height:2.375rem; padding:0 0.75rem; border-radius:0.5rem; color:var(--muted); text-decoration:none; font-size:0.9375rem; font-weight:450; }
 .nav a svg { color:#7a7a7a; width:1.0625rem; height:1.0625rem; flex:none; }
 .nav a:hover { color:var(--text); }
@@ -301,12 +301,13 @@ svg { display:block; }
 .nav a.on svg { color:var(--accent); }
 .spacer { flex:1; }
 .userrow { display:flex; align-items:center; gap:0.625rem; padding:0.75rem 0.625rem 0.25rem; border-top:1px solid var(--rule); }
-.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:0.72rem; font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
+.avatar { width:1.75rem; height:1.75rem; border-radius:50%; background:#1c1c1c; border:1px solid #2a2a2a; color:#fff; font-size:max(0.72rem, 12px); font-weight:600; display:flex; align-items:center; justify-content:center; flex:none; }
 .userrow .un { font-size:0.875rem; font-weight:500; }
 .userrow .up { font-size:0.75rem; color:var(--faint); }
 .userrow .cols { display:flex; flex-direction:column; line-height:1.3; min-width:0; }
-.userrow a { margin-left:auto; font-size:0.78rem; color:var(--faint); text-decoration:none; display:inline-flex; align-items:center; min-height:1.5rem; }
-.userrow a:hover { color:var(--text); }
+.userrow button { margin-left:auto; font-family:inherit; font-size:0.78rem; color:var(--faint); background:none; border:0; padding:0; cursor:pointer; display:inline-flex; align-items:center; min-height:1.5rem; }
+.userrow button:hover { color:var(--text); }
+.userrow button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; border-radius:2px; }
 
 /* ---- canvas ---- */
 .main { min-width:0; min-height:0; overflow-y:auto; }
@@ -364,7 +365,7 @@ a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; border-ra
 /* ---- model table ---- */
 .table { margin-top:0.875rem; overflow-x:auto; }
 .thead, .mrow { display:grid; grid-template-columns:minmax(14rem,1.6fr) 7rem 8.125rem 8.125rem 8.125rem 7rem; align-items:center; gap:0.875rem; }
-.thead { min-height:2.5rem; font-size:0.72rem; font-weight:600; letter-spacing:0.07em; color:var(--faint); }
+.thead { min-height:2.5rem; font-size:max(0.72rem, 12px); font-weight:600; letter-spacing:0.07em; color:var(--faint); }
 .thead .h.r { text-align:right; }
 .mrow { min-height:3.5rem; border-top:1px solid var(--rule); padding:0.5rem 0; }
 .mrow:hover { background:#070707; }
@@ -449,21 +450,21 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
 <a class="skiplink" href="#main">skip to content</a>
 <div class="app">
   <aside class="side">
-    <a class="brand" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
+    <a class="brand" href="/"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg><span class="wm">aqua</span></a>
     <nav class="nav">
       <div class="navlabel">gateway</div>
-      <a href="/console.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
-      <a href="/playground.html" class="on" aria-current="page"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
-      <a href="/keys.html"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
-      <a href="/usage.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
-      <a href="/routing.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
-      <a href="/settings.html" class="owneronly" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
+      <a href="/console.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M2 12a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 12"/><path d="M2 17a1 1 0 0 0 .58.91l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9A1 1 0 0 0 22 17"/></svg><span>models</span></a>
+      <a href="/playground.html" class="on" aria-current="page"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2"/><path d="M6.453 15h11.094"/><path d="M8.5 2h7"/></svg><span>playground</span></a>
+      <a href="/keys.html"><svg aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg><span>api keys</span></a>
+      <a href="/usage.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg><span>usage</span></a>
+      <a href="/routing.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h4l8 12h4"/><path d="m18 16 2 2-2 2"/><path d="M4 18h4l2.5-3.8"/><path d="M13.5 9.8 16 6h4"/><path d="m18 4 2 2-2 2"/></svg><span>routing</span></a>
+      <a href="/settings.html" class="owneronly" hidden><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 17h16"/><circle cx="8" cy="7" r="3"/><circle cx="16" cy="17" r="3"/></svg><span>settings</span></a>
     </nav>
       <div class="navlabel">models</div>
       <div class="msearch"><input id="aqua-filter" placeholder="filter models" aria-label="filter models"></div>
       <div id="aqua-rail"><span class="mrow">loading models…</span></div>
     <div class="spacer"></div>
-    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><a href="#" id="aqua-signout" style="display:none">sign out</a></div>
+    <div class="userrow"><div class="avatar" id="aqua-avatar">?</div><div class="cols"><span class="un" id="aqua-user">checking sign-in</span><span class="up" id="aqua-usersub"></span></div><button type="button" id="aqua-signout" style="display:none">sign out</button></div>
   </aside>
   <main class="main" id="main" tabindex="-1">
     <div class="phonebar"><span class="pb-wm"><svg viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round"><path d="M2 8.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/><path d="M2 15.5c2.5-3 5-3 7.5 0s5 3 7.5 0c1.2-1.4 2.3-2 3.5-2"/></svg>aqua</span><span style="color:var(--faint);font-size:0.875rem">playground</span></div>
@@ -472,7 +473,7 @@ button.mrow { font-family:inherit; background:none; border:0; width:100%; text-a
         <p class="keynotice" id="aqua-keynotice" hidden></p>
         <div class="pghead"><span class="m" id="aqua-route">auto</span><span class="s" id="aqua-routesub">router default</span><select class="pgsel" id="aqua-pgsel" aria-label="model"></select></div>
         <div class="stream" id="aqua-stream">
-          <div class="msg"><div class="body">pick a model and ask something.</div></div>
+          <div class="msg"><div class="body">ask something. auto picks the model, or choose one.</div></div>
         </div>
         <div class="composer">
           <div class="cbox">
